@@ -85,6 +85,8 @@
   .row .num { color:var(--dim); font-size:9.5px; flex:0 0 auto; }
   .row .sub { color:var(--dim); font-size:9px; }
   .row.mini { padding:2px 4px; font-size:10px; }
+  /* The selected node travels this flow — the TRAVELLED BY index, read back. */
+  .row.onpath { box-shadow:inset 2px 0 0 var(--accent); }
 
   label.chk { display:flex; align-items:center; gap:6px; padding:2px 0; cursor:pointer; }
   label.chk input { accent-color:var(--accent); margin:0; }
@@ -111,6 +113,8 @@
     border:1px solid var(--border); background:var(--bg); margin:0 3px 3px 0;
   }
   .tag.k { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .tag.act { cursor:pointer; border-color:var(--accent); color:var(--accent); }
+  .tag.act:hover { background:var(--accent); color:var(--bg); }
 
   /* ── overlays ──────────────────────────────────────────── */
   .ov { position:absolute; pointer-events:none; font-size:9px; letter-spacing:.14em; color:var(--dim); }

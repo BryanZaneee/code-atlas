@@ -10,6 +10,20 @@ function renderViews() {
 
 
 
+/**
+ * The same relation TRAVELLED BY shows, read from the other end: which of these
+ * flows does the selected node lie on? One index, two directions.
+ *
+ * A class toggle rather than a re-render, so selecting a block does not rebuild
+ * the list under the cursor you are about to click with.
+ */
+function markFlowRows() {
+  const on = new Set(byId.get(S.selected)?.travelledBy ?? []);
+  for (const r of document.querySelectorAll("#list .row[data-flow]")) {
+    r.classList.toggle("onpath", on.has(r.dataset.flow));
+  }
+}
+
 function renderList() {
   const wrap = $("#list"); wrap.innerHTML = "";
   const title = $("#listTitle"), count = $("#listCount");
@@ -25,12 +39,14 @@ function renderList() {
     wrap.append(all);
     for (const f of fs) {
       const r = el("div", "row" + (S.activeFlow === f.id ? " sel" : ""));
+      r.dataset.flow = f.id;
       const sw = el("span", "sw"); sw.style.background = EDGE_STYLE.http.c;
       r.append(sw, el("span", "nm", f.label), el("span", "num", f.steps.length));
       r.onclick = () => { S.activeFlow = f.id; S.pinnedPacket = null; relayout(); renderList(); fitView(); renderInspect(); renderCaption(); };
       wrap.append(r);
       if (S.activeFlow === f.id && f.blurb) wrap.append(el("div", "hint", f.blurb));
     }
+    markFlowRows();
     return;
   }
 

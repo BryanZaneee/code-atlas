@@ -140,8 +140,10 @@ are visible on every single interaction.*
       `colorMode` `identity`/`mono`, state channel identical in both
 - [x] Isometric ground grid; district plate tabs anchored with a leader line
 - [x] Tiered flow dimming with a short ease; numbered step badges; caption bar
-- [ ] TRAVELLED BY chips that enter a flow **at this node's step**; sidebar
-      accent edge-bar for the reverse index
+- [x] TRAVELLED BY chips that enter a flow **at this node's step**; sidebar
+      accent edge-bar for the reverse index — *hover-to-preview is not done:
+      switching flows relayouts, so a preview is not the free thing the design
+      assumed*
 - [ ] Chrome: `DERIVED n · UNMAPPED n` in the top strip, persistent key hints in
       the bottom strip, hover readout, prose type register
 - [x] **Gate:** select and hover cause **zero** re-rasterisations; 120 pans still

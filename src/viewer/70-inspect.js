@@ -7,7 +7,35 @@ function selectStep(st) {
   renderInspect();
 }
 
+/**
+ * Enter a flow from a node that lies on it.
+ *
+ * Two details are what make this feel like it understood the question rather
+ * than merely being wired up. It opens at *this node's* hop, not hop 1 — you
+ * came from somewhere, and the tool knows where. And the node you came from
+ * stays selected, so it keeps its silhouette through the trace and you never
+ * lose the thing you were asking about.
+ */
+function enterFlow(flowId, fromId) {
+  const f = flowById.get(flowId);
+  if (!f) return;
+  setView(f.view);
+  S.activeFlow = flowId;
+  relayout();
+  renderList();
+  fitView();
+  const r = runners[0];
+  if (r) {
+    const i = r.steps.findIndex((s) => s.to === fromId);
+    if (i >= 0) r.i = i;
+  }
+  S.selected = fromId;
+  renderInspect();
+  renderCaption();
+}
+
 function renderInspect() {
+  markFlowRows();
   const b = $("#insBody");
   b.innerHTML = "";
 
@@ -90,6 +118,22 @@ function renderInspect() {
       none: "Not reachable from any test file through imports. The repo has no coverage tooling, so this is derived from test imports plus the test↔source naming convention, not from execution.",
     }[n.coverage];
     b.append(el("div", "note" + (n.coverage === "none" ? " warn" : ""), `COVERAGE: ${n.coverage.toUpperCase()} — ${txt}`));
+  }
+
+  // TRAVELLED BY is a control, not a label: it is the way from *a thing* to
+  // *what happens to that thing*. Absent when nothing passes through, which is
+  // most nodes — an empty section reads as a broken panel, not as an honest one.
+  if (n.travelledBy?.length) {
+    b.append(el("h3", null, "TRAVELLED BY"));
+    const w = el("div");
+    for (const id of n.travelledBy) {
+      const f = flowById.get(id);
+      if (!f) continue;
+      const chip = el("span", "tag act", f.label);
+      chip.onclick = () => enterFlow(id, n.id);
+      w.append(chip);
+    }
+    b.append(w);
   }
 
   if (n.externals?.length) {
