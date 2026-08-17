@@ -1,0 +1,75 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Code Atlas</title>
+<style>
+/*__ATLAS_STYLE__*/</style>
+
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <div class="k">REPOSITORY</div>
+      <div class="v" id="bRepo">—</div>
+      <div class="r" id="bRef">—</div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="controls">
+      <button id="bPause" class="on">▮▮ PAUSE</button>
+      <button id="bStep">▶| STEP</button>
+      <select id="bSpeed" title="flow speed">
+        <option value="0.25">0.25×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+      <button id="bReset">⤢ RESET VIEW</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <aside id="sidebar">
+      <div class="sec">
+        <h3>VIEW</h3>
+        <div id="views" style="display:grid;grid-template-columns:1fr 1fr;gap:4px"></div>
+      </div>
+      <div class="sec">
+        <h3>FILTER</h3>
+        <input type="text" id="q" placeholder="filter files or areas…" autocomplete="off">
+      </div>
+      <div class="sec" id="listSec">
+        <h3><span id="listTitle">AREAS</span><span class="num" id="listCount"></span></h3>
+        <div id="list"></div>
+      </div>
+      <div class="sec">
+        <h3>SERVICES</h3>
+        <div id="svc"></div>
+      </div>
+      <div class="sec">
+        <h3>OPTIONS</h3>
+        <label class="chk"><input type="checkbox" id="oDocs"> show docs/</label>
+        <label class="chk"><input type="checkbox" id="oTests"> show tests in structure</label>
+        <label class="chk"><input type="checkbox" id="oContract" checked> show contract edges</label>
+        <label class="chk"><input type="checkbox" id="oAmbient" checked> ambient import packets</label>
+        <label class="chk"><input type="checkbox" id="oLabels" checked> file labels</label>
+      </div>
+      <div class="sec hint" id="sideHint"></div>
+    </aside>
+
+    <main id="stage">
+      <canvas id="cv"></canvas>
+      <div class="ov" id="ovTop"><b>THE CODEBASE</b><span>DRAG TO PAN · SCROLL TO ZOOM</span></div>
+      <div class="ov" id="ovRight">FLOW ACTIVE</div>
+      <div class="ov" id="ovHint">HOVER A BLOCK TO READ IT · CLICK TO INSPECT · CLICK A PACKET FOR ITS PAYLOAD</div>
+      <div id="tip"></div>
+    </main>
+
+    <aside id="inspect"><div class="sec" id="insBody"></div></aside>
+  </div>
+
+  <footer id="legend"></footer>
+</div>
+
+<script>const ATLAS = /*__ATLAS_DATA__*/;</script>
+<script>
+"use strict";
+
+/*__ATLAS_SCRIPT__*/</script>

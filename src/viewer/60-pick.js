@@ -1,0 +1,27 @@
+/* ════════════════════ hit testing ════════════════════ */
+function inPoly(px, py, pts) {
+  let hit = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+function pickPacket(sx, sy) {
+  let best = null, bd = 11;
+  for (const p of livePackets) {
+    const d = Math.hypot(p.x - sx, p.y - sy);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+function pickNode(sx, sy) {
+  const w = toWorld({ x: sx, y: sy });
+  for (let i = LAYOUT.nodes.length - 1; i >= 0; i--) {
+    const n = LAYOUT.nodes[i];
+    if (dimOf(n)) continue;
+    if (inPoly(w.x, w.y, n.faceTop) || inPoly(w.x, w.y, n.faceRight) || inPoly(w.x, w.y, n.faceLeft)) return n;
+  }
+  return null;
+}
+
