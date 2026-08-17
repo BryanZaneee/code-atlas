@@ -1,0 +1,23 @@
+name: test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22", "24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # No install step: the CLI and the test suite are stdlib-only.
+      # The validation corpus lives outside this repo, so those tests skip here
+      # and the in-repo fixtures are what CI enforces.
+      - run: npm test
