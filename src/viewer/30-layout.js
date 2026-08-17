@@ -66,16 +66,38 @@ function relayout() {
     };
   }).filter(Boolean);
 
-  // depth sort is exact: footprints are integer and never straddle
-  vis.sort((a, b) => (a.gx + a.gy) - (b.gx + b.gy) || a.gx - b.gx);
+  LAYOUT = { nodes: vis, districts, plates, bbox: null, edges: visibleEdges(vis) };
+  reproject();
+  buildPackets();
+  staticDirty = true;
+}
 
-  // world-space face polygons, camera independent -> computed once per layout
+/**
+ * Everything that depends on the camera angle and nothing that depends on the
+ * layout. Rotating re-runs this; it does not repack districts or move a single
+ * building. Hit testing needs no counterpart because it inverse-transforms to
+ * world space and ray-casts these same polygons.
+ */
+function reproject() {
+  const vis = LAYOUT.nodes;
+
+  // Depth sort generalizes: order by projected ground depth, ties broken by
+  // projected x. At 45° both reduce to the gx+gy / gx ordering they replace.
+  vis.sort((a, b) =>
+    depthOf(a.gx, a.gy) - depthOf(b.gx, b.gy) ||
+    screenXOf(a.gx, a.gy) - screenXOf(b.gx, b.gy));
+
+  // Which vertical faces we can see depends on which way the camera looks, so
+  // the visible plane is chosen per axis instead of assuming one quadrant.
+  const fx = A.y > 0 ? 1 : 0;
+  const fy = B.y > 0 ? 1 : 0;
+
   for (const n of vis) {
     const { gx, gy, h } = n;
-    const P = (a, b, c) => project(a, b, c);
+    const P = project;
     n.faceTop   = [P(gx, gy, h), P(gx + 1, gy, h), P(gx + 1, gy + 1, h), P(gx, gy + 1, h)];
-    n.faceRight = [P(gx + 1, gy, h), P(gx + 1, gy + 1, h), P(gx + 1, gy + 1, 0), P(gx + 1, gy, 0)];
-    n.faceLeft  = [P(gx, gy + 1, h), P(gx + 1, gy + 1, h), P(gx + 1, gy + 1, 0), P(gx, gy + 1, 0)];
+    n.faceRight = [P(gx + fx, gy, h), P(gx + fx, gy + 1, h), P(gx + fx, gy + 1, 0), P(gx + fx, gy, 0)];
+    n.faceLeft  = [P(gx, gy + fy, h), P(gx + 1, gy + fy, h), P(gx + 1, gy + fy, 0), P(gx, gy + fy, 0)];
     n.top = P(gx + 0.5, gy + 0.5, h);
   }
 
@@ -86,22 +108,17 @@ function relayout() {
   if (vis.length) {
     bbox = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
     for (const n of vis) {
-      for (const p of n.faceTop) {
-        if (p.x < bbox.x0) bbox.x0 = p.x;
-        if (p.x > bbox.x1) bbox.x1 = p.x;
-        if (p.y < bbox.y0) bbox.y0 = p.y;
-        if (p.y > bbox.y1) bbox.y1 = p.y;
-      }
-      for (const p of n.faceLeft) {
-        if (p.x < bbox.x0) bbox.x0 = p.x;
-        if (p.x > bbox.x1) bbox.x1 = p.x;
-        if (p.y < bbox.y0) bbox.y0 = p.y;
-        if (p.y > bbox.y1) bbox.y1 = p.y;
+      for (const face of [n.faceTop, n.faceLeft, n.faceRight]) {
+        for (const p of face) {
+          if (p.x < bbox.x0) bbox.x0 = p.x;
+          if (p.x > bbox.x1) bbox.x1 = p.x;
+          if (p.y < bbox.y0) bbox.y0 = p.y;
+          if (p.y > bbox.y1) bbox.y1 = p.y;
+        }
       }
     }
   }
-  LAYOUT = { nodes: vis, districts, plates, bbox, edges: visibleEdges(vis) };
-  buildPackets();
+  LAYOUT.bbox = bbox;
   staticDirty = true;
 }
 

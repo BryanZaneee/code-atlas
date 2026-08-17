@@ -1,14 +1,39 @@
 /* ════════════════════ interaction ════════════════════ */
-let dragging = false, lastX = 0, lastY = 0, moved = 0;
+let dragging = false, rotating = false, lastX = 0, lastY = 0, moved = 0;
 
-cv.addEventListener("mousedown", (e) => { dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY; cv.classList.add("drag"); });
-window.addEventListener("mouseup", () => { dragging = false; cv.classList.remove("drag"); });
+/**
+ * Rotating re-projects; it does not re-lay-out. Nothing moves in world space,
+ * so districts, plates and packet routes all survive a turn unchanged.
+ */
+function rotateTo(yaw) {
+  setYaw(((yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2));
+  reproject();
+  buildPackets();
+  syncControls();
+}
+
+window.addEventListener("keydown", (e) => {
+  if (e.target instanceof HTMLInputElement) return;
+  const k = e.key.toLowerCase();
+  if (k === "q") rotateTo(S.yaw - YAW_STEP);
+  else if (k === "e") rotateTo(S.yaw + YAW_STEP);
+  else if (k === "r") { rotateTo(YAW0); fitView(); }
+  else return;
+  e.preventDefault();
+});
+
+cv.addEventListener("mousedown", (e) => {
+  dragging = true; rotating = e.shiftKey; moved = 0;
+  lastX = e.clientX; lastY = e.clientY; cv.classList.add("drag");
+});
+window.addEventListener("mouseup", () => { dragging = false; rotating = false; cv.classList.remove("drag"); });
 window.addEventListener("mousemove", (e) => {
   if (dragging) {
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     moved += Math.abs(dx) + Math.abs(dy);
-    S.panX += dx; S.panY += dy; lastX = e.clientX; lastY = e.clientY;
-    staticDirty = true;
+    lastX = e.clientX; lastY = e.clientY;
+    if (rotating) rotateTo(S.yaw + dx * 0.006);
+    else { S.panX += dx; S.panY += dy; staticDirty = true; }
     return;
   }
   const r = cv.getBoundingClientRect();
@@ -60,12 +85,15 @@ cv.addEventListener("wheel", (e) => {
 function syncControls() {
   $("#bPause").classList.toggle("on", S.running);
   $("#bPause").textContent = S.running ? "▮▮ PAUSE" : "▶ RESUME";
-  $("#ovRight").textContent = S.running ? "FLOW ACTIVE" : "FLOW PAUSED";
+  const deg = Math.round(S.yaw * 180 / Math.PI) % 360;
+  $("#ovRight").textContent = `${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
 }
 $("#bPause").onclick = () => { S.running = !S.running; syncControls(); };
 $("#bStep").onclick = () => { S.stepBudget = 1; S.running = false; syncControls(); };
 $("#bSpeed").onchange = (e) => { S.speed = parseFloat(e.target.value); };
-$("#bReset").onclick = () => { S.focusDistrict = null; renderList(); fitView(); };
+$("#bRotL").onclick = () => rotateTo(S.yaw - YAW_STEP);
+$("#bRotR").onclick = () => rotateTo(S.yaw + YAW_STEP);
+$("#bReset").onclick = () => { S.focusDistrict = null; rotateTo(YAW0); renderList(); fitView(); };
 $("#q").addEventListener("input", (e) => { S.query = e.target.value.trim(); staticDirty = true; });
 
 for (const [id, key] of [["#oDocs","docs"], ["#oTests","tests"], ["#oContract","contract"], ["#oAmbient","ambient"], ["#oLabels","labels"]]) {

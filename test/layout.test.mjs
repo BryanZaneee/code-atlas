@@ -26,8 +26,8 @@ function runLayout(atlas) {
   const source =
     LAYOUT_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     // declared in 50-render.js, which needs a canvas and is not loaded here
-    "\nvar staticDirty = false;\nrelayout();\n" +
-    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95 };\n";
+    "\nvar staticDirty = false;\nsetYaw(S.yaw);\nrelayout();\n" +
+    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0 };\n";
   const ctx = vm.createContext({ ATLAS: atlas, console });
   vm.runInContext(`"use strict";\n${source}`, ctx, { timeout: 60_000 });
   return ctx.scope;
@@ -149,4 +149,115 @@ test("no two visible nodes occupy the same cell", () => {
   const scope = runLayout(synthetic(1200, 500));
   const cells = scope.LAYOUT.nodes.map((n) => `${n.gx}|${n.gy}`);
   assert.equal(new Set(cells).size, cells.length);
+});
+
+/* ──────────────────────── camera rotation ──────────────────────── */
+
+/**
+ * The default view must not move when rotation ships. Deriving the basis as a
+ * rotation away from 45° rather than from zero is what makes this exact: the
+ * algebraically identical cos(yaw)/sin(yaw) form is off by an ulp, which is
+ * enough to shift every cached polygon.
+ */
+test("yaw 45 degrees is bit-identical to the fixed projection", () => {
+  const scope = runLayout(synthetic(60, 20));
+  scope.setYaw(scope.YAW0);
+  for (const [gx, gy, h] of [[0, 0, 0], [1, 0, 0], [0, 1, 0], [3, 7, 42], [-2, 5, 9]]) {
+    const p = scope.project(gx, gy, h);
+    assert.equal(p.x, (gx - gy) * 32, `x at ${gx},${gy}`);
+    assert.equal(p.y, (gx + gy) * 16 - h, `y at ${gx},${gy}`);
+  }
+});
+
+/**
+ * The painter's algorithm only works if the sort key really is depth. Sweeping
+ * the full circle catches the quadrants an assumption baked in at 45° would
+ * silently break — the far box must never be painted after the near one.
+ */
+test("a 360 degree sweep never mis-occludes", () => {
+  const scope = runLayout(synthetic(500, 200));
+  for (let deg = 0; deg < 360; deg += 5) {
+    scope.setYaw((deg * Math.PI) / 180);
+    scope.reproject();
+    const nodes = scope.LAYOUT.nodes;
+    for (let i = 1; i < nodes.length; i++) {
+      const prev = scope.depthOf(nodes[i - 1].gx, nodes[i - 1].gy);
+      const cur = scope.depthOf(nodes[i].gx, nodes[i].gy);
+      assert.ok(cur >= prev - 1e-9, `depth inverted at ${deg}deg, index ${i}`);
+    }
+  }
+});
+
+test("every yaw produces a finite bounding box and full face set", () => {
+  const scope = runLayout(synthetic(300, 120));
+  for (let deg = 0; deg < 360; deg += 15) {
+    scope.setYaw((deg * Math.PI) / 180);
+    scope.reproject();
+    const { bbox, nodes } = scope.LAYOUT;
+    for (const k of ["x0", "x1", "y0", "y1"]) {
+      assert.ok(Number.isFinite(bbox[k]), `bbox.${k} at ${deg}deg`);
+    }
+    for (const n of nodes) {
+      assert.equal(n.faceTop.length, 4);
+      assert.equal(n.faceLeft.length, 4);
+      assert.equal(n.faceRight.length, 4);
+    }
+  }
+});
+
+/**
+ * The visible vertical faces change quadrant as the camera comes round, so the
+ * plane each side face sits on has to be chosen per axis rather than assumed.
+ * A face drawn on the far plane renders the silhouette inside out.
+ *
+ * The check: a visible face's ground edge must be NEARER the camera than the
+ * cell's own centre — strictly greater screen y. Pinning either plane to a
+ * constant fails this over half the circle.
+ */
+test("the drawn side faces are the ones facing the camera", () => {
+  const scope = runLayout(synthetic(40, 10));
+  const midY = (face) => (face[2].y + face[3].y) / 2;   // the two ground corners
+  for (let deg = 0; deg < 360; deg += 10) {
+    scope.setYaw((deg * Math.PI) / 180);
+    scope.reproject();
+    for (const n of scope.LAYOUT.nodes) {
+      const centre = scope.project(n.gx + 0.5, n.gy + 0.5, 0).y;
+      assert.ok(midY(n.faceRight) > centre - 1e-9, `x-face on the far plane at ${deg}deg`);
+      assert.ok(midY(n.faceLeft) > centre - 1e-9, `y-face on the far plane at ${deg}deg`);
+    }
+  }
+});
+
+/**
+ * Hit testing inverse-transforms to world space and ray-casts the cached
+ * polygons, so it should need no rotation-specific code at all. This asserts
+ * that: the centre of a box's roof must land inside that roof at every angle.
+ */
+test("a roof centre stays inside its own polygon at every yaw", () => {
+  const scope = runLayout(synthetic(120, 40));
+  const inPoly = (px, py, pts) => {
+    let hit = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[i], b = pts[j];
+      if ((a.y > py) !== (b.y > py) && px < ((b.x - a.x) * (py - a.y)) / (b.y - a.y) + a.x) hit = !hit;
+    }
+    return hit;
+  };
+  for (let deg = 0; deg < 360; deg += 15) {
+    scope.setYaw((deg * Math.PI) / 180);
+    scope.reproject();
+    for (const n of scope.LAYOUT.nodes) {
+      assert.ok(inPoly(n.top.x, n.top.y, n.faceTop), `roof centre outside its roof at ${deg}deg`);
+    }
+  }
+});
+
+test("rotating does not move anything in world space", () => {
+  const scope = runLayout(synthetic(200, 80));
+  const before = scope.LAYOUT.nodes.map((n) => `${n.id}@${n.gx},${n.gy},${n.h}`).sort();
+  const districts = scope.LAYOUT.districts.map((d) => `${d.id}:${d.x0},${d.y0},${d.x1},${d.y1}`).sort();
+  scope.setYaw(1.1);
+  scope.reproject();
+  assert.deepEqual(scope.LAYOUT.nodes.map((n) => `${n.id}@${n.gx},${n.gy},${n.h}`).sort(), before);
+  assert.deepEqual(scope.LAYOUT.districts.map((d) => `${d.id}:${d.x0},${d.y0},${d.x1},${d.y1}`).sort(), districts);
 });

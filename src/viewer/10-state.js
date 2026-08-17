@@ -1,7 +1,7 @@
 /* ════════════════════ state ════════════════════ */
 const S = {
   view: "structure",
-  zoom: 1, panX: 0, panY: 0,
+  zoom: 1, panX: 0, panY: 0, yaw: YAW0,
   running: true, speed: 1, stepBudget: 0,
   selected: null,       // node id
   pinnedPacket: null,

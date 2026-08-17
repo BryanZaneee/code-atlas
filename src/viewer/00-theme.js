@@ -1,5 +1,9 @@
 /* ════════════════════ constants ════════════════════ */
 const TW = 64, TH = 32;                 // 2:1 isometric tile
+const HW = TW / 2;                      // half-width of a ground cell, in screen px
+const K = TH / TW;                      // 0.5 — the vertical squash, held fixed
+const YAW0 = Math.PI / 4;               // the classic isometric angle
+const YAW_STEP = Math.PI / 12;          // 15° per keypress
 // The iso diamond is always 2:1 no matter how the grid is arranged, so the only
 // lever on legibility is total cell count. Boxes are 1 cell; SPACING leaves the
 // remainder as the gap, and it must stay > 1 or footprints overlap and the

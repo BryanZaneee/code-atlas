@@ -1,4 +1,5 @@
 /* ════════════════════ boot ════════════════════ */
+setYaw(S.yaw);
 document.title = `${ATLAS.meta.repo} · code atlas`;
 renderStats();
 renderViews();
