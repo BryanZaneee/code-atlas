@@ -651,6 +651,8 @@
       "id": "docs/docs",
       "service": "docs",
       "layer": "docs",
+      "parentId": "docs",
+      "code": "DD",
       "label": "DOCS",
       "members": [
         "docs/overview.md"
@@ -660,6 +662,8 @@
       "id": "api/repository",
       "service": "api",
       "layer": "repository",
+      "parentId": "api",
+      "code": "AR",
       "label": "REPOSITORY",
       "members": [
         "services/api/src/repository/user-repo.ts"
@@ -669,6 +673,8 @@
       "id": "api/route",
       "service": "api",
       "layer": "route",
+      "parentId": "api",
+      "code": "AO",
       "label": "ROUTE",
       "members": [
         "services/api/src/routes/users.ts"
@@ -678,6 +684,8 @@
       "id": "api/entry",
       "service": "api",
       "layer": "entry",
+      "parentId": "api",
+      "code": "AN",
       "label": "ENTRY",
       "members": [
         "services/api/src/server.ts"
@@ -687,6 +695,8 @@
       "id": "api/service",
       "service": "api",
       "layer": "service",
+      "parentId": "api",
+      "code": "AS",
       "label": "SERVICE",
       "members": [
         "services/api/src/services/user-service.ts"
@@ -696,6 +706,8 @@
       "id": "api/test",
       "service": "api",
       "layer": "test",
+      "parentId": "api",
+      "code": "AT",
       "label": "TEST",
       "members": [
         "services/api/test/user-service.test.ts"
@@ -705,6 +717,8 @@
       "id": "worker/entry",
       "service": "worker",
       "layer": "entry",
+      "parentId": "worker",
+      "code": "WN",
       "label": "ENTRY",
       "members": [
         "services/worker/app/main.py"
@@ -714,6 +728,8 @@
       "id": "worker/service",
       "service": "worker",
       "layer": "service",
+      "parentId": "worker",
+      "code": "WS",
       "label": "SERVICE",
       "members": [
         "services/worker/app/services/job_service.py"
@@ -723,6 +739,8 @@
       "id": "worker/test",
       "service": "worker",
       "layer": "test",
+      "parentId": "worker",
+      "code": "WT",
       "label": "TEST",
       "members": [
         "services/worker/test/test_job_service.py"
@@ -732,6 +750,8 @@
       "id": "api/endpoint",
       "service": "api",
       "layer": "endpoint",
+      "parentId": "api",
+      "code": "AE",
       "label": "ENDPOINT",
       "members": [
         "GET /api/users",
@@ -743,6 +763,8 @@
       "id": "worker/endpoint",
       "service": "worker",
       "layer": "endpoint",
+      "parentId": "worker",
+      "code": "WE",
       "label": "ENDPOINT",
       "members": [
         "GET /health",

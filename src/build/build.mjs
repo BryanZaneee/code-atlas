@@ -27,6 +27,33 @@ import { ADAPTERS } from "../adapters/index.mjs";
 
 export const SCHEMA_VERSION = 1;
 
+/**
+ * The flow index, inverted: which flows pass through each node.
+ *
+ * The flows already say which nodes they touch, so this costs one pass and no
+ * new data — but reading it from the other end is what turns "here is a file"
+ * into "here is what happens to this file". The viewer's TRAVELLED BY chips are
+ * a control, not a label.
+ *
+ * Absent rather than empty on a node no flow touches: most nodes are, and an
+ * empty array per node is pure payload weight.
+ */
+function indexFlows(nodes, flows) {
+  const by = new Map();
+  for (const f of flows) {
+    for (const s of f.steps) {
+      for (const id of [s.from, s.to]) {
+        if (!by.has(id)) by.set(id, new Set());
+        by.get(id).add(f.id);
+      }
+    }
+  }
+  for (const n of nodes) {
+    const ids = by.get(n.id);
+    if (ids) n.travelledBy = [...ids].sort();
+  }
+}
+
 export function scan({ repo, ref, config: userConfig, fetch = true, strict = false, warn = () => {} }) {
   // Everything downstream reads one normalized shape, whether the values came
   // from a config file, from detection, or from the defaults.
@@ -65,6 +92,7 @@ export function scan({ repo, ref, config: userConfig, fetch = true, strict = fal
       extraEdges: config.extraEdges,
     });
     deriveCoverage(nodes, edges);
+    indexFlows(nodes, config.flows ?? []);
     const groups = buildGroups(nodes, config.layers);
 
     const bad = validateFlows(config, nodeIds);

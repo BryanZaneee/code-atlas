@@ -57,6 +57,35 @@ test("meta's coverage counters agree with the payload", async () => {
   assert.equal(p.meta.derivedCount, derived);
 });
 
+/**
+ * A code that moves between scans is worse than no code: the map's labels would
+ * be a different set of names every time a file was added.
+ */
+test("district codes are unique and survive a new file", async () => {
+  const p = await payloadOf();
+  const codes = p.groups.map((g) => g.code);
+  assert.equal(new Set(codes).size, codes.length);
+  assert.ok(codes.every((c) => /^[A-Z][A-Z0-9]$/.test(c)), codes.join(", "));
+  assert.ok(p.groups.every((g) => g.parentId === g.service));
+
+  // Dropping the first district's members simulates the file churn that
+  // first-appearance ordering would have reshuffled the whole set on.
+  const { buildGroups } = await import("../src/scan/graph.mjs");
+  const survivors = p.groups.slice(1).flatMap((g) => g.members);
+  const kept = p.nodes.filter((n) => survivors.includes(n.id));
+  const after = new Map(buildGroups(kept, p.layers).map((g) => [g.id, g.code]));
+  for (const g of p.groups.slice(1)) assert.equal(after.get(g.id), g.code, `${g.id} was renamed`);
+});
+
+test("travelledBy indexes the flows and is absent when empty", async () => {
+  const p = await payloadOf();
+  for (const n of p.nodes) {
+    const expected = p.flows.filter((f) => f.steps.some((s) => s.from === n.id || s.to === n.id)).map((f) => f.id);
+    if (!expected.length) assert.equal("travelledBy" in n, false, `${n.id} carries an empty index`);
+    else assert.deepEqual(n.travelledBy, expected.sort());
+  }
+});
+
 test("node ids are unique", async () => {
   const p = await payloadOf();
   const ids = p.nodes.map((n) => n.id);

@@ -164,6 +164,31 @@ export function buildEdges(nodes, { imports, endpoints, flows = [], extraEdges =
   return { edges, nodeIds, byId };
 }
 
+/**
+ * A short, stable name for a district: first letter of the service, then the
+ * first letter of the layer that is still free.
+ *
+ * Two characters is the whole point — it is legible at any zoom and it never
+ * collides with a neighbour's label, so nothing ever has to be dropped. It is
+ * assigned per district and not per file deliberately: a repo draws hundreds of
+ * file blocks, and hundreds of two-character codes are not a mapping anyone
+ * learns. See PLAN.md, "The visual system".
+ *
+ * Preferring letters that actually occur in the layer name keeps the code
+ * readable (`api/service` -> `AS`) before it falls back to brute force, and the
+ * caller assigns in sorted id order so adding a file cannot reshuffle the rest.
+ */
+function codeFor(service, layer, taken) {
+  const head = (service.match(/[a-z]/i)?.[0] ?? "x").toUpperCase();
+  for (const c of (layer + "abcdefghijklmnopqrstuvwxyz0123456789").toUpperCase()) {
+    if (!/[A-Z0-9]/.test(c)) continue;
+    if (!taken.has(head + c)) return head + c;
+  }
+  // 36 districts under one service letter, all colliding. Unreachable in
+  // practice, but a code is not allowed to be undefined.
+  return head + String(taken.size % 10);
+}
+
 export function buildGroups(nodes, layers) {
   const groups = [];
   const byGid = new Map();
@@ -171,11 +196,23 @@ export function buildGroups(nodes, layers) {
     const gid = `${n.service}/${n.layer}`;
     let g = byGid.get(gid);
     if (!g) {
-      g = { id: gid, service: n.service, layer: n.layer, label: layers.find((l) => l.id === n.layer)?.label ?? n.layer, members: [] };
+      // parentId is the district-hierarchy field PLAN.md ships ahead of the
+      // nested layout that consumes it: adding it now means that rewrite does
+      // not also break the payload contract.
+      g = { id: gid, service: n.service, layer: n.layer, parentId: n.service, code: "", label: layers.find((l) => l.id === n.layer)?.label ?? n.layer, members: [] };
       byGid.set(gid, g);
       groups.push(g);
     }
     g.members.push(n.id);
+  }
+
+  // Codes are assigned in sorted id order while the array keeps its own order:
+  // first-appearance order is deterministic for one input but moves when a file
+  // is added, and a code that moves is worse than no code at all.
+  const taken = new Set();
+  for (const g of [...groups].sort((a, b) => a.id.localeCompare(b.id))) {
+    g.code = codeFor(g.service, g.layer, taken);
+    taken.add(g.code);
   }
   return groups;
 }

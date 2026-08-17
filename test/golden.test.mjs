@@ -44,7 +44,13 @@ const ADDED_META = ["schemaVersion", "acquisition", "suiteCount",
 const ADDED_STEP = ["warn"];
 // phase 2: every node records the rule that placed it. Additive — the layer and
 // service themselves must still match the prototype exactly, and they do.
-const ADDED_NODE = ["layerWhy", "serviceWhy"];
+const ADDED_NODE = ["layerWhy", "serviceWhy",
+  // phase 2.5: the flow index read from the node's end. Absent when empty, so
+  // deleting it is a no-op on the nodes no flow touches.
+  "travelledBy"];
+// phase 2.5: a stable two-character district name, and the district-hierarchy
+// field PLAN.md ships ahead of the layout that consumes it.
+const ADDED_GROUP = ["code", "parentId"];
 
 /**
  * The one deliberate CORRECTION to the prototype's observed facts, as opposed to
@@ -92,6 +98,7 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   for (const k of ADDED_TOP) delete stripped[k];
   for (const k of ADDED_META) delete stripped.meta[k];
   for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];
+  for (const g of stripped.groups) for (const k of ADDED_GROUP) delete g[k];
   for (const f of stripped.flows) for (const st of f.steps) for (const k of ADDED_STEP) delete st[k];
 
   const expected = readFileSync(path.join(GOLDEN_DIR, "taxvault.prototype.json"), "utf8");
@@ -120,6 +127,12 @@ test("meta carries the fields later phases added", async (t) => {
   assert.ok(payload.meta.derivedCount > 0, "curated flow hops are modeled, not observed");
   assert.ok(payload.meta.derivedCount <= payload.flows.reduce((a, f) => a + f.steps.length, 0));
   assert.equal(payload.meta.unresolvedCount, 0);
+  // The flow index, on a target that has nine of them: some nodes are on a
+  // flow, most are not, and the ones that are name flows that exist.
+  const travelled = payload.nodes.filter((n) => n.travelledBy);
+  const flowIds = new Set(payload.flows.map((f) => f.id));
+  assert.ok(travelled.length > 0 && travelled.length < payload.nodes.length);
+  assert.ok(travelled.every((n) => n.travelledBy.every((id) => flowIds.has(id))));
   assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests"]);
   assert.equal(payload.views.find((v) => v.id === "engagement").showPhase, true);
   assert.equal(payload.views.find((v) => v.id === "api").showPhase, false);

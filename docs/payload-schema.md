@@ -24,7 +24,23 @@ expected to read it, so it is versioned from the first release.
 | `edges` | array | stable | directed, deduplicated by `from|to|kind` |
 | `endpoints` | array | stable | the HTTP surface |
 | `flows` | array | experimental | curated request flows; Phase 6 adds derived ones |
-| `groups` | array | stable | one per `service/layer` pair that has members |
+| `groups` | array | stable | one per `service/layer` pair that has members — the districts of the map |
+
+## `groups`
+
+| field | type | tier | notes |
+| --- | --- | --- | --- |
+| `id` | string | stable | `service/layer` |
+| `service` `layer` | string | stable | ids into `services` / `layers` |
+| `parentId` | string\|null | experimental | the district's parent — the service today. Ships ahead of the nested layout that consumes it |
+| `code` | string | experimental | two characters, unique within a payload, stable across scans. The district's name on the map |
+| `label` | string | stable | the layer's label |
+| `members` | string[] | stable | node ids |
+
+`code` is assigned per **district**, never per file: a repo draws hundreds of
+file blocks and hundreds of two-character codes are not a mapping anyone learns.
+Assignment runs in sorted `id` order, so adding a file cannot reshuffle the codes
+of the districts around it.
 
 ## `meta`
 
@@ -92,6 +108,7 @@ on some kinds.
 | `coverage` | string\|null | stable | see below. **Absent** on non-file nodes |
 | `uncovered` | bool | stable | `coverage === "none"` |
 | `note` | string | experimental | datastore nodes only |
+| `travelledBy` | string[] | experimental | ids of the flows passing through this node. **Absent**, not empty, when no flow does |
 
 ### `coverage`
 
