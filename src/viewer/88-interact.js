@@ -33,7 +33,7 @@ window.addEventListener("mousemove", (e) => {
     moved += Math.abs(dx) + Math.abs(dy);
     lastX = e.clientX; lastY = e.clientY;
     if (rotating) rotateTo(S.yaw + dx * 0.006);
-    else { S.panX += dx; S.panY += dy; staticDirty = true; }
+    else { S.panX += dx; S.panY += dy; }   // pan is a blit offset, not a re-render
     return;
   }
   const r = cv.getBoundingClientRect();
@@ -79,7 +79,7 @@ cv.addEventListener("wheel", (e) => {
   S.zoom = clamp(S.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.12, 3);
   S.panX = mx - w.x * S.zoom;
   S.panY = my - w.y * S.zoom;
-  staticDirty = true;
+  // No invalidation: the cache re-renders only when zoom crosses a mip bucket.
 }, { passive: false });
 
 function syncControls() {
