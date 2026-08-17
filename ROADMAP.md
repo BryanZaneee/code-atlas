@@ -136,7 +136,7 @@ are visible on every single interaction.*
       cache; full-silhouette stroke + footprint ring, hover distinct from select
 - [x] Neutral light/dark palette replacing cream; every colour literal in
       `50-render.js` promoted into the theme
-- [ ] Two colour channels: identity (fill) vs state (stroke/glow/badge);
+- [x] Two colour channels: identity (fill) vs state (stroke/glow/badge);
       `colorMode` `identity`/`mono`, state channel identical in both
 - [ ] Isometric ground grid; district plate tabs anchored with a leader line
 - [ ] Tiered flow dimming with a short ease; numbered step badges; caption bar
@@ -148,7 +148,7 @@ are visible on every single interaction.*
       cause exactly one
 - [x] **Gate:** zero colour literals of any form (`#`, `rgb(`, `hsl(`) outside
       `:root` and the payload theme
-- [ ] **Gate:** `COVER_TINT` and the derived dotted stroke survive every colour
+- [x] **Gate:** `COVER_TINT` and the derived dotted stroke survive every colour
       mode — `mono` disables identity, never a honesty channel
 - [ ] **Gate:** mini-monorepo (no flows, no curation) renders no empty panel
       section and no empty chip row

@@ -78,9 +78,25 @@ function heightOf(n) {
   // without limit: one generated 100k-line file must not flatten the whole map.
   return 8 + Math.min(130 * Math.log1p(n.loc) / LOG_P95, 260);
 }
+/**
+ * The identity channel, and only the identity channel.
+ *
+ * Identity writes to fill; state writes to stroke, ring, glow and badge. They
+ * must be different properties, or turning identity colour off would also turn
+ * the selection and the flow highlight off.
+ *
+ * `mono` therefore drops the layer fill and nothing else. The coverage tint is
+ * state — orange means no test reaches this file, which is the honesty contract
+ * rendered — so it survives every colour mode. Identity is redundant anyway:
+ * services are already rows and layers are already columns, so position carries
+ * it without spending the colour budget.
+ */
 function colorOf(n) {
-  const base = layerById.get(n.layer)?.color ?? THEME.layerFallback;
-  if (viewKind(S.view) === "tests" && n.coverage) return COVER_TINT[n.coverage] ?? base;
-  return base;
+  if (viewKind(S.view) === "tests" && n.coverage) {
+    const tint = COVER_TINT[n.coverage];
+    if (tint) return tint;
+  }
+  if (S.colorMode === "mono") return THEME.face;
+  return layerById.get(n.layer)?.color ?? THEME.layerFallback;
 }
 

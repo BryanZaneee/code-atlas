@@ -39,7 +39,7 @@ function cacheKey() {
   // clicking a block re-rasterise the entire city and made a hover state
   // unaffordable at any frame rate. They are drawn in the live pass instead.
   return [
-    S.view, S.query, S.focusDistrict, S.yaw, LAYOUT.nodes.length,
+    S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, LAYOUT.nodes.length,
     o.docs, o.tests, o.contract, o.labels,
   ].join("|");
 }

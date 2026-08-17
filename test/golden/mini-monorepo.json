@@ -124,6 +124,7 @@
     "accent": "#2f6df0",
     "plate": "#6d7378",
     "edge": "#14171a",
+    "face": "#ffffff",
     "packetLabel": "#1c1e1f",
     "edgeStyle": {
       "import": {
@@ -229,6 +230,7 @@
       "accent": "#5b8dff",
       "plate": "#9aa2a8",
       "edge": "#e2e6ea",
+      "face": "#3a4045",
       "packetLabel": "#e6e8ea"
     },
     "legend": {

@@ -60,7 +60,7 @@ function runRenderer(atlas) {
     resize();
     const _drawStatic = drawStatic;
     globalThis.scope = {
-      S, draw, relayout, reproject, setYaw, LAYOUT, counts: __counts,
+      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, LAYOUT, counts: __counts,
       wrap: () => { drawStatic = function () { __counts.drawStatic++; return _drawStatic.apply(this, arguments); }; },
     };
     `;
@@ -179,6 +179,44 @@ test("an overlay only draws a node that is on the map", () => {
   scope.S.selected = "s0/nowhere.ts";
   scope.S.hover = "s0/nowhere.ts";
   scope.draw();                              // must not throw
+});
+
+/**
+ * Two channels, and only one of them is optional.
+ *
+ * `mono` drops identity — the layer fill. It must not drop the coverage tint,
+ * which says no test reaches this file, or a colour preference would quietly
+ * switch off the honesty contract.
+ */
+test("mono drops identity colour and nothing else", () => {
+  const scope = runRenderer(payload(20));
+  const n = scope.LAYOUT.nodes[0];
+
+  assert.equal(scope.colorOf(n), "#8fae74", "identity mode paints the layer colour");
+  scope.S.colorMode = "mono";
+  assert.equal(scope.colorOf(n), DEFAULT_THEME.face);
+
+  scope.S.view = "tests";
+  n.coverage = "none";
+  assert.equal(scope.colorOf(n), DEFAULT_THEME.coverTint.none, "coverage is state, not identity");
+  scope.S.colorMode = "identity";
+  assert.equal(scope.colorOf(n), DEFAULT_THEME.coverTint.none);
+
+  // `direct` has no tint by design, so it falls back to whichever channel is on.
+  n.coverage = "direct";
+  assert.equal(scope.colorOf(n), "#8fae74");
+  scope.S.colorMode = "mono";
+  assert.equal(scope.colorOf(n), DEFAULT_THEME.face);
+});
+
+test("the dark theme is a delta over the base palette", () => {
+  const scope = runRenderer(payload(20));
+  scope.S.colorMode = "mono";
+  assert.equal(scope.colorOf(scope.LAYOUT.nodes[0]), DEFAULT_THEME.face);
+  scope.applyTheme("dark");
+  assert.equal(scope.colorOf(scope.LAYOUT.nodes[0]), DEFAULT_THEME.dark.face);
+  scope.applyTheme("light");
+  assert.equal(scope.colorOf(scope.LAYOUT.nodes[0]), DEFAULT_THEME.face);
 });
 
 test("rotating re-renders", () => {

@@ -24,6 +24,9 @@ export const DEFAULT_THEME = {
   // that is how the old palette ended up hardcoded across the renderer.
   plate: "#6d7378",
   edge: "#14171a",
+  // The block face in `mono`, where identity fill is off and the stroke
+  // carries the whole form. The two vertical faces are shaded down from it.
+  face: "#ffffff",
   packetLabel: "#1c1e1f",
 
   edgeStyle: {
@@ -67,6 +70,7 @@ export const DEFAULT_THEME = {
     accent: "#5b8dff",
     plate: "#9aa2a8",
     edge: "#e2e6ea",
+    face: "#3a4045",
     packetLabel: "#e6e8ea",
   },
 

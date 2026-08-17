@@ -101,6 +101,11 @@ $("#bSpeed").onchange = (e) => { S.speed = parseFloat(e.target.value); };
 $("#bRotL").onclick = () => rotateTo(S.yaw - YAW_STEP);
 $("#bRotR").onclick = () => rotateTo(S.yaw + YAW_STEP);
 $("#bReset").onclick = () => { S.focusDistrict = null; rotateTo(YAW0); renderList(); fitView(); };
+$("#bColor").onclick = () => {
+  S.colorMode = S.colorMode === "mono" ? "identity" : "mono";
+  $("#bColor").textContent = S.colorMode === "mono" ? "▣ COLOUR" : "▦ MONO";
+  staticDirty = true;
+};
 $("#bTheme").onclick = () => {
   S.theme = S.theme === "dark" ? "light" : "dark";
   applyTheme(S.theme);

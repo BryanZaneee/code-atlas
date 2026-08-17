@@ -2,6 +2,7 @@
 const S = {
   view: "structure",
   theme: "light",
+  colorMode: "identity",
   zoom: 1, panX: 0, panY: 0, yaw: YAW0,
   running: true, speed: 1, stepBudget: 0,
   selected: null,       // node id
