@@ -4,32 +4,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-`src/`, `bin/`, `docs/`, `examples/`, `fixtures/` are **empty directories**. Only
-`PLAN.md`, `ROADMAP.md`, `README.md`, `package.json` exist. Phase 0 has not landed.
+**Phase 0 is complete. Phase 1 (renderer) is next.** `atlas build` works and its
+payload is byte-identical to the prototype's. `serve`, `init`, `scan` and
+`findings` are stubs that name the phase they land in.
 
-The working code being generalized lives outside this repo, at
-`../FedStack/tax-vault-atlas/`:
+`--config` is still required: defaults and detection are Phase 2. `src/config/`
+and `src/serve/` are empty, and `tools/calibrate.mjs` does not exist yet.
 
-```
-atlas.mjs            ~570-line scanner + generator (hardcoded to daring-devs-tax-vault)
-atlas-template.html  the viewer, one file, vanilla JS + Canvas 2D
-flows.mjs            hand-authored request flows, validated against the scan
-atlas.html           GENERATED output
-```
-
-Phase 0 lifts that here **unchanged** — the gate is a byte-identical payload
-(reference sha256 in ROADMAP.md). Do not "improve" prototype logic while moving it;
-the improvements are Phases 1–10 and each has its own gate.
+The prototype this was lifted from still lives at `../FedStack/tax-vault-atlas/`.
+It is the reference for the Phase 0 baseline and nothing else; do not edit it, and
+do not "improve" lifted logic outside the phase that owns the improvement.
 
 ## Commands
 
 ```bash
-node bin/atlas.mjs build --repo .     # once Phase 0 lands
-npm test                             # node --test test/   (test/ not created yet)
-node --test test/scan.test.mjs       # a single file
-npm run calibrate                    # tools/calibrate.mjs (Phase 6)
-node ../FedStack/tax-vault-atlas/atlas.mjs [--ref HEAD] [--json]   # the prototype, today
+# scan a repo (--config required until phase 2)
+node bin/atlas.mjs build --repo PATH --config examples/taxvault.config.mjs --ref REF
+node bin/atlas.mjs build --repo fixtures/mini-monorepo \
+  --config fixtures/mini-monorepo/atlas.config.mjs --ref fs --json
+
+npm test                                  # node --test test/*.test.mjs
+node --test test/golden.test.mjs          # a single file
+UPDATE_GOLDEN=1 npm test                  # re-baseline, then READ the diff
+npm run calibrate                         # tools/calibrate.mjs (phase 6)
 ```
+
+`--ref fs` scans a directory with no git involved; the other rungs of the
+acquisition ladder are Phase 2. Corpus tests skip when the repo is absent, so
+`npm test` is green on a fresh clone.
 
 CLI surface, flags, and per-phase gates: **PLAN.md**. Checklists and definition of
 done: **ROADMAP.md** — a phase is done when every box is ticked; tick them as you go.

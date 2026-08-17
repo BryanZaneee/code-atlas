@@ -2,12 +2,12 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phase 0 in progress · 0 of 11 phases complete
+**Status:** Phase 0 complete · 1 of 11 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
-| 0 | Repo skeleton, lift-and-shift, payload contract | everything | ◐ in progress |
-| 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ○ |
+| 0 | Repo skeleton, lift-and-shift, payload contract | everything | ● done |
+| 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ next |
 | 2 | Config, detection, graceful degradation | 3, 4 | ○ |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ○ |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
@@ -29,22 +29,27 @@ Legend: ○ not started · ◐ in progress · ● done
 - [x] `git init`, directory scaffold
 - [x] `PLAN.md`, `ROADMAP.md`
 - [x] `package.json` — `bin:{atlas}`, `engines>=20`, **no `dependencies` field**
-- [ ] `bin/atlas.mjs` — `parseArgs` subcommand dispatch (`build`/`serve`/`init`/`scan`/`findings`)
-- [ ] Scanner split into `src/scan/*` + `src/model/*`; the walk **never follows
+- [x] `bin/atlas.mjs` — `parseArgs` subcommand dispatch (`build`/`serve`/`init`/`scan`/`findings`)
+- [x] Scanner split into `src/scan/*` + `src/model/*`; the walk **never follows
       symlinks** (Phase 7's security posture needs it, and a symlinked checkout
       would otherwise be double-counted)
-- [ ] Viewer split into `src/viewer/*` + concatenation in `src/build/assemble.mjs`
-- [ ] TaxVault taxonomy frozen into `examples/taxvault.config.mjs`
-- [ ] `meta.schemaVersion = 1`
-- [ ] `meta.acquisition` (`worktree` / `ref` / `fs`, + `ref`, `commit`, `dirty`)
-- [ ] `test/` harness: `helpers.mjs`, `generic.test.mjs`, `payload.test.mjs`, `golden.test.mjs`, `viewer.test.mjs`
-- [ ] **Gate:** payload byte-identical to the prototype except `generatedAt`
+- [x] Viewer split into `src/viewer/*` + concatenation in `src/build/assemble.mjs`
+- [x] TaxVault taxonomy frozen into `examples/taxvault.config.mjs`
+- [x] `meta.schemaVersion = 1`
+- [x] `meta.acquisition` (`worktree` / `ref` / `fs`, + `ref`, `commit`, `dirty`)
+      — the **`fs` rung landed early**: the in-repo fixtures are not git repos and
+      the test suite must not require git. The rungs above it and the fallback
+      logic that chooses between them are still Phase 2.
+- [x] `test/` harness: `helpers.mjs`, `generic.test.mjs`, `payload.test.mjs`, `golden.test.mjs`, `viewer.test.mjs`
+- [x] `fixtures/mini-monorepo/` — the CI-enforced target, plus `docs/payload-schema.md`
+- [x] **Gate:** payload byte-identical to the prototype except `generatedAt`
   - baseline captured from the prototype pinned at taxvault `22595f3a` and committed
     as `test/golden/taxvault.json` — a file, not a hash, so a failure prints a diff
   - 197 nodes / 467 edges / 18 endpoints / 9 flows / 7 services / 14 layers / 43 groups
   - *(the sha256 previously recorded here was unreproducible against any
     normalization of the prototype's output; the counts were correct)*
-- [ ] **Gate:** `test/generic.test.mjs` — zero target-specific strings in `src/` or `bin/`
+- [x] **Gate:** `test/generic.test.mjs` — zero target-specific strings in `src/` or `bin/`,
+      minus an explicit accepted list holding the viewer strings Phase 1 removes
 
 ## Phase 1 — Renderer: perf, rotation, decoupling
 
