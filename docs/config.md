@@ -22,6 +22,11 @@ export default {
 
 Pass it with `--config atlas.config.mjs`. Everything below is optional.
 
+`atlas init --repo .` writes one for you: it detects your services and spells
+them out, leaves every other key as a commented one-liner, and **refuses to
+overwrite an existing config** — delete it first, or edit it in place. Run
+`atlas scan --repo .` afterwards to see what the config did and did not place.
+
 ## Structure
 
 | key | type | default | what it does |

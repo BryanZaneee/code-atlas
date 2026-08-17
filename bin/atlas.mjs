@@ -4,19 +4,24 @@
  *
  * Read-only on the target repository: the ref is extracted with `git archive`
  * into a temp directory, so no branch is switched and no file is modified.
- * `atlas init` will be the only command permitted to write to a target repo.
+ * `atlas init` is the only command permitted to write to a target repo, and it
+ * refuses to overwrite.
  *
- *   atlas build --repo . --config atlas.config.mjs [--ref R] [--out f] [--json]
+ *   atlas build --repo . [--config atlas.config.mjs] [--ref R] [--out f] [--json]
+ *   atlas scan  --repo .
+ *   atlas init  --repo .
  *
- * Everything logs to stderr, so `--json` stdout is a clean payload.
+ * `build` logs to stderr so `--json` stdout is a clean payload; `scan` reports
+ * on stdout, because there the report is the output rather than the commentary.
  */
 import { parseArgs } from "node:util";
-import { writeFileSync, statSync } from "node:fs";
+import { writeFileSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { scan, report, diagnose } from "../src/build/build.mjs";
 import { assemble } from "../src/build/assemble.mjs";
 import { makeProgress } from "../src/scan/progress.mjs";
+import { starterConfig } from "../src/config/init.mjs";
 
 // Draws nothing unless stderr is a terminal, so a redirect or a pipe is
 // untouched and the pipeline never has to know which it is.
@@ -34,7 +39,7 @@ const USAGE = `atlas <command> [options]
 
   build      scan a repository and write a self-contained HTML atlas
   scan       what the scanner found, and what it could not
-  init       write a starter config into a repository      (phase 2)
+  init       write a starter config by inspecting the repo
   findings   cycles, layering violations, orphans          (phase 5)
   serve      local viewer with source reading              (phase 7)
 
@@ -68,13 +73,26 @@ if (values.help || !command) {
   process.exit(command ? 0 : 1);
 }
 
-const PENDING = { init: 2, findings: 5, serve: 7 };
+const PENDING = { findings: 5, serve: 7 };
 if (PENDING[command]) die(`\`atlas ${command}\` lands in phase ${PENDING[command]}`);
-if (command !== "build" && command !== "scan") die(`unknown command "${command}"\n\n${USAGE}`);
+if (!["build", "scan", "init"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
 
 // No config means defaults plus detection, which is the path a repository the
 // tool has never seen takes. A config only ever overrides what it names.
 const repo = path.resolve(values.repo);
+
+// The one command that writes to a target repository, and it writes one file it
+// has never seen before: an existing config was written or edited by a person,
+// and no amount of detection is worth overwriting that.
+if (command === "init") {
+  const file = path.join(repo, "atlas.config.mjs");
+  if (existsSync(file)) die(`${file} already exists — delete it first, or edit it in place`);
+  const { text, services, fileCount } = starterConfig(repo);
+  writeFileSync(file, text);
+  warn(`atlas: wrote ${file}`);
+  warn(`atlas: ${services.length} service(s) detected over ${fileCount} files -> ${services.map((s) => s.id).join(", ")}`);
+  process.exit(0);
+}
 const config = values.config
   ? (await import(pathToFileURL(path.resolve(values.config)).href)).default
   : undefined;

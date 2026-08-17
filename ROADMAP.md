@@ -2,13 +2,14 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phase 2.5 complete; Phase 2 has three commands left in it · 2 of 12 phases complete
+**Status:** Phases 0, 2 and 2.5 complete; Phase 1 holds one gate a human has to
+measure. Phase 3 (language adapters) is next · 3 of 12 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
 | 0 | Repo skeleton, lift-and-shift, payload contract | everything | ● done |
 | 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ one gate open |
-| 2 | Config, detection, graceful degradation | 3, 4 | ◐ gates pass |
+| 2 | Config, detection, graceful degradation | 3, 4 | ● done |
 | 2.5 | Visual system: palette, selection, chrome | — | ● done |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ○ |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
@@ -117,7 +118,12 @@ Legend: ○ not started · ◐ in progress · ● done
       throttled, or the line reports a phase the scan has already left. A
       non-TTY stream writes **zero** bytes rather than bytes a consumer is
       expected to filter, which is what keeps `--json` clean
-- [ ] `atlas init` writes a starter config (the only command that writes to a target repo)
+- [x] `atlas init` writes a starter config (the only command that writes to a
+      target repo) — it emits **what detection found**, spelled out, because you
+      cannot correct a list you have never seen; every other key is a commented
+      one-liner rather than the defaults restated, which would drift the first
+      time the defaults improve. It refuses to overwrite: an existing config was
+      written by a person, and no amount of detection outweighs that
 - [x] **Gate:** `atlas build` with **no config** yields a legible atlas for taxvault, Shuttrr, terra, sonder *(git repo, zero commits)*, llmbench *(pyproject only)*
 - [x] **Gate:** for each — `nodeCount > 0`, `services.length ≥ 1`, every node's service ∈ services
   - `test/corpus.test.mjs`, skipping per repo so a fresh clone and CI stay green.

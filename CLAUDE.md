@@ -4,12 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phase 0 is complete. Phase 1 (renderer) is next.** `atlas build` works and its
-payload is byte-identical to the prototype's. `serve`, `init`, `scan` and
-`findings` are stubs that name the phase they land in.
+**Phases 0, 2 and 2.5 are complete. Phase 3 (language adapters) is next.**
+`atlas build`, `atlas scan` and `atlas init` work on any repository, with or
+without a config. `serve` and `findings` are stubs that name the phase they land
+in, `src/serve/` is empty, and `tools/calibrate.mjs` does not exist yet.
 
-`--config` is still required: defaults and detection are Phase 2. `src/config/`
-and `src/serve/` are empty, and `tools/calibrate.mjs` does not exist yet.
+Phase 1 is done bar one gate — 60 fps sustained drag — which needs a human with
+the window in front, because `requestAnimationFrame` is suspended in a
+backgrounded tab.
 
 The prototype this was lifted from still lives at `../FedStack/tax-vault-atlas/`.
 It is the reference for the Phase 0 baseline and nothing else; do not edit it, and
@@ -18,8 +20,11 @@ do not "improve" lifted logic outside the phase that owns the improvement.
 ## Commands
 
 ```bash
-# scan a repo (--config required until phase 2)
-node bin/atlas.mjs build --repo PATH --config examples/taxvault.config.mjs --ref REF
+# map a repo the tool has never seen — no config, detection fills the gap
+node bin/atlas.mjs build --repo PATH
+node bin/atlas.mjs scan  --repo PATH      # why the map looks the way it does
+node bin/atlas.mjs init  --repo PATH      # a starter config; refuses to overwrite
+
 node bin/atlas.mjs build --repo fixtures/mini-monorepo \
   --config fixtures/mini-monorepo/atlas.config.mjs --ref fs --json
 
@@ -29,9 +34,9 @@ UPDATE_GOLDEN=1 npm test                  # re-baseline, then READ the diff
 npm run calibrate                         # tools/calibrate.mjs (phase 6)
 ```
 
-`--ref fs` scans a directory with no git involved; the other rungs of the
-acquisition ladder are Phase 2. Corpus tests skip when the repo is absent, so
-`npm test` is green on a fresh clone.
+`--ref fs` scans a directory with no git involved; the acquisition ladder
+(worktree → git ref → fs) picks a rung on its own otherwise. Corpus tests skip
+when the repo is absent, so `npm test` is green on a fresh clone.
 
 CLI surface, flags, and per-phase gates: **PLAN.md**. Checklists and definition of
 done: **ROADMAP.md** — a phase is done when every box is ticked; tick them as you go.

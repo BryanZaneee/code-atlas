@@ -2,10 +2,9 @@
 
 Isometric, interactive maps of a codebase — its structure, how requests move through it, what the tests reach, and what's structurally wrong with it.
 
-> **Status: pre-alpha, nothing runs yet.** This repo currently contains the plan.
-> The working prototype it grows out of lives at `../FedStack/tax-vault-atlas`
-> and is hardcoded to a single repository; Phase 0 moves it here unchanged, and
-> the phases after that make it general.
+> **Status: pre-alpha.** `atlas build`, `atlas scan` and `atlas init` work on any
+> repository, with or without a config. `serve` and `findings` do not exist yet,
+> and the README you would want before using this is Phase 10's.
 >
 > See **[PLAN.md](./PLAN.md)** for the design and **[ROADMAP.md](./ROADMAP.md)** for progress.
 
@@ -26,14 +25,14 @@ The tool can show a **real** HTTP response and a **modeled** internal path in th
 | **The internal path a request takes** | **MODELED** — inferred from imports. Never observed. |
 | Per-hop timing | **Never rendered.** We don't have it and won't imply we do. |
 
-## Planned
+## Commands
 
 ```
 atlas build     # -> a single self-contained HTML atlas
-atlas serve     # local viewer with source reading and live request replay
-atlas init      # write a starter config by inspecting the repo
 atlas scan      # what the scanner found, and what it couldn't
-atlas findings  # cycles, layering violations, orphans, untested endpoints
+atlas init      # write a starter config by inspecting the repo
+atlas serve     # local viewer with source reading and live request replay   (planned)
+atlas findings  # cycles, layering violations, orphans, untested endpoints   (planned)
 ```
 
 Zero runtime dependencies. No bundler. Node ≥ 20.
