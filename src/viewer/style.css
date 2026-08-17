@@ -1,9 +1,20 @@
+  /* Every colour in this file is defined here and nowhere else — a colour with
+     two definitions eventually has two values. The dark block below overrides
+     the same names, so no rule anywhere has to know which theme is on. */
   :root {
-    --bg:#d8d6b8; --panel:#cfcdaa; --panel-2:#c6c4a0; --border:#a9a684;
-    --ink:#23251c; --dim:#6b6c56; --faint:#8a8b71;
-    --accent:#3f5a2c; --warn:#a8542f;
-    --hover:#bcba95; --note-ink:#33361f; --sample-bg:#c2c09d;
+    --bg:#f4f4f2; --panel:#eaeae7; --panel-2:#e0e0dc; --border:#c9c9c4;
+    --ink:#1c1e1f; --dim:#6b6e70; --faint:#8d9092;
+    --accent:#2f6df0; --warn:#c2410c;
+    --hover:#d8d8d3; --note-ink:#26292b; --sample-bg:#e7e7e3;
+    --swatch-edge:#00000059;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  :root[data-theme="dark"] {
+    --bg:#111314; --panel:#1a1d1f; --panel-2:#232729; --border:#33383b;
+    --ink:#e6e8ea; --dim:#9aa0a4; --faint:#7b8185;
+    --accent:#5b8dff; --warn:#f97316;
+    --hover:#2c3134; --note-ink:#d5d8da; --sample-bg:#1e2224;
+    --swatch-edge:#ffffff4d;
   }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; overflow:hidden; }
@@ -69,7 +80,7 @@
   .row:hover { background:var(--panel-2); }
   .row.sel { background:var(--ink); color:var(--bg); }
   .row.sel .num, .row.sel .sub { color:var(--bg); opacity:.7; }
-  .row .sw { width:8px; height:8px; flex:0 0 auto; border:1px solid rgba(0,0,0,.35); }
+  .row .sw { width:8px; height:8px; flex:0 0 auto; border:1px solid var(--swatch-edge); }
   .row .nm { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .row .num { color:var(--dim); font-size:9.5px; flex:0 0 auto; }
   .row .sub { color:var(--dim); font-size:9px; }

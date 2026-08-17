@@ -10,17 +10,21 @@
  * Config may override any branch of this; `atlas init` will emit it.
  */
 export const DEFAULT_THEME = {
-  ink: "#23251c",
-  bg: "#d8d6b8",
+  ink: "#1c1e1f",
+  bg: "#f4f4f2",
   // A literal stack: canvas ignores var(--mono).
   font: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-  layerFallback: "#8a8a6a",
+  layerFallback: "#8a8a8a",
   // The state channel's one colour. Identity writes to fill; state writes to
   // stroke, ring and badge, so turning identity colour off cannot also turn the
   // selection off. See PLAN.md, "The visual system".
-  accent: "#3f5a2c",
-  selected: "#f2ecc0",
-  packetLabel: "#2a2c1f",
+  accent: "#2f6df0",
+  // The two greys every plate, outline, label halo and watermark is mixed from,
+  // at an alpha. A named token per opacity is thirteen tokens per palette, and
+  // that is how the old palette ended up hardcoded across the renderer.
+  plate: "#6d7378",
+  edge: "#14171a",
+  packetLabel: "#1c1e1f",
 
   edgeStyle: {
     import:           { c: "#6f7358", w: 1,   a: 0.16, dash: null },
@@ -46,6 +50,25 @@ export const DEFAULT_THEME = {
   // Coverage recolours a block in the tests view. `direct` deliberately has no
   // tint: it keeps its layer colour, so orange means something.
   coverTint: { none: "#b0562f", indirect: "#a89a5c" },
+
+  /**
+   * The dark theme, as a delta rather than a second palette.
+   *
+   * Only the scalars flip. Everything mixed from them — plates, outlines, label
+   * halos, the watermark — follows, because they are the same token at an
+   * alpha. `edge` inverts from near-black to near-white: in a line-art map the
+   * stroke carries the whole form, and a dark outline on a dark ground is not a
+   * dimmer map, it is no map.
+   */
+  dark: {
+    ink: "#e6e8ea",
+    bg: "#111314",
+    layerFallback: "#7b7f83",
+    accent: "#5b8dff",
+    plate: "#9aa2a8",
+    edge: "#e2e6ea",
+    packetLabel: "#e6e8ea",
+  },
 
   /**
    * Legend rows, by view kind. `edge` and `swatch` name a key in the tables
@@ -79,6 +102,7 @@ export function buildTheme(config) {
     edgeStyle: { ...DEFAULT_THEME.edgeStyle, ...t.edgeStyle },
     packetColor: { ...DEFAULT_THEME.packetColor, ...t.packetColor },
     coverTint: { ...DEFAULT_THEME.coverTint, ...t.coverTint },
+    dark: { ...DEFAULT_THEME.dark, ...t.dark },
     legend: { ...DEFAULT_THEME.legend, ...t.legend },
   };
 }

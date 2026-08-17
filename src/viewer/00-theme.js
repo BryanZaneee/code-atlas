@@ -14,12 +14,24 @@ const SPACING = 1.5, GUT_LAYER = 2, GUT_SVC = 2.5;
 // properties, so the viewer needs real values in JS — but it must not be the
 // place they are DEFINED, or the tool ends up knowing one repository's palette
 // and one repository's view names. See src/model/theme.mjs and views.mjs.
-const THEME = ATLAS.theme;
-const INK = THEME.ink, BG = THEME.bg;
+let THEME = ATLAS.theme;
+let INK = THEME.ink, BG = THEME.bg;
 const FONT = THEME.font;
 const EDGE_STYLE = THEME.edgeStyle;
 const PACKET_COLOR = THEME.packetColor;
 const COVER_TINT = THEME.coverTint;
+
+/**
+ * Dark is a delta over the base palette, not a second one: only the scalars
+ * flip, and everything mixed from them at an alpha follows. Nothing here
+ * touches the DOM, because this file runs before there is one — the caller
+ * sets `data-theme` and marks the raster dirty.
+ */
+function applyTheme(mode) {
+  THEME = mode === "dark" ? { ...ATLAS.theme, ...ATLAS.theme.dark } : ATLAS.theme;
+  INK = THEME.ink;
+  BG = THEME.bg;
+}
 
 const VIEWS = ATLAS.views;
 const viewById = new Map(VIEWS.map(v => [v.id, v]));

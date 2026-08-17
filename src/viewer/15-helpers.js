@@ -4,6 +4,16 @@ const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmt = (n) => n.toLocaleString("en-US");
 
+/**
+ * A theme colour at an alpha. Canvas has no colour-mix, and the alternative is
+ * a named token per opacity — thirteen of them, in one palette, which is how
+ * the cream palette ended up hardcoded across the renderer in the first place.
+ */
+function alpha(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
 function shade(hex, amt) {         // amt<0 darken toward black
   const n = parseInt(hex.slice(1), 16);
   const f = 1 + amt;

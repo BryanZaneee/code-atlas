@@ -134,7 +134,7 @@ are visible on every single interaction.*
 - [x] `nodes[].travelledBy` — the flow index inverted, absent when empty
 - [x] Selection and hover drawn in the **live** pass, not baked into the world
       cache; full-silhouette stroke + footprint ring, hover distinct from select
-- [ ] Neutral light/dark palette replacing cream; every colour literal in
+- [x] Neutral light/dark palette replacing cream; every colour literal in
       `50-render.js` promoted into the theme
 - [ ] Two colour channels: identity (fill) vs state (stroke/glow/badge);
       `colorMode` `identity`/`mono`, state channel identical in both
@@ -146,7 +146,7 @@ are visible on every single interaction.*
       the bottom strip, hover readout, prose type register
 - [x] **Gate:** select and hover cause **zero** re-rasterisations; 120 pans still
       cause exactly one
-- [ ] **Gate:** zero colour literals of any form (`#`, `rgb(`, `hsl(`) outside
+- [x] **Gate:** zero colour literals of any form (`#`, `rgb(`, `hsl(`) outside
       `:root` and the payload theme
 - [ ] **Gate:** `COVER_TINT` and the derived dotted stroke survive every colour
       mode — `mono` disables identity, never a honesty channel

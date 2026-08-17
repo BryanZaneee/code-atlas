@@ -56,7 +56,7 @@ function renderList() {
       wrap.append(h);
     }
     const r = el("div", "row" + (S.focusDistrict === d.id ? " sel" : ""));
-    const sw = el("span", "sw"); sw.style.background = layerById.get(d.layer)?.color ?? "#888";
+    const sw = el("span", "sw"); sw.style.background = layerById.get(d.layer)?.color ?? THEME.layerFallback;
     r.append(sw, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.members.length));
     r.onclick = () => {
       S.focusDistrict = S.focusDistrict === d.id ? null : d.id;

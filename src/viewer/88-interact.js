@@ -101,6 +101,14 @@ $("#bSpeed").onchange = (e) => { S.speed = parseFloat(e.target.value); };
 $("#bRotL").onclick = () => rotateTo(S.yaw - YAW_STEP);
 $("#bRotR").onclick = () => rotateTo(S.yaw + YAW_STEP);
 $("#bReset").onclick = () => { S.focusDistrict = null; rotateTo(YAW0); renderList(); fitView(); };
+$("#bTheme").onclick = () => {
+  S.theme = S.theme === "dark" ? "light" : "dark";
+  applyTheme(S.theme);
+  document.documentElement.setAttribute("data-theme", S.theme);
+  $("#bTheme").textContent = S.theme === "dark" ? "◑ LIGHT" : "◐ DARK";
+  renderLegend();
+  staticDirty = true;
+};
 $("#q").addEventListener("input", (e) => { S.query = e.target.value.trim(); staticDirty = true; });
 
 for (const [id, key] of [["#oDocs","docs"], ["#oTests","tests"], ["#oContract","contract"], ["#oAmbient","ambient"], ["#oLabels","labels"]]) {

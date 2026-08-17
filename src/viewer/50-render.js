@@ -105,10 +105,10 @@ function drawStatic() {
   // service plates, then district plates
   for (const p of LAYOUT.plates) {
     quad(octx, [project(p.x0, p.y0, 0), project(p.x1, p.y0, 0), project(p.x1, p.y1, 0), project(p.x0, p.y1, 0)],
-      "rgba(60,64,40,.075)", "rgba(60,64,40,.16)", px(1));
+      alpha(THEME.plate, .075), alpha(THEME.plate, .16), px(1));
     const s = project(p.x0, p.y0, 0);
     octx.save();
-    octx.fillStyle = "rgba(35,37,28,.62)";
+    octx.fillStyle = alpha(INK, .62);
     octx.font = `600 ${px(clamp(11 * zf, 8, 15))}px ${FONT}`;
     octx.textAlign = "left";
     octx.fillText(p.label, s.x + px(8 * zf), s.y - px(5 * zf));
@@ -117,11 +117,11 @@ function drawStatic() {
   for (const d of LAYOUT.districts) {
     const dim = S.focusDistrict && S.focusDistrict !== d.id;
     quad(octx, [project(d.x0, d.y0, 0), project(d.x1, d.y0, 0), project(d.x1, d.y1, 0), project(d.x0, d.y1, 0)],
-      dim ? "rgba(60,64,40,.05)" : "rgba(60,64,40,.13)", "rgba(60,64,40,.2)", px(1));
+      alpha(THEME.plate, dim ? .05 : .13), alpha(THEME.plate, .2), px(1));
     if (zf > 0.4) {
       const s = project(d.x0, d.y1, 0);
       octx.save();
-      octx.fillStyle = dim ? "rgba(35,37,28,.28)" : "rgba(35,37,28,.55)";
+      octx.fillStyle = alpha(INK, dim ? .28 : .55);
       octx.font = `${px(clamp(9 * zf, 7, 12))}px ${FONT}`;
       octx.textAlign = "left";
       octx.fillText(d.label.toLowerCase(), s.x + px(5 * zf), s.y + px(11 * zf));
@@ -166,9 +166,9 @@ function drawStatic() {
   for (const n of LAYOUT.nodes) {
     const base = colorOf(n);
     octx.globalAlpha = dimOf(n) ? 0.16 : 1;
-    quad(octx, n.faceLeft,  shade(base, -0.42), "rgba(20,22,16,.28)", edgeStroke);
-    quad(octx, n.faceRight, shade(base, -0.22), "rgba(20,22,16,.28)", edgeStroke);
-    quad(octx, n.faceTop,   base, "rgba(20,22,16,.38)", edgeStroke);
+    quad(octx, n.faceLeft,  shade(base, -0.42), alpha(THEME.edge, .28), edgeStroke);
+    quad(octx, n.faceRight, shade(base, -0.22), alpha(THEME.edge, .28), edgeStroke);
+    quad(octx, n.faceTop,   base, alpha(THEME.edge, .38), edgeStroke);
   }
   octx.globalAlpha = 1;
 
@@ -189,9 +189,9 @@ function drawStatic() {
   octx.save();
   octx.textAlign = "center";
   octx.lineWidth = px(3.5);
-  octx.strokeStyle = "rgba(216,214,184,.92)";
+  octx.strokeStyle = alpha(BG, .92);
   octx.font = `${px(size)}px ${FONT}`;
-  octx.fillStyle = "rgba(35,37,28,.92)";
+  octx.fillStyle = alpha(INK, .92);
 
   // The selected node no longer gets a special case here: its label is part of
   // the live overlay, so it survives labels being off and zoomed past.
@@ -339,7 +339,7 @@ function draw() {
     ctx.shadowColor = col; ctx.shadowBlur = 8;
     drawDiamond(ctx, s, clamp(5 * S.zoom, 3.5, 8), col);
     ctx.restore();
-    ctx.strokeStyle = "rgba(240,238,205,.9)"; ctx.lineWidth = 1;
+    ctx.strokeStyle = alpha(BG, .9); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(s.x, s.y, clamp(5 * S.zoom, 3.5, 8) + 2, 0, 7); ctx.stroke();
     livePackets.push({ x:s.x, y:s.y, kind:"step", data:st });
 
@@ -347,7 +347,7 @@ function draw() {
       ctx.save();
       ctx.font = `${clamp(9 * S.zoom, 8, 12)}px ${FONT}`;
       ctx.textAlign = "center"; ctx.lineWidth = 3;
-      ctx.strokeStyle = "rgba(216,214,184,.9)";
+      ctx.strokeStyle = alpha(BG, .9);
       ctx.strokeText(st.label, s.x, s.y - 13);
       ctx.fillStyle = THEME.packetLabel;
       ctx.fillText(st.label, s.x, s.y - 13);
@@ -361,7 +361,7 @@ function draw() {
     if (f) {
       ctx.save();
       ctx.font = `600 22px ${FONT}`;
-      ctx.fillStyle = "rgba(35,37,28,.13)";
+      ctx.fillStyle = alpha(INK, .13);
       ctx.textAlign = "right";
       ctx.fillText(f.phase ?? f.label, W - 18, H - 22);
       ctx.restore();

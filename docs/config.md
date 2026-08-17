@@ -126,6 +126,27 @@ helper-registered routes are skipped and counted rather than guessed at.
 | `python.internal` | RegExp | modules that **must** exist in-repo; failing to place one is `unresolved`, not "some package we do not scan" |
 | `python.barrels` | string[] | `__init__.py` re-export barrels; consumers point at the module that defines the symbol |
 
+## Theme
+
+`theme` overrides the palette. It is merged **per branch**, so replacing one
+edge kind does not drop the other eleven.
+
+| key | type | what it does |
+| --- | --- | --- |
+| `ink` `bg` | string | text and ground |
+| `accent` | string | the **state** channel's one colour — selection, hover, flow membership. Identity writes to fill, state writes to stroke and badge, so turning identity colour off cannot turn the selection off |
+| `plate` `edge` | string | the two greys every plate, outline, label halo and watermark is mixed from at an alpha. A named token per opacity would be thirteen tokens per palette |
+| `layerFallback` | string | a layer with no `color` |
+| `font` | string | a literal font stack — canvas cannot read `var(--mono)` |
+| `edgeStyle` `packetColor` `coverTint` | object | per edge kind / packet kind / coverage state |
+| `legend` | object | legend rows per view kind; each row *names* a key in the tables above rather than repeating a colour, so the legend cannot drift from the map |
+| `dark` | object | the dark theme, as a **delta** over the keys above |
+
+Only the scalars appear in `dark`. Everything mixed from them follows, which is
+why `edge` inverts to near-white there: in a line-art map the stroke carries the
+whole form, and a dark outline on a dark ground is not a dimmer map, it is no
+map.
+
 ## Curated data
 
 | key | type | what it does |

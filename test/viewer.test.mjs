@@ -70,12 +70,29 @@ test("payload encoding cannot break out of the script tag", () => {
  * A colour with two definitions eventually has two values. Everything outside
  * :root must go through a token, so the palette has exactly one home.
  */
+/**
+ * `:root` and its theme variants are the token-definition blocks; every other
+ * rule goes through a var(). A literal outside them is a colour the dark theme
+ * cannot reach, which is exactly how the old palette survived a repaint.
+ */
+const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(\s*[\d.]/g;
+
 test("style.css declares colours only in :root", () => {
   const css = readFileSync(path.join(VIEWER_DIR, "style.css"), "utf8");
-  const rootEnd = css.indexOf("}");
-  const outside = css.slice(rootEnd);
-  const strays = outside.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+  const outside = css.replace(/:root[^{]*\{[^}]*\}/g, "");
+  const strays = outside.match(COLOUR) ?? [];
   assert.deepEqual(strays, [], "promote these to a custom property in :root");
+});
+
+test("every :root token has a value in both themes", () => {
+  const css = readFileSync(path.join(VIEWER_DIR, "style.css"), "utf8");
+  const blocks = [...css.matchAll(/:root([^{]*)\{([^}]*)\}/g)];
+  const names = (body) => new Set([...body.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
+  const light = names(blocks.find((b) => !b[1].trim())[2]);
+  for (const b of blocks.filter((x) => x[1].trim())) {
+    const missing = [...names(b[2])].filter((n) => !light.has(n));
+    assert.deepEqual(missing, [], `${b[1].trim()} defines tokens the base palette does not`);
+  }
 });
 
 /**
@@ -84,10 +101,12 @@ test("style.css declares colours only in :root", () => {
  */
 test("the viewer reads theme and views from the payload", () => {
   const bundle = bundleScript();
-  assert.match(bundle, /const THEME = ATLAS\.theme/);
+  assert.match(bundle, /THEME = ATLAS\.theme/);
   assert.match(bundle, /const VIEWS = ATLAS\.views/);
-  // The legend used to repeat ten literals already present in the edge tables.
-  const literals = bundle.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
+  // The legend used to repeat ten literals already present in the edge tables,
+  // and the renderer carried a dozen rgba() literals the hex check never saw —
+  // which is how a whole palette survived being retired.
+  const literals = bundle.match(COLOUR) ?? [];
   assert.deepEqual(literals, [], `colours belong in the payload theme: ${literals.join(", ")}`);
 });
 

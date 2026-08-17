@@ -117,13 +117,14 @@
     }
   ],
   "theme": {
-    "ink": "#23251c",
-    "bg": "#d8d6b8",
+    "ink": "#1c1e1f",
+    "bg": "#f4f4f2",
     "font": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
-    "layerFallback": "#8a8a6a",
-    "accent": "#3f5a2c",
-    "selected": "#f2ecc0",
-    "packetLabel": "#2a2c1f",
+    "layerFallback": "#8a8a8a",
+    "accent": "#2f6df0",
+    "plate": "#6d7378",
+    "edge": "#14171a",
+    "packetLabel": "#1c1e1f",
     "edgeStyle": {
       "import": {
         "c": "#6f7358",
@@ -220,6 +221,15 @@
     "coverTint": {
       "none": "#b0562f",
       "indirect": "#a89a5c"
+    },
+    "dark": {
+      "ink": "#e6e8ea",
+      "bg": "#111314",
+      "layerFallback": "#7b7f83",
+      "accent": "#5b8dff",
+      "plate": "#9aa2a8",
+      "edge": "#e2e6ea",
+      "packetLabel": "#e6e8ea"
     },
     "legend": {
       "default": [
