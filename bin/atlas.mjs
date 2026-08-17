@@ -68,9 +68,11 @@ const { values, positionals } = parseArgs({
 });
 
 const command = positionals[0];
+// Asking for help and being told you failed is a wart, so the exit code follows
+// the question rather than the arguments: `--help` succeeded, no command did not.
 if (values.help || !command) {
   process.stdout.write(USAGE);
-  process.exit(command ? 0 : 1);
+  process.exit(values.help ? 0 : 1);
 }
 
 const PENDING = { findings: 5, serve: 7 };
