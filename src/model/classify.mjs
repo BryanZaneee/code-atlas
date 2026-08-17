@@ -84,3 +84,33 @@ export function makeServiceOf(services) {
     return { service: fallback.id, why: `outside every service root — fell back to ${fallback.id}` };
   };
 }
+
+/**
+ * The same guarantee, enforced at the payload rather than at the classifier.
+ *
+ * `makeServiceOf` is total, but a config may supply its own `serviceOf`, and a
+ * hand-written one is free to return an id it never declared — which is exactly
+ * how the prototype produced a blank screen. Rather than overrule it (and move
+ * files into a service the author did not choose), declare the id it used: the
+ * nodes stay where the config put them and the view gains the checkbox that was
+ * missing. Synthesized entries are marked, so a reader can tell which rows the
+ * config asked for and which the tool had to add.
+ */
+export function reconcileServices(services, nodes, warn = () => {}) {
+  const known = new Set(services.map((s) => s.id));
+  const missing = [...new Set(nodes.map((n) => n.service).filter((s) => s && !known.has(s)))];
+  if (!missing.length) return services;
+
+  warn(`warn: ${missing.length} service id(s) used but never declared (${missing.join(", ")}) — added, or their files would be invisible`);
+  return [
+    ...services,
+    ...missing.map((id, i) => ({
+      id,
+      label: id.toUpperCase().replace(/[-_]/g, " "),
+      lang: "-",
+      root: null,
+      order: services.length + i,
+      synthesized: true,
+    })),
+  ];
+}

@@ -21,6 +21,8 @@ import { validateFlows } from "../model/flows.mjs";
 import { buildViews } from "../model/views.mjs";
 import { buildTheme } from "../model/theme.mjs";
 import { loadConfig } from "../config/load.mjs";
+import { detectServices } from "../config/detect.mjs";
+import { reconcileServices } from "../model/classify.mjs";
 import { ADAPTERS } from "../adapters/index.mjs";
 
 export const SCHEMA_VERSION = 1;
@@ -28,10 +30,18 @@ export const SCHEMA_VERSION = 1;
 export function scan({ repo, ref, config: userConfig, fetch = true, strict = true, warn = () => {} }) {
   // Everything downstream reads one normalized shape, whether the values came
   // from a config file, from detection, or from the defaults.
-  const config = loadConfig(userConfig);
+  let config = loadConfig(userConfig);
   const source = acquire({ repo, ref, fetch, warn });
   try {
-    const { paths, fileSet, src } = collect(source.dir, { keep: config.keep, exclude: config.exclude });
+    const { all, paths, fileSet, src } = collect(source.dir, { keep: config.keep, exclude: config.exclude });
+
+    // Detection needs the walk, and the walk needs keep/exclude, so the config
+    // is loaded twice: once to filter, once with what the filtered tree revealed.
+    // A declared service always wins — detection only fills a gap.
+    if (!userConfig?.services) {
+      const services = detectServices({ dir: source.dir, all, paths, exclude: config.exclude });
+      if (services) config = loadConfig(userConfig, { detected: { services } });
+    }
 
     const ctx = { config, paths, fileSet, src, warn };
     for (const a of ADAPTERS) if (a.prepare) ctx[a.id] = a.prepare(ctx);
@@ -87,7 +97,8 @@ export function scan({ repo, ref, config: userConfig, fetch = true, strict = tru
         coverNone: nodes.filter((n) => n.coverage === "none").length,
         packageCount: new Set(nodes.flatMap((n) => n.externals)).size,
       },
-      services: config.services,
+      // Total by payload: whatever placed a node, its service is in this list.
+      services: reconcileServices(config.services, nodes, warn),
       layers: config.layers,
       views: buildViews(config, config.flows ?? []),
       theme: buildTheme(config),
@@ -112,6 +123,11 @@ export function report(payload, diagnostics, warn) {
   warn(`atlas: ref ${m.ref} @ ${m.commit}`);
   warn(`atlas: ${m.fileCount} code files, ${m.lineCount} lines, ${m.edgeCount} edges, ${m.endpointCount} endpoints`);
   warn(`atlas: imports resolved=${stats.resolved} unresolved=${stats.unresolved} external=${stats.external}`);
-  warn(`atlas: unclassified files=${unclassified.length}${unclassified.length ? " -> " + unclassified.join(", ") : ""}`);
+  // The unsorted share is the honest read on classification quality: a repo
+  // whose layout no rule recognises still renders, and this is how you find out
+  // that is what happened rather than wondering why it is one column.
+  const share = m.fileCount ? Math.round((unclassified.length / m.fileCount) * 100) : 0;
+  const sample = unclassified.slice(0, 6).join(", ") + (unclassified.length > 6 ? `, +${unclassified.length - 6} more` : "");
+  warn(`atlas: unsorted files=${unclassified.length} (${share}% — placed by fallback)${unclassified.length ? " -> " + sample : ""}`);
   warn(`atlas: tests without a subject=${orphanTests.length}${orphanTests.length ? " -> " + orphanTests.map((n) => n.name).join(", ") : ""}`);
 }

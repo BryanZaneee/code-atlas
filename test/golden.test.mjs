@@ -44,6 +44,30 @@ const ADDED_STEP = ["warn"];
 // service themselves must still match the prototype exactly, and they do.
 const ADDED_NODE = ["layerWhy", "serviceWhy"];
 
+/**
+ * The one deliberate CORRECTION to the prototype's observed facts, as opposed to
+ * the additions above.
+ *
+ * The prototype decided a file's language with a three-way test and markdown as
+ * the else branch, which held only while the kept set was `.ts .py .sql .md`. A
+ * `.json` contract file — kept on purpose, because two languages import it —
+ * was therefore reported as prose: counted in `docCount` instead of
+ * `fileCount`, its lines missing from `lineCount`, and hidden behind the DOCS
+ * toggle. Phase 2 widens the kept set, which would have made that silent bug
+ * systematic, so it is fixed rather than preserved.
+ *
+ * Reversing exactly that correction here keeps every other byte of the payload
+ * under comparison. It is deliberately narrow: it names one bug and undoes one
+ * bug.
+ */
+function undoJsonLangFix(p) {
+  const json = p.nodes.filter((n) => n.lang === "json");
+  for (const n of json) n.lang = "md";
+  p.meta.fileCount -= json.length;
+  p.meta.docCount += json.length;
+  p.meta.lineCount -= json.reduce((a, n) => a + n.loc, 0);
+}
+
 test("taxvault's observed facts have not drifted from the prototype", async (t) => {
   const repo = corpusRepo("taxvault");
   if (!repo) return t.skip("taxvault not present -- the corpus lives outside this repo");
@@ -54,6 +78,15 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   // Deleting a key leaves the order of the rest intact, so this stays a plain
   // string comparison rather than a structural walk.
   const stripped = structuredClone(payload);
+  // Phase 2, and the one entry here that is not a new field: the prototype
+  // assigned five root-level files to a service it never declared, so the viewer
+  // filtered them out with no checkbox to bring them back — PLAN.md failure mode
+  // #1, frozen into this golden. Reconciliation declares the id the config
+  // already used rather than moving the files, so every node's service is
+  // unchanged and the services list gains one marked entry. Dropping the marked
+  // entries compares like for like.
+  stripped.services = stripped.services.filter((s) => !s.synthesized);
+  undoJsonLangFix(stripped);
   for (const k of ADDED_TOP) delete stripped[k];
   for (const k of ADDED_META) delete stripped.meta[k];
   for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];

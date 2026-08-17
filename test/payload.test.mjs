@@ -101,3 +101,60 @@ test("an endpoint's path carries its mount prefix", async () => {
   assert.ok(ids.includes("GET /api/users"), ids.join(" | "));
   assert.ok(ids.includes("GET /health"), ids.join(" | "));
 });
+
+/**
+ * Graceful degradation — the properties that must hold with no config at all.
+ *
+ * PLAN.md's failure modes #1, #2 and #4 all end the same way: a repository the
+ * tool has never seen renders as a blank screen, an all-orange map, or a single
+ * column. `fixtures/flat-app` is a flat single package with no config and no
+ * tests, so CI enforces these without needing the validation corpus.
+ */
+const flatOf = async () => (await scanFixture("flat-app")).payload;
+
+test("a repo with no config still produces a legible atlas", async () => {
+  const p = await flatOf();
+  assert.ok(p.meta.nodeCount > 0, "no nodes at all");
+  assert.ok(p.services.length >= 1, "no services to switch on");
+  assert.ok(p.layers.length >= 1);
+  assert.ok(p.nodes.some((n) => n.kind === "file" && n.lang !== "md"), "no code nodes");
+});
+
+/**
+ * Failure mode #1: serviceOf returned an id that was not in the services list,
+ * the viewer filters by service, and every node vanished — with no checkbox left
+ * to bring it back.
+ */
+test("with no config, every node's service is still one you can switch off", async () => {
+  const p = await flatOf();
+  const known = new Set(p.services.map((s) => s.id));
+  assert.deepEqual([...new Set(p.nodes.map((n) => n.service).filter((s) => !known.has(s)))], []);
+});
+
+/** Failure mode #4: nothing matched, so everything landed in one column. */
+test("with no config, files are spread across more than one layer", async () => {
+  const p = await flatOf();
+  const layers = new Set(p.nodes.filter((n) => n.kind === "file").map((n) => n.layer));
+  assert.ok(layers.size > 1, `every file landed in ${[...layers]}`);
+});
+
+/**
+ * Failure mode #2: no tests meant every file read "none", which is the value
+ * that means UNTESTED. Absent evidence is not evidence of absence.
+ */
+test("a repo with no tests reports coverage as not measured, not as untested", async () => {
+  const p = await flatOf();
+  assert.equal(p.meta.testCount, 0);
+  assert.equal(p.meta.suiteCount, 0);
+  // Non-file nodes carry no coverage key at all, which the schema documents.
+  assert.deepEqual([...new Set(p.nodes.filter((n) => n.kind === "file").map((n) => n.coverage))], [null]);
+  assert.equal(p.meta.coverNone, 0, "0 files may be reported as untested here");
+});
+
+test("classification provenance is present on every file node", async () => {
+  const p = await flatOf();
+  for (const n of p.nodes.filter((x) => x.kind === "file")) {
+    assert.ok(n.layerWhy, `${n.id} has no reason for its layer`);
+    assert.ok(n.serviceWhy, `${n.id} has no reason for its service`);
+  }
+});

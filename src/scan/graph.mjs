@@ -12,6 +12,26 @@
 import path from "node:path";
 import { adapterFor } from "../adapters/index.mjs";
 
+/**
+ * The language a file is written in, from its extension.
+ *
+ * This used to be a three-way test with markdown as the else branch, which was
+ * true only while the kept set was `.ts .py .sql .md`. Widen the keep pattern and
+ * every unrecognised extension silently becomes prose: a Rust or JSX file gets
+ * counted as documentation and drops out of `fileCount` and `lineCount`
+ * entirely. Anything unknown is code we cannot name, not prose.
+ */
+const LANGS = [
+  [/\.tsx?$/, "ts"], [/\.[cm]?jsx?$/, "js"], [/\.py$/, "py"], [/\.go$/, "go"],
+  [/\.rs$/, "rs"], [/\.rb$/, "rb"], [/\.java$/, "java"], [/\.kt$/, "kt"],
+  [/\.php$/, "php"], [/\.sql$/, "sql"], [/\.(json|ya?ml|toml)$/, "json"],
+  [/\.(md|mdx|rst|txt)$/, "md"],
+];
+
+export function langOf(p) {
+  return LANGS.find(([re]) => re.test(p))?.[1] ?? "src";
+}
+
 export function extractImports(ctx) {
   const stats = { resolved: 0, unresolved: 0, external: 0 };
   const imports = new Map();
@@ -65,7 +85,7 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
       serviceWhy: svc.why,
       layer,
       layerWhy: placed.why,
-      lang: p.endsWith(".ts") ? "ts" : p.endsWith(".py") ? "py" : p.endsWith(".sql") ? "sql" : "md",
+      lang: langOf(p),
       loc,
       kind: "file",
       exports: (text.match(/^export /gm) ?? []).length + (text.match(/^(def|class) /gm) ?? []).length,

@@ -66,10 +66,19 @@ const CORPUS = {
   llmbench: "../llmbench",
 };
 
-/** Scan an in-repo fixture through the fs rung — no git, so CI needs none. */
+/**
+ * Scan an in-repo fixture through the fs rung — no git, so CI needs none.
+ *
+ * A fixture without an `atlas.config.mjs` is scanned with none, which is not an
+ * oversight: the no-config path is the one a stranger's repository takes, so it
+ * needs a target CI enforces.
+ */
 export async function scanFixture(name, opts = {}) {
   const repo = path.join(FIXTURE_DIR, name);
-  const config = (await import(pathToFileURL(path.join(repo, "atlas.config.mjs")).href)).default;
+  const configPath = path.join(repo, "atlas.config.mjs");
+  const config = existsSync(configPath)
+    ? (await import(pathToFileURL(configPath).href)).default
+    : undefined;
   return scan({ repo, ref: "fs", config, ...opts });
 }
 

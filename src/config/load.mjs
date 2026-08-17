@@ -23,17 +23,22 @@ import { classifyLayer, makeServiceOf } from "../model/classify.mjs";
 /** The sentinel a hand-written classify() returns for "no rule of mine matched". */
 const NO_MATCH = "other";
 
-export function loadConfig(user = {}, { overrides = {} } = {}) {
-  const merged = { ...DEFAULTS, ...user, ...overrides };
-  const { layers, services, layerRules, fallbackLayer = "tooling" } = merged;
+export function loadConfig(user = {}, { detected = {}, overrides = {} } = {}) {
+  const merged = { ...DEFAULTS, ...detected, ...user, ...overrides };
+  const { layers, services, layerRules, fallbackLayer } = merged;
 
   // A user `classify()` wins over rules: someone who wrote one means it.
+  //
+  // Its no-match sentinel keeps landing in `tooling`, which is what that shape
+  // has always meant, unless the config says otherwise. The rules path uses the
+  // `unsorted` column instead, because there the tool is admitting it did not
+  // recognise the file rather than reporting a decision someone made.
   const layerOf = user.classify
     ? (p) => {
         const layer = user.classify(p);
         return layer && layer !== NO_MATCH
           ? { layer, why: "matched a rule in the config's classify()", matched: true }
-          : { layer: fallbackLayer, why: "the config's classify() matched no rule", matched: false };
+          : { layer: user.fallbackLayer ?? "tooling", why: "the config's classify() matched no rule", matched: false };
       }
     : (p) => classifyLayer(p, layerRules, fallbackLayer);
 

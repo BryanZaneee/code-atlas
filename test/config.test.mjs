@@ -12,8 +12,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig } from "../src/config/load.mjs";
-import { classifyLayer, makeServiceOf } from "../src/model/classify.mjs";
-import { DEFAULT_LAYER_RULES } from "../src/config/defaults.mjs";
+import { classifyLayer, makeServiceOf, reconcileServices } from "../src/model/classify.mjs";
+import { DEFAULT_EXCLUDE } from "../src/config/defaults.mjs";
+import { detectServices } from "../src/config/detect.mjs";
+import { FIXTURE_DIR } from "./helpers.mjs";
 
 test("an empty config still yields a working classifier", () => {
   const c = loadConfig();
@@ -64,11 +66,20 @@ test("every placement carries the reason it was placed", () => {
  * still says so. "Everything landed in tooling because nothing matched" is a
  * legible failure; a blank screen is not.
  */
-test("a path matching no rule falls back and says so", () => {
-  const r = classifyLayer("weird/unknowable/thing.xyz", DEFAULT_LAYER_RULES);
-  assert.equal(r.layer, "tooling");
+test("a path matching no rule lands in unsorted and says so", () => {
+  const { layerOf, layers } = loadConfig();
+  const r = layerOf("weird/unknowable/thing.xyz");
+  // Its own column, never "tooling": the tool is admitting it did not recognise
+  // the file, not claiming the file is a build script.
+  assert.equal(r.layer, "unsorted");
   assert.equal(r.matched, false);
   assert.match(r.why, /no rule matched/);
+  assert.ok(layers.some((l) => l.id === "unsorted"), "the fallback layer must be a real column");
+});
+
+test("a config's own classify() keeps the fallback its shape has always meant", () => {
+  const { layerOf } = loadConfig({ classify: () => "other" });
+  assert.equal(layerOf("x.ts").layer, "tooling");
 });
 
 test("an unmatched path prefers a layer-named directory over the fallback", () => {
@@ -131,4 +142,75 @@ test("a config file overrides the defaults it names and inherits the rest", () =
 test("CLI overrides win over the config file", () => {
   const c = loadConfig({ keep: /\.config$/ }, { overrides: { keep: /\.cli$/ } });
   assert.equal(String(c.keep), "/\\.cli$/");
+});
+
+/**
+ * Service detection.
+ *
+ * The rows of the map, found rather than declared. The two rules that keep it
+ * honest on a real repository are both asserted here: a manifest inside excluded
+ * output is not a service, and a manifest directory with no code under it is an
+ * umbrella rather than a service.
+ */
+test("a manifest directory with code under it becomes a service", () => {
+  const services = detectServices({
+    dir: FIXTURE_DIR,
+    all: ["flat-app/package.json", "flat-app/src/server.ts"],
+    paths: ["flat-app/src/server.ts"],
+    exclude: [],
+  });
+  assert.equal(services.length, 1);
+  assert.equal(services[0].id, "flat-app");
+  // A manifest at the scanned root owns everything, which is what rootless means.
+  assert.equal(services[0].root, "flat-app");
+});
+
+test("a vendored manifest inside excluded output is not a service", () => {
+  const services = detectServices({
+    dir: FIXTURE_DIR,
+    all: ["flat-app/package.json", "flat-app/node_modules/left-pad/package.json", "flat-app/src/server.ts"],
+    paths: ["flat-app/src/server.ts"],
+    exclude: DEFAULT_EXCLUDE,
+  });
+  assert.deepEqual(services.map((s) => s.id), ["flat-app"]);
+});
+
+test("a manifest with no files under it is an umbrella, not a service", () => {
+  const services = detectServices({
+    dir: FIXTURE_DIR,
+    all: ["package.json", "flat-app/package.json", "flat-app/src/server.ts"],
+    paths: ["flat-app/src/server.ts"],
+    exclude: [],
+  });
+  // The root manifest lists the others and owns no code of its own.
+  assert.deepEqual(services.map((s) => s.id), ["flat-app"]);
+});
+
+test("a repo with no manifest anywhere still gets a service", () => {
+  const detected = detectServices({ dir: FIXTURE_DIR, all: ["a.ts"], paths: ["a.ts"], exclude: [] });
+  assert.equal(detected, null, "nothing to detect");
+  // ...and the defaults cover it, which is what keeps serviceOf total.
+  const { services, serviceOf } = loadConfig();
+  assert.equal(services.length, 1);
+  assert.ok(services.some((s) => s.id === serviceOf("a.ts").service));
+});
+
+/**
+ * The payload-level totality guarantee. A config's own serviceOf may return an
+ * id it never declared — the prototype's did, and every file it touched vanished
+ * from the view. The id gets declared rather than the files getting moved.
+ */
+test("a service used but never declared is added rather than dropped", () => {
+  const declared = [{ id: "api", root: "api" }];
+  const nodes = [{ service: "api" }, { service: "ghost" }, { service: "ghost" }];
+  const out = reconcileServices(declared, nodes);
+  assert.deepEqual(out.map((s) => s.id), ["api", "ghost"]);
+  assert.equal(out[1].synthesized, true, "a reader must be able to tell which rows the tool added");
+  for (const n of nodes) assert.ok(out.some((s) => s.id === n.service));
+});
+
+test("reconciliation leaves a consistent payload untouched", () => {
+  const declared = [{ id: "api", root: "api" }];
+  const out = reconcileServices(declared, [{ service: "api" }]);
+  assert.equal(out, declared, "no copy, no synthesized rows, nothing to say");
 });

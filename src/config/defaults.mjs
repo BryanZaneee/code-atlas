@@ -19,18 +19,28 @@
 export const DEFAULT_LAYERS = [
   { id: "endpoint", label: "ENDPOINT", rank: -1, color: "#d8c98a" },
   { id: "entry", label: "ENTRY", rank: 0, color: "#c7b57a" },
-  { id: "route", label: "ROUTE", rank: 1, color: "#b9a86a" },
-  { id: "middleware", label: "MIDDLEWARE", rank: 2, color: "#b09a72" },
-  { id: "controller", label: "CONTROLLER", rank: 3, color: "#a8a86a" },
-  { id: "service", label: "SERVICE", rank: 4, color: "#8fae74" },
-  { id: "egress", label: "EGRESS", rank: 5, color: "#7fa88c" },
-  { id: "repository", label: "REPOSITORY", rank: 6, color: "#7e9a8a" },
-  { id: "datastore", label: "DATASTORE", rank: 7, color: "#6a8f9f" },
-  { id: "contract", label: "CONTRACT", rank: 8, color: "#8a7e6a" },
-  { id: "migration", label: "MIGRATION", rank: 9, color: "#6f7a5e" },
-  { id: "tooling", label: "TOOLING", rank: 10, color: "#7d7a63" },
-  { id: "test", label: "TEST", rank: 11, color: "#a87e6a" },
-  { id: "docs", label: "DOCS", rank: 12, color: "#5f6b52" },
+  // A client-side repo has a whole spine the backend taxonomy has no column for.
+  // Without this one, every component in a frontend project falls to the
+  // fallback and the map is one tall column of "tooling" — legible only in the
+  // sense that it did not crash.
+  { id: "ui", label: "UI", rank: 1, color: "#c2a98d" },
+  { id: "route", label: "ROUTE", rank: 2, color: "#b9a86a" },
+  { id: "middleware", label: "MIDDLEWARE", rank: 3, color: "#b09a72" },
+  { id: "controller", label: "CONTROLLER", rank: 4, color: "#a8a86a" },
+  { id: "service", label: "SERVICE", rank: 5, color: "#8fae74" },
+  { id: "egress", label: "EGRESS", rank: 6, color: "#7fa88c" },
+  { id: "repository", label: "REPOSITORY", rank: 7, color: "#7e9a8a" },
+  { id: "datastore", label: "DATASTORE", rank: 8, color: "#6a8f9f" },
+  { id: "contract", label: "CONTRACT", rank: 9, color: "#8a7e6a" },
+  { id: "util", label: "UTIL", rank: 10, color: "#8c8a76" },
+  { id: "migration", label: "MIGRATION", rank: 11, color: "#6f7a5e" },
+  { id: "tooling", label: "TOOLING", rank: 12, color: "#7d7a63" },
+  // Where a file goes when no rule recognised it. It has to be its own column:
+  // calling unplaceable application code "tooling" is a claim the tool cannot
+  // support, and it hides how much of the repo the rules actually understood.
+  { id: "unsorted", label: "UNSORTED", rank: 13, color: "#6e6a5e" },
+  { id: "test", label: "TEST", rank: 14, color: "#a87e6a" },
+  { id: "docs", label: "DOCS", rank: 15, color: "#5f6b52" },
 ];
 
 /**
@@ -59,11 +69,14 @@ export const DEFAULT_LAYER_RULES = [
   { layer: "migration", dirs: ["migrations", "migration", "alembic", "versions"], why: "a migrations directory" },
   { layer: "route", dirs: ["routes", "routers", "router", "endpoints", "api", "pages"], why: "a routing directory" },
   { layer: "middleware", dirs: ["middleware", "middlewares", "guards", "interceptors"], why: "a middleware directory" },
-  { layer: "controller", dirs: ["controllers", "controller", "handlers", "resolvers", "views"], why: "a controller directory" },
+  { layer: "ui", dirs: ["components", "component", "ui", "views", "screens", "widgets", "layouts", "hooks", "styles"], why: "a user-interface directory" },
+  { layer: "controller", dirs: ["controllers", "controller", "handlers", "resolvers"], why: "a controller directory" },
+  { layer: "controller", names: ["views.py", "viewsets.py"], why: "the conventional controller filename in this framework" },
   { layer: "service", dirs: ["services", "service", "usecases", "use_cases", "domain", "core", "auth", "logic"], why: "a service directory" },
   { layer: "egress", dirs: ["clients", "client", "integrations", "providers", "adapters", "gateways", "storage", "queue"], why: "an outbound-integration directory" },
   { layer: "repository", dirs: ["repository", "repositories", "repos", "dao", "db", "database", "models", "entities", "cache", "store"], why: "a persistence directory" },
   { layer: "contract", dirs: ["schemas", "schema", "types", "contracts", "dto", "errors", "openapi", "constants", "config"], why: "a shared-contract directory" },
+  { layer: "util", dirs: ["utils", "util", "helpers", "shared", "common", "lib"], why: "a shared-utility directory" },
 
   // Entrypoints last: `index.ts` under routes/ is a route first and an entry second.
   {
@@ -122,6 +135,7 @@ export const DEFAULT_SERVICES = [{ id: "app", label: "APP", lang: "-", root: nul
 export const DEFAULTS = {
   layers: DEFAULT_LAYERS,
   layerRules: DEFAULT_LAYER_RULES,
+  fallbackLayer: "unsorted",
   services: DEFAULT_SERVICES,
   keep: DEFAULT_KEEP,
   exclude: DEFAULT_EXCLUDE,

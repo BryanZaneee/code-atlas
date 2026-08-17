@@ -16,6 +16,13 @@ const NOT_MEASURED = ["test", "tooling", "docs", "migration"];
 
 export function deriveCoverage(nodes, edges) {
   const direct = new Set(edges.filter((e) => e.kind.startsWith("test:")).map((e) => e.to));
+
+  // Nothing to measure from: no tests, or tests whose imports this language's
+  // adapter cannot resolve. Either way the answer is "not measured" and every
+  // node keeps coverage null. Reporting "none" everywhere would be an all-orange
+  // map that reads as "your code is untested" on evidence we do not have.
+  if (!direct.size) return { direct, reached: direct };
+
   const reached = new Set(direct);
 
   const outImports = new Map();
