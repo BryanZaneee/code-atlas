@@ -7,7 +7,7 @@
 | Layer | Choice | Why |
 | --- | --- | --- |
 | Runtime | **Node.js ≥ 20** (dev on 24.18.0), ESM `.mjs` | `.mjs` runs as ESM with no `package.json` ceremony |
-| Dependencies | **Zero runtime deps.** `node:child_process`, `node:fs`, `node:http`, `node:os`, `node:path`, `node:url`, `node:zlib` | no install step, no supply chain, no version drift |
+| Dependencies | **Zero deps in the CLI and scanner** — `node:child_process`, `node:fs`, `node:http`, `node:os`, `node:path`, `node:url`, `node:zlib`; `node:test` for tests | no install step, no supply chain, no version drift. A default, not a law: the *viewer* may take a rendering dep (three.js, paper-shaders) when a phase justifies one, weighed against the single-file promise |
 | Build | **None.** No bundler, no TypeScript, no transpile | the tool must stay readable by whoever is debugging it at 3am |
 | Source acquisition | worktree → `git archive <ref>` → plain fs | read-only; never mutates the target or switches branches |
 | Viewer | **Vanilla JS + Canvas 2D + CSS custom properties** | no framework, no CDN, no external fetch — works over `file://` |
@@ -103,7 +103,7 @@ Confirmed against real repos — this is what the prototype does on anything tha
 | 2 | **No tests** → every file `coverage:"none"`, whole view orange, beside a hardcoded `["SUITES","4"]` | no test files → `coverage: null`; suite count from `meta` |
 | 3 | **Monorepo workspaces** → `@myorg/core` classified external, every intra-repo edge lost | tsconfig `paths`/`baseUrl` + workspace-name resolution |
 | 4 | **No layer rule matches** → everything `"tooling"`: one column, one color, coverage skipped | directory-derived fallback + `unsorted` share reported |
-| 5 | **Non-git dir or no `origin/develop`** → hard `exit(1)` (`sonder` is exactly this) | acquisition ladder + HEAD fallback |
+| 5 | **Non-git dir, unborn HEAD, or no `origin/develop`** → hard `exit(1)`. `sonder` is a git repo with **zero commits**, so `rev-parse --git-dir` succeeds while `rev-parse HEAD` fails; only taxvault has `origin/develop` at all | acquisition ladder + HEAD default |
 | 6 | `Math.min(...pts.map())` spreads 8×nodeCount args → **`RangeError` crash ~8k nodes**; `drawStatic` re-runs every pan frame; `endpoints.some()` O(E²); `groups.find()` O(N·G) | `reduce`; world-space cache with mip re-render; `Set`/`Map` |
 | 7 | `heightOf` saturates at ~958 LOC — 1,000-line and 5,000-line files identical | `h = 8 + 130·log1p(loc)/log1p(p95)` normalized to the repo |
 | 8 | Stale curated flow → `exit(1)`; fatal for a generic tool | warning; `--strict` restores the hard fail |
@@ -247,10 +247,10 @@ Reordered from the original: **perf moved into Phase 1**, because the `RangeErro
 
 | # | Work | Gate |
 | --- | --- | --- |
-| **0** | Skeleton, lift-and-shift, viewer concat, `schemaVersion`, `meta.acquisition`, TaxVault taxonomy frozen into `examples/taxvault.config.mjs` | Payload **byte-identical** to the prototype except `generatedAt`. Turns "I hope nothing changed" into a diff. |
-| **1** | **Renderer**: `RangeError` fix, world-space cache + mip, `Set`/`Map` for the O(n²) loops, `heightOf` log-p95, theme single-sourced (zero hex in CSS), `VIEWS`/`EDGE_STYLE`/copy into payload, **camera rotation** | 60 fps drag on the largest target; synthetic **5,000-node / 12,000-edge** payload renders with no `RangeError`; `grep -r 'engagement\|taxvault\|SUITES", "4' src/viewer/` = zero hits; 360° rotation never mis-occludes; hit-testing correct at every angle; yaw 45° bit-identical to Phase 0 |
-| **2** | Config, precedence, detection, `atlas init`, total `serviceOf`, layer fallback, graceful degradation, classification provenance, `atlas scan`, streamed progress | `atlas build` with **no config at all** yields a legible atlas for taxvault, Shuttrr, terra, **sonder** (no valid git), **llmbench** (pyproject only). Assert `nodeCount>0` and every node's service ∈ services. INSPECT shows the matched rule for every node. |
-| **3** | Adapters + resolution + **conformance fixtures** | `fixtures/hostile-ts` and `fixtures/hostile-py` resolve **exactly** as asserted. On Shuttrr `unresolved===0` and zero internal specifier classified external (`@/lib/utils/cn` ×174). On **llmbench all 172 relative-dot imports resolve** (currently 0). TaxVault counts unchanged. |
+| **0** | Skeleton, lift-and-shift, viewer concat, `schemaVersion`, `meta.acquisition`, TaxVault taxonomy frozen into `examples/taxvault.config.mjs`, `test/` harness | Payload **byte-identical** to the prototype except `generatedAt`, checked against `test/golden/taxvault.json` (pinned at `22595f3a`). Turns "I hope nothing changed" into a diff. Plus `generic.test.mjs`: zero target-specific strings in `src/`. |
+| **1** | **Renderer**: `RangeError` fix, world-space cache + mip, `Set`/`Map` for the O(n²) loops, `heightOf` log-p95, theme single-sourced (zero hex in CSS), `VIEWS`/`EDGE_STYLE`/copy into payload, **camera rotation** | 60 fps drag on the largest target; synthetic **5,000-node / 12,000-edge** payload renders with no `RangeError`; `generic.test.mjs` still green once the eight taxvault-coupled viewer strings are gone (needs `meta.suiteCount`, golden re-baselined); 360° rotation never mis-occludes; hit-testing correct at every angle; yaw 45° bit-identical to Phase 0 |
+| **2** | Config, precedence, detection, `atlas init`, total `serviceOf`, layer fallback, graceful degradation, classification provenance, `atlas scan`, streamed progress | `atlas build` with **no config at all** yields a legible atlas for taxvault, Shuttrr, terra, **sonder** (git repo, zero commits), **llmbench** (pyproject only). Assert `nodeCount>0` and every node's service ∈ services. INSPECT shows the matched rule for every node. |
+| **3** | Adapters + resolution + **conformance fixtures** | `fixtures/hostile-ts` and `fixtures/hostile-py` resolve **exactly** as asserted. On Shuttrr `unresolved===0` and zero internal specifier classified external (174 `@/…` alias imports, `@/lib/utils/cn` ×24, resolved per-tsconfig). On **llmbench all 172 relative-dot imports resolve** (currently 0). TaxVault counts unchanged. |
 | **4** | Endpoints v2 | Shuttrr yields `POST /api/photos/upload`, `GET /api/photos/gallery`, `GET /health`, ≥12 `/api/ai/*` through the two-level mount, `/sign-in`, `/auth/callback`; `(auth)`/`(dashboard)` absent from every path; ≥8 non-literal registrations reported naming `presets.ts` |
 | **5** | Findings engine + FINDINGS view + `atlas findings --json` | On TaxVault: reports `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true); zero false layering violations against a repo that enforces layering by policy. Cycles found in a synthetic fixture with a known cycle. |
 | **6** | Derivation + `tools/calibrate.mjs` | Every endpoint across all targets gives a ≥2-hop path with no crash. **Calibration diffs derived vs curated across all 9 flows**, emits per-flow and aggregate precision/recall, and the numbers go in the README. |
@@ -265,6 +265,8 @@ Regex, not AST — under-reports, quantified by the conformance fixtures. File-l
 
 ## Explicitly deferred
 
-Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · WebGL · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (`generic.mjs` still renders them) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
+Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (`generic.mjs` still renders them) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
+
+**Deferred until v1.0, not forever:** WebGL rendering (three.js / paper-shaders) and a desktop shell. Phase 1 keeps `relayout()`/`reproject()` emitting plain world-space geometry that `draw*` consumes, so a WebGL renderer is a swap rather than a rewrite. No renderer abstraction gets built ahead of that — one seam, not an interface with a single implementation.
 
 Scope guard: the code viewer is read-only with no search and no editing; the composer has no collections, environments, or scripting. If a request is "like Postman" or "like VS Code", the answer is no.

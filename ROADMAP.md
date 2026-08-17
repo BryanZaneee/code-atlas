@@ -28,15 +28,23 @@ Legend: ○ not started · ◐ in progress · ● done
 
 - [x] `git init`, directory scaffold
 - [x] `PLAN.md`, `ROADMAP.md`
-- [ ] `package.json` — `bin:{atlas}`, `engines>=20`, **no `dependencies` field**
+- [x] `package.json` — `bin:{atlas}`, `engines>=20`, **no `dependencies` field**
 - [ ] `bin/atlas.mjs` — `parseArgs` subcommand dispatch (`build`/`serve`/`init`/`scan`/`findings`)
-- [ ] Scanner split into `src/scan/*` + `src/model/*`
+- [ ] Scanner split into `src/scan/*` + `src/model/*`; the walk **never follows
+      symlinks** (Phase 7's security posture needs it, and a symlinked checkout
+      would otherwise be double-counted)
 - [ ] Viewer split into `src/viewer/*` + concatenation in `src/build/assemble.mjs`
 - [ ] TaxVault taxonomy frozen into `examples/taxvault.config.mjs`
 - [ ] `meta.schemaVersion = 1`
 - [ ] `meta.acquisition` (`worktree` / `ref` / `fs`, + `ref`, `commit`, `dirty`)
+- [ ] `test/` harness: `helpers.mjs`, `generic.test.mjs`, `payload.test.mjs`, `golden.test.mjs`, `viewer.test.mjs`
 - [ ] **Gate:** payload byte-identical to the prototype except `generatedAt`
-  - reference sha256 `d6e8cc0109f7e76f0ff7c22fcb4fad0e6bf692feb9cb21c992d423f352d31902` (197 nodes / 467 edges / 18 endpoints / 9 flows)
+  - baseline captured from the prototype pinned at taxvault `22595f3a` and committed
+    as `test/golden/taxvault.json` — a file, not a hash, so a failure prints a diff
+  - 197 nodes / 467 edges / 18 endpoints / 9 flows / 7 services / 14 layers / 43 groups
+  - *(the sha256 previously recorded here was unreproducible against any
+    normalization of the prototype's output; the counts were correct)*
+- [ ] **Gate:** `test/generic.test.mjs` — zero target-specific strings in `src/` or `bin/`
 
 ## Phase 1 — Renderer: perf, rotation, decoupling
 
@@ -53,7 +61,11 @@ Legend: ○ not started · ◐ in progress · ● done
 - [ ] Rotation controls: `Q`/`E` 15° steps, Shift+drag free, `R` snap to 45°, yaw in the overlay
 - [ ] **Gate:** 60 fps sustained drag on the largest target
 - [ ] **Gate:** synthetic 5,000-node / 12,000-edge payload renders, no `RangeError`
-- [ ] **Gate:** `grep -r 'engagement\|taxvault\|SUITES", "4' src/viewer/` returns zero hits
+- [ ] **Gate:** `generic.test.mjs` still green — this phase removes the eight
+      taxvault-coupled viewer strings (`<title>`, the `engagement` view id ×8,
+      `SIDE_HINT` prose naming OCR/Core, `["SUITES","4"]`, the `#ovTop` title
+      ternary, legend labels, the `/CROSS-BOUNDARY|forwarded/` regex, `createApp`
+      in the coverage copy). Needs `meta.suiteCount` added and the golden re-baselined.
 - [ ] **Gate:** yaw 45° is bit-identical to Phase 0; 360° sweep never mis-occludes; click selects correctly at every angle
 
 ## Phase 2 — Config, detection, graceful degradation
@@ -63,13 +75,16 @@ Legend: ○ not started · ◐ in progress · ● done
 - [ ] **Total `serviceOf`** — an explicit fallback service always exists (kills the blank-screen failure)
 - [ ] Directory-derived layer fallback; `unsorted` share reported
 - [ ] No tests → `coverage: null` everywhere; suite count from `meta`
-- [ ] Acquisition ladder: worktree → git ref → plain fs; HEAD fallback
+- [ ] Acquisition ladder: worktree → git ref → plain fs; default ref `HEAD`
+      (`origin/develop` exists only on taxvault), and handle a git repo with an
+      **unborn HEAD** — sonder has zero commits, so `rev-parse --git-dir` succeeds
+      while `rev-parse HEAD` fails
 - [ ] Curated-flow validation demoted to a warning; `--strict` restores the hard fail
 - [ ] **Classification provenance** — every node records the rule that placed it, shown in INSPECT
 - [ ] `atlas scan` diagnostics report
 - [ ] Streamed progress to stderr, throttled, suppressed when not a TTY
 - [ ] `atlas init` writes a starter config (the only command that writes to a target repo)
-- [ ] **Gate:** `atlas build` with **no config** yields a legible atlas for taxvault, Shuttrr, terra, sonder *(not a valid git repo)*, llmbench *(pyproject only)*
+- [ ] **Gate:** `atlas build` with **no config** yields a legible atlas for taxvault, Shuttrr, terra, sonder *(git repo, zero commits)*, llmbench *(pyproject only)*
 - [ ] **Gate:** for each — `nodeCount > 0`, `services.length ≥ 1`, every node's service ∈ services
 
 ## Phase 3 — Language adapters + conformance
@@ -78,13 +93,16 @@ Legend: ○ not started · ◐ in progress · ● done
 - [ ] `fixtures/hostile-ts/` — barrel chains, `export * from`, aliased re-exports, circular imports, `@/` alias, extensionless, side-effect, `require()`, dynamic `import()`, `.tsx`
 - [ ] `fixtures/hostile-py/` — relative-dot imports at several depths, `__init__.py` re-export barrels, `from . import x`
 - [ ] Conformance test asserting **exact** expected resolution for both fixtures
-- [ ] `src/adapters/ts.mjs` — tsconfig `paths`/`baseUrl`, workspace names, extension swap, all four import forms
+- [ ] `src/adapters/ts.mjs` — tsconfig `paths`/`baseUrl` **scoped per tsconfig**
+      (Shuttrr's `web/tsconfig.json` maps `@/*` → `./*` root-relative while
+      `server/tsconfig.json` has no `paths` at all), workspace names, extension
+      swap, all four import forms
 - [ ] `src/adapters/py.mjs` — module roots, generalized barrels, **relative-dot imports**
 - [ ] `src/adapters/generic.mjs` — no edges, still renders
 - [ ] Import line numbers recorded; comment/string blanking before extraction
 - [ ] **Gate:** both fixtures resolve exactly as asserted
-- [ ] **Gate:** Shuttrr `unresolved === 0`, zero internal specifier classified external (`@/lib/utils/cn` ×174)
-- [ ] **Gate:** llmbench — **all 172 relative-dot imports resolve** (currently 0 of 172)
+- [ ] **Gate:** Shuttrr `unresolved === 0`, zero internal specifier classified external (174 `@/…` alias imports total, of which `@/lib/utils/cn` ×24)
+- [ ] **Gate:** llmbench — **all 172 relative-dot imports resolve** (currently 0 of 172), across 50 files at 1, 2 and 3 dots plus bare `from . import x`
 - [ ] **Gate:** TaxVault 350 resolved / 0 unresolved / 320 external, unchanged
 
 ## Phase 4 — Endpoint extraction v2
@@ -179,6 +197,17 @@ Legend: ○ not started · ◐ in progress · ● done
 
 ---
 
-## Open questions
+## Resolved questions
 
-- **Desktop app** — raised but the message was truncated. Needs resolving before it influences any phase: a desktop shell (Electron/Tauri) conflicts directly with the zero-dependency, no-bundler constraint that the rest of this plan is built on. Worth deciding deliberately rather than drifting into.
+- **Desktop app** — parked until more of the tool exists. Revisit after v1.0, as a
+  separate package rather than a constraint on this one.
+- **Dependencies** — zero-dep is the default for the CLI and scanner, not a law.
+  The viewer may take a rendering dependency (three.js, paper-shaders are wanted)
+  when a phase justifies one, weighed against the single-self-contained-file
+  promise. WebGL is deferred until v1.0, so Phase 1 keeps a renderer seam.
+
+## Release checkpoints
+
+- **v0.1 after Phase 4** — the tool renders any repo. Pull a trimmed README and
+  LICENSE forward from Phase 10; everything after is additive.
+- **v1.0 after Phase 10.**
