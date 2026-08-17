@@ -41,6 +41,7 @@ function relayout() {
     });
     districts.push({ id:k, service:Sv, layer:L, members:arr,
       x0:x0 - 0.45, y0:y0 - 0.45, x1:x1 + 1.45, y1:y1 + 1.45,
+      code: codeByGroup.get(`${Sv}/${L}`) ?? "",
       label: layerById.get(L)?.label ?? L });
   }
 
@@ -118,6 +119,20 @@ function reproject() {
           if (p.y < bbox.y0) bbox.y0 = p.y;
           if (p.y > bbox.y1) bbox.y1 = p.y;
         }
+      }
+    }
+  }
+  // Plates are part of the picture, so they are part of what the camera frames.
+  // Without them a row whose plate reaches past its tallest block gets cropped,
+  // and so does the tab hanging off that plate's corner.
+  if (bbox) {
+    for (const p of LAYOUT.plates) {
+      for (const [gx, gy] of [[p.x0, p.y0], [p.x1, p.y0], [p.x1, p.y1], [p.x0, p.y1]]) {
+        const q = project(gx, gy, 0);
+        if (q.x < bbox.x0) bbox.x0 = q.x;
+        if (q.x > bbox.x1) bbox.x1 = q.x;
+        if (q.y < bbox.y0) bbox.y0 = q.y;
+        if (q.y > bbox.y1) bbox.y1 = q.y;
       }
     }
   }

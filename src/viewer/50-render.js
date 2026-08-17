@@ -18,7 +18,10 @@ let staticDirty = true, W = 0, H = 0, DPR = 1;
  */
 const CACHE = { key: "", scale: 0, x0: 0, y0: 0, w: 1, h: 1 };
 const MAX_CACHE_SIDE = 8192;   // hard limit on the backing store, per side
-const CACHE_PAD = 220;         // world px of slack for labels and plate captions
+// Slack for labels and plate tabs, which are drawn in SCREEN px and therefore
+// cover more world px the further out you are: a fixed world-space pad crops
+// exactly the long service tab at exactly the zoom you first see it at.
+const CACHE_PAD = 220;         // world px at 1:1, scaled below
 
 /** Third-octave buckets: a re-render every ~26% of zoom, not every frame. */
 const mipScale = (zoom) => Math.pow(2, Math.round(Math.log2(zoom) * 3) / 3);
@@ -61,6 +64,87 @@ function dimOf(n) {
   return false;
 }
 
+/**
+ * The projected corner of a plate that `better` prefers.
+ *
+ * Which corner is nearest, or leftmost, depends on the camera angle, so a tab
+ * cannot be pinned to a fixed one. Picking it per plate is what keeps the
+ * labels outside the blocks through a full rotation.
+ */
+function cornerOf(p, better) {
+  let best = null;
+  for (const [gx, gy] of [[p.x0, p.y0], [p.x1, p.y0], [p.x1, p.y1], [p.x0, p.y1]]) {
+    const q = project(gx, gy, 0);
+    if (!best || better(q, best)) best = q;
+  }
+  return best;
+}
+
+/**
+ * A label on a leader line back to the corner it names.
+ *
+ * Anchoring beats floating: an unanchored district title drifts into the blocks
+ * as soon as the layout changes, which it does on every filter and every toggle.
+ */
+function tab(x, at, dx, dy, text, px) {
+  x.save();
+  x.globalAlpha = 0.55;
+  x.strokeStyle = x.fillStyle;
+  x.lineWidth = px(1);
+  x.beginPath();
+  x.moveTo(at.x, at.y);
+  x.lineTo(at.x + dx, at.y + dy);
+  x.stroke();
+  x.restore();
+  x.fillText(text, at.x + dx + (dx < 0 ? -px(3) : px(3)), at.y + dy + (dy > 0 ? px(3) : 0));
+}
+
+/**
+ * The ground plane, in world space and under everything.
+ *
+ * It does three jobs: it stops the blocks reading as floating, it gives the
+ * only depth cue a flat-shaded axonometric view has, and it gives the eye a
+ * fixed reference during a pan. Stepped by the layout's own grid unit, so the
+ * lines run through the block origins instead of near them.
+ */
+function drawGrid(x, ext, px) {
+  if (!LAYOUT.plates.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of LAYOUT.plates) {
+    if (p.x0 < x0) x0 = p.x0;
+    if (p.y0 < y0) y0 = p.y0;
+    if (p.x1 > x1) x1 = p.x1;
+    if (p.y1 > y1) y1 = p.y1;
+  }
+  const pad = SPACING * 3;
+  x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
+
+  x.save();
+  x.strokeStyle = alpha(THEME.plate, .22);
+  x.lineWidth = px(1);
+  x.beginPath();
+  for (let g = x0; g <= x1; g += SPACING) {
+    const a = project(g, y0, 0), b = project(g, y1, 0);
+    x.moveTo(a.x, a.y); x.lineTo(b.x, b.y);
+  }
+  for (let g = y0; g <= y1; g += SPACING) {
+    const a = project(x0, g, 0), b = project(x1, g, 0);
+    x.moveTo(a.x, a.y); x.lineTo(b.x, b.y);
+  }
+  x.stroke();
+
+  // Fade to the ground colour toward the edges, so the grid never competes with
+  // the city and never announces where the layout happens to stop.
+  const c = project((x0 + x1) / 2, (y0 + y1) / 2, 0);
+  const r = Math.max(ext.w, ext.h) / 2;
+  const fade = x.createRadialGradient(c.x, c.y, r * 0.25, c.x, c.y, r);
+  fade.addColorStop(0, alpha(BG, 0));
+  fade.addColorStop(1, alpha(BG, 1));
+  x.fillStyle = fade;
+  x.fillRect(ext.x0, ext.y0, ext.w, ext.h);
+  x.restore();
+}
+
 /** World extent to cache: the buildings, the plates under them, and slack for text. */
 function cacheExtent() {
   const b = LAYOUT.bbox ?? { x0: 0, y0: 0, x1: 1, y1: 1 };
@@ -74,7 +158,8 @@ function cacheExtent() {
       if (q.y > y1) y1 = q.y;
     }
   }
-  return { x0: x0 - CACHE_PAD, y0: y0 - CACHE_PAD, w: x1 - x0 + CACHE_PAD * 2, h: y1 - y0 + CACHE_PAD * 2 };
+  const pad = CACHE_PAD / Math.min(1, mipScale(S.zoom));
+  return { x0: x0 - pad, y0: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
 }
 
 function drawStatic() {
@@ -101,30 +186,34 @@ function drawStatic() {
 
   octx.fillStyle = BG;
   octx.fillRect(ext.x0, ext.y0, ext.w, ext.h);
+  drawGrid(octx, ext, px);
 
   // service plates, then district plates
   for (const p of LAYOUT.plates) {
     quad(octx, [project(p.x0, p.y0, 0), project(p.x1, p.y0, 0), project(p.x1, p.y1, 0), project(p.x0, p.y1, 0)],
       alpha(THEME.plate, .075), alpha(THEME.plate, .16), px(1));
-    const s = project(p.x0, p.y0, 0);
+    // Anchored to the plate's leftmost corner and leaning further left, so the
+    // service name leaves the blocks alone. The old caption sat on the far
+    // corner, which at this camera angle is behind them.
     octx.save();
     octx.fillStyle = alpha(INK, .62);
     octx.font = `600 ${px(clamp(11 * zf, 8, 15))}px ${FONT}`;
-    octx.textAlign = "left";
-    octx.fillText(p.label, s.x + px(8 * zf), s.y - px(5 * zf));
+    octx.textAlign = "right";
+    tab(octx, cornerOf(p, (a, b) => a.x < b.x), -px(14), 0, p.label, px);
     octx.restore();
   }
   for (const d of LAYOUT.districts) {
     const dim = S.focusDistrict && S.focusDistrict !== d.id;
     quad(octx, [project(d.x0, d.y0, 0), project(d.x1, d.y0, 0), project(d.x1, d.y1, 0), project(d.x0, d.y1, 0)],
       alpha(THEME.plate, dim ? .05 : .13), alpha(THEME.plate, .2), px(1));
-    if (zf > 0.4) {
-      const s = project(d.x0, d.y1, 0);
+    // On the NEAREST corner, and below it: everything the district contains is
+    // drawn behind that corner, so a tab there cannot be overdrawn.
+    if (zf > 0.3) {
       octx.save();
       octx.fillStyle = alpha(INK, dim ? .28 : .55);
       octx.font = `${px(clamp(9 * zf, 7, 12))}px ${FONT}`;
       octx.textAlign = "left";
-      octx.fillText(d.label.toLowerCase(), s.x + px(5 * zf), s.y + px(11 * zf));
+      tab(octx, cornerOf(d, (a, b) => a.y > b.y), px(6), px(14), `${d.code} · ${d.label.toLowerCase()}`, px);
       octx.restore();
     }
   }

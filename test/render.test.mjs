@@ -27,6 +27,7 @@ function fakeContext(counts) {
     {
       canvas: { width: 0, height: 0 },
       measureText: (t) => ({ width: t.length * 6 }),
+      createRadialGradient: () => ({ addColorStop: noop }),
       setTransform: noop,
       drawImage: () => counts.drawImage++,
       fillRect: noop,

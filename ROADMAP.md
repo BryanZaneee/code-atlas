@@ -138,7 +138,7 @@ are visible on every single interaction.*
       `50-render.js` promoted into the theme
 - [x] Two colour channels: identity (fill) vs state (stroke/glow/badge);
       `colorMode` `identity`/`mono`, state channel identical in both
-- [ ] Isometric ground grid; district plate tabs anchored with a leader line
+- [x] Isometric ground grid; district plate tabs anchored with a leader line
 - [ ] Tiered flow dimming with a short ease; numbered step badges; caption bar
 - [ ] TRAVELLED BY chips that enter a flow **at this node's step**; sidebar
       accent edge-bar for the reverse index

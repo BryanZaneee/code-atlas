@@ -19,6 +19,9 @@ const byId = new Map(ATLAS.nodes.map(n => [n.id, n]));
 const layerById = new Map(ATLAS.layers.map(l => [l.id, l]));
 const svcById = new Map(ATLAS.services.map(s => [s.id, s]));
 const flowById = new Map(ATLAS.flows.map(f => [f.id, f]));
+// Districts are laid out here but named by the scanner, so the code a plate tab
+// shows is the same one the payload published and a reader can grep for.
+const codeByGroup = new Map(ATLAS.groups.map(g => [g.id, g.code]));
 const edgesFrom = new Map(), edgesTo = new Map();
 for (const e of ATLAS.edges) {
   if (!edgesFrom.has(e.from)) edgesFrom.set(e.from, []);
