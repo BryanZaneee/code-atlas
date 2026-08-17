@@ -1,0 +1,15 @@
+{
+  "name": "code-atlas",
+  "version": "0.1.0",
+  "description": "Isometric, interactive maps of a codebase — structure, API flow, tests, and findings. Zero dependencies.",
+  "type": "module",
+  "bin": { "atlas": "./bin/atlas.mjs" },
+  "engines": { "node": ">=20" },
+  "files": ["bin", "src", "docs", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "node --test test/",
+    "calibrate": "node tools/calibrate.mjs"
+  },
+  "keywords": ["visualization", "codebase", "architecture", "isometric", "dependency-graph", "static-analysis"],
+  "license": "MIT"
+}
