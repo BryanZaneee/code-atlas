@@ -8,7 +8,8 @@
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { scan } from "../src/build/build.mjs";
 
 export const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.join(TEST_DIR, "..");
@@ -64,6 +65,13 @@ const CORPUS = {
   sonder: "../sonder",
   llmbench: "../llmbench",
 };
+
+/** Scan an in-repo fixture through the fs rung — no git, so CI needs none. */
+export async function scanFixture(name, opts = {}) {
+  const repo = path.join(FIXTURE_DIR, name);
+  const config = (await import(pathToFileURL(path.join(repo, "atlas.config.mjs")).href)).default;
+  return scan({ repo, ref: "fs", config, ...opts });
+}
 
 export function corpusRepo(name) {
   const override = process.env[`ATLAS_TARGET_${name.toUpperCase()}`];

@@ -1,0 +1,564 @@
+{
+  "meta": {
+    "schemaVersion": 1,
+    "repo": "mini-monorepo",
+    "ref": "fs",
+    "commit": "",
+    "acquisition": {
+      "mode": "fs",
+      "ref": null,
+      "commit": null,
+      "dirty": null
+    },
+    "generatedAt": null,
+    "nodeCount": 14,
+    "fileCount": 8,
+    "lineCount": 63,
+    "edgeCount": 11,
+    "docCount": 1,
+    "endpointCount": 5,
+    "testCount": 2,
+    "coverDirect": 2,
+    "coverIndirect": 1,
+    "coverNone": 3,
+    "packageCount": 2
+  },
+  "services": [
+    {
+      "id": "api",
+      "label": "API",
+      "lang": "ts",
+      "root": "services/api",
+      "order": 0
+    },
+    {
+      "id": "worker",
+      "label": "WORKER",
+      "lang": "py",
+      "root": "services/worker",
+      "order": 1
+    },
+    {
+      "id": "docs",
+      "label": "DOCS",
+      "lang": "md",
+      "root": "docs",
+      "order": 2
+    }
+  ],
+  "layers": [
+    {
+      "id": "endpoint",
+      "label": "ENDPOINT",
+      "rank": -1,
+      "color": "#d8c98a"
+    },
+    {
+      "id": "entry",
+      "label": "ENTRY",
+      "rank": 0,
+      "color": "#c7b57a"
+    },
+    {
+      "id": "route",
+      "label": "ROUTE",
+      "rank": 1,
+      "color": "#b9a86a"
+    },
+    {
+      "id": "service",
+      "label": "SERVICE",
+      "rank": 2,
+      "color": "#8fae74"
+    },
+    {
+      "id": "repository",
+      "label": "REPOSITORY",
+      "rank": 3,
+      "color": "#7e9a8a"
+    },
+    {
+      "id": "tooling",
+      "label": "TOOLING",
+      "rank": 4,
+      "color": "#7d7a63"
+    },
+    {
+      "id": "test",
+      "label": "TEST",
+      "rank": 5,
+      "color": "#a87e6a"
+    },
+    {
+      "id": "docs",
+      "label": "DOCS",
+      "rank": 6,
+      "color": "#5f6b52"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "docs/overview.md",
+      "name": "overview.md",
+      "dir": "docs",
+      "service": "docs",
+      "layer": "docs",
+      "lang": "md",
+      "loc": 5,
+      "kind": "file",
+      "exports": 0,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 0,
+      "outDeg": 0,
+      "coverage": null,
+      "uncovered": false
+    },
+    {
+      "id": "services/api/src/repository/user-repo.ts",
+      "name": "user-repo.ts",
+      "dir": "services/api/src/repository",
+      "service": "api",
+      "layer": "repository",
+      "lang": "ts",
+      "loc": 9,
+      "kind": "file",
+      "exports": 2,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 1,
+      "outDeg": 0,
+      "coverage": "indirect",
+      "uncovered": false
+    },
+    {
+      "id": "services/api/src/routes/users.ts",
+      "name": "users.ts",
+      "dir": "services/api/src/routes",
+      "service": "api",
+      "layer": "route",
+      "lang": "ts",
+      "loc": 10,
+      "kind": "file",
+      "exports": 1,
+      "externals": [
+        "express"
+      ],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 4,
+      "outDeg": 1,
+      "coverage": "none",
+      "uncovered": true
+    },
+    {
+      "id": "services/api/src/server.ts",
+      "name": "server.ts",
+      "dir": "services/api/src",
+      "service": "api",
+      "layer": "entry",
+      "lang": "ts",
+      "loc": 8,
+      "kind": "file",
+      "exports": 1,
+      "externals": [
+        "express"
+      ],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 0,
+      "outDeg": 1,
+      "coverage": "none",
+      "uncovered": true
+    },
+    {
+      "id": "services/api/src/services/user-service.ts",
+      "name": "user-service.ts",
+      "dir": "services/api/src/services",
+      "service": "api",
+      "layer": "service",
+      "lang": "ts",
+      "loc": 9,
+      "kind": "file",
+      "exports": 2,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 2,
+      "outDeg": 1,
+      "coverage": "direct",
+      "uncovered": false
+    },
+    {
+      "id": "services/api/test/user-service.test.ts",
+      "name": "user-service.test.ts",
+      "dir": "services/api/test",
+      "service": "api",
+      "layer": "test",
+      "lang": "ts",
+      "loc": 5,
+      "kind": "file",
+      "exports": 0,
+      "externals": [],
+      "testKind": "unit",
+      "subject": "services/api/src/services/user-service.ts",
+      "inDeg": 0,
+      "outDeg": 1,
+      "coverage": null,
+      "uncovered": false
+    },
+    {
+      "id": "services/worker/app/main.py",
+      "name": "main.py",
+      "dir": "services/worker/app",
+      "service": "worker",
+      "layer": "entry",
+      "lang": "py",
+      "loc": 15,
+      "kind": "file",
+      "exports": 2,
+      "externals": [
+        "fastapi"
+      ],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 2,
+      "outDeg": 1,
+      "coverage": "none",
+      "uncovered": true
+    },
+    {
+      "id": "services/worker/app/services/job_service.py",
+      "name": "job_service.py",
+      "dir": "services/worker/app/services",
+      "service": "worker",
+      "layer": "service",
+      "lang": "py",
+      "loc": 2,
+      "kind": "file",
+      "exports": 1,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 2,
+      "outDeg": 0,
+      "coverage": "direct",
+      "uncovered": false
+    },
+    {
+      "id": "services/worker/test/test_job_service.py",
+      "name": "test_job_service.py",
+      "dir": "services/worker/test",
+      "service": "worker",
+      "layer": "test",
+      "lang": "py",
+      "loc": 5,
+      "kind": "file",
+      "exports": 1,
+      "externals": [],
+      "testKind": "unit",
+      "subject": "services/worker/app/services/job_service.py",
+      "inDeg": 0,
+      "outDeg": 1,
+      "coverage": null,
+      "uncovered": false
+    },
+    {
+      "id": "GET /api/users",
+      "name": "GET /api/users",
+      "dir": "services/api/src/routes/users.ts",
+      "service": "api",
+      "layer": "endpoint",
+      "lang": "-",
+      "loc": 0,
+      "kind": "endpoint",
+      "exports": 0,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 0,
+      "outDeg": 1,
+      "uncovered": false
+    },
+    {
+      "id": "GET /api/users/:id",
+      "name": "GET /api/users/:id",
+      "dir": "services/api/src/routes/users.ts",
+      "service": "api",
+      "layer": "endpoint",
+      "lang": "-",
+      "loc": 0,
+      "kind": "endpoint",
+      "exports": 0,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 0,
+      "outDeg": 1,
+      "uncovered": false
+    },
+    {
+      "id": "POST /api/users",
+      "name": "POST /api/users",
+      "dir": "services/api/src/routes/users.ts",
+      "service": "api",
+      "layer": "endpoint",
+      "lang": "-",
+      "loc": 0,
+      "kind": "endpoint",
+      "exports": 0,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 0,
+      "outDeg": 1,
+      "uncovered": false
+    },
+    {
+      "id": "GET /health",
+      "name": "GET /health",
+      "dir": "services/worker/app/main.py",
+      "service": "worker",
+      "layer": "endpoint",
+      "lang": "-",
+      "loc": 0,
+      "kind": "endpoint",
+      "exports": 0,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 0,
+      "outDeg": 1,
+      "uncovered": false
+    },
+    {
+      "id": "POST /jobs",
+      "name": "POST /jobs",
+      "dir": "services/worker/app/main.py",
+      "service": "worker",
+      "layer": "endpoint",
+      "lang": "-",
+      "loc": 0,
+      "kind": "endpoint",
+      "exports": 0,
+      "externals": [],
+      "testKind": null,
+      "subject": null,
+      "inDeg": 0,
+      "outDeg": 1,
+      "uncovered": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "services/api/src/routes/users.ts",
+      "to": "services/api/src/services/user-service.ts",
+      "kind": "import",
+      "cross": false
+    },
+    {
+      "from": "services/api/src/server.ts",
+      "to": "services/api/src/routes/users.ts",
+      "kind": "import",
+      "cross": false
+    },
+    {
+      "from": "services/api/src/services/user-service.ts",
+      "to": "services/api/src/repository/user-repo.ts",
+      "kind": "import",
+      "cross": false
+    },
+    {
+      "from": "services/api/test/user-service.test.ts",
+      "to": "services/api/src/services/user-service.ts",
+      "kind": "test:subject",
+      "cross": false
+    },
+    {
+      "from": "services/worker/app/main.py",
+      "to": "services/worker/app/services/job_service.py",
+      "kind": "import",
+      "cross": false
+    },
+    {
+      "from": "services/worker/test/test_job_service.py",
+      "to": "services/worker/app/services/job_service.py",
+      "kind": "test:subject",
+      "cross": false
+    },
+    {
+      "from": "GET /api/users",
+      "to": "services/api/src/routes/users.ts",
+      "kind": "http",
+      "cross": false
+    },
+    {
+      "from": "GET /api/users/:id",
+      "to": "services/api/src/routes/users.ts",
+      "kind": "http",
+      "cross": false
+    },
+    {
+      "from": "POST /api/users",
+      "to": "services/api/src/routes/users.ts",
+      "kind": "http",
+      "cross": false
+    },
+    {
+      "from": "GET /health",
+      "to": "services/worker/app/main.py",
+      "kind": "http",
+      "cross": false
+    },
+    {
+      "from": "POST /jobs",
+      "to": "services/worker/app/main.py",
+      "kind": "http",
+      "cross": false
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "GET /api/users",
+      "method": "GET",
+      "path": "/api/users",
+      "service": "api",
+      "definedIn": "services/api/src/routes/users.ts"
+    },
+    {
+      "id": "GET /api/users/:id",
+      "method": "GET",
+      "path": "/api/users/:id",
+      "service": "api",
+      "definedIn": "services/api/src/routes/users.ts"
+    },
+    {
+      "id": "POST /api/users",
+      "method": "POST",
+      "path": "/api/users",
+      "service": "api",
+      "definedIn": "services/api/src/routes/users.ts"
+    },
+    {
+      "id": "GET /health",
+      "method": "GET",
+      "path": "/health",
+      "service": "worker",
+      "definedIn": "services/worker/app/main.py"
+    },
+    {
+      "id": "POST /jobs",
+      "method": "POST",
+      "path": "/jobs",
+      "service": "worker",
+      "definedIn": "services/worker/app/main.py"
+    }
+  ],
+  "flows": [],
+  "groups": [
+    {
+      "id": "docs/docs",
+      "service": "docs",
+      "layer": "docs",
+      "label": "DOCS",
+      "members": [
+        "docs/overview.md"
+      ]
+    },
+    {
+      "id": "api/repository",
+      "service": "api",
+      "layer": "repository",
+      "label": "REPOSITORY",
+      "members": [
+        "services/api/src/repository/user-repo.ts"
+      ]
+    },
+    {
+      "id": "api/route",
+      "service": "api",
+      "layer": "route",
+      "label": "ROUTE",
+      "members": [
+        "services/api/src/routes/users.ts"
+      ]
+    },
+    {
+      "id": "api/entry",
+      "service": "api",
+      "layer": "entry",
+      "label": "ENTRY",
+      "members": [
+        "services/api/src/server.ts"
+      ]
+    },
+    {
+      "id": "api/service",
+      "service": "api",
+      "layer": "service",
+      "label": "SERVICE",
+      "members": [
+        "services/api/src/services/user-service.ts"
+      ]
+    },
+    {
+      "id": "api/test",
+      "service": "api",
+      "layer": "test",
+      "label": "TEST",
+      "members": [
+        "services/api/test/user-service.test.ts"
+      ]
+    },
+    {
+      "id": "worker/entry",
+      "service": "worker",
+      "layer": "entry",
+      "label": "ENTRY",
+      "members": [
+        "services/worker/app/main.py"
+      ]
+    },
+    {
+      "id": "worker/service",
+      "service": "worker",
+      "layer": "service",
+      "label": "SERVICE",
+      "members": [
+        "services/worker/app/services/job_service.py"
+      ]
+    },
+    {
+      "id": "worker/test",
+      "service": "worker",
+      "layer": "test",
+      "label": "TEST",
+      "members": [
+        "services/worker/test/test_job_service.py"
+      ]
+    },
+    {
+      "id": "api/endpoint",
+      "service": "api",
+      "layer": "endpoint",
+      "label": "ENDPOINT",
+      "members": [
+        "GET /api/users",
+        "GET /api/users/:id",
+        "POST /api/users"
+      ]
+    },
+    {
+      "id": "worker/endpoint",
+      "service": "worker",
+      "layer": "endpoint",
+      "label": "ENDPOINT",
+      "members": [
+        "GET /health",
+        "POST /jobs"
+      ]
+    }
+  ]
+}
