@@ -74,6 +74,20 @@ export function scan({ repo, ref, config: userConfig, fetch = true, strict = fal
     for (const b of bad) warn(`warn: ${b}`);
 
     const codeNodes = nodes.filter((n) => n.kind === "file" && n.lang !== "md");
+
+    // How much of this map the tool could not account for, in the payload
+    // rather than only on stderr — the chrome states it permanently, because a
+    // caveat in a panel nobody opens is not a caveat.
+    //
+    // A flow step counts as DERIVED unless a real import edge runs the same
+    // direction: curation and derivation alike model an ordering that imports
+    // cannot express, and the honesty contract does not distinguish them.
+    const observed = new Set(edges.filter((e) => e.kind === "import").map((e) => `${e.from}|${e.to}`));
+    const derivedCount = (config.flows ?? []).reduce(
+      (a, f) => a + f.steps.filter((s) => !observed.has(`${s.from}|${s.to}`)).length,
+      0,
+    );
+
     const payload = {
       meta: {
         schemaVersion: SCHEMA_VERSION,
@@ -96,6 +110,9 @@ export function scan({ repo, ref, config: userConfig, fetch = true, strict = fal
         coverIndirect: nodes.filter((n) => n.coverage === "indirect").length,
         coverNone: nodes.filter((n) => n.coverage === "none").length,
         packageCount: new Set(nodes.flatMap((n) => n.externals)).size,
+        unsortedCount: unclassified.length,
+        unresolvedCount: stats.unresolved,
+        derivedCount,
       },
       // Total by payload: whatever placed a node, its service is in this list.
       services: reconcileServices(config.services, nodes, warn),

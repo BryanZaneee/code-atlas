@@ -22,7 +22,10 @@
     "coverDirect": 2,
     "coverIndirect": 1,
     "coverNone": 3,
-    "packageCount": 2
+    "packageCount": 2,
+    "unsortedCount": 0,
+    "unresolvedCount": 0,
+    "derivedCount": 0
   },
   "services": [
     {

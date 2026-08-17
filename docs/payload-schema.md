@@ -39,6 +39,21 @@ expected to read it, so it is versioned from the first release.
 | `nodeCount` `fileCount` `lineCount` `edgeCount` `docCount` `endpointCount` `testCount` | int | stable | `fileCount`/`lineCount` count code files only, excluding markdown |
 | `coverDirect` `coverIndirect` `coverNone` | int | stable | node counts per coverage state |
 | `packageCount` | int | stable | distinct external packages across all nodes |
+| `unsortedCount` `unresolvedCount` `derivedCount` | int | stable | what the tool could not account for — see below |
+
+### The map's own coverage
+
+Three counters the UI keeps in the permanent frame rather than in a panel,
+because they are the tool's central caveat.
+
+| field | counts |
+| --- | --- |
+| `unsortedCount` | files no layer rule matched, placed by the fallback — their `layerWhy` begins `no rule matched` |
+| `unresolvedCount` | import specifiers the adapter could not resolve to a file or a package |
+| `derivedCount` | flow steps **not** backed by an observed import edge |
+
+`derivedCount` does not distinguish curated from derived paths, and must not:
+both model an ordering that imports cannot express, and neither was observed.
 
 ### `meta.acquisition`
 

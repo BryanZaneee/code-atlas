@@ -191,6 +191,50 @@ Derived at scan time, stored as integer node indices. Every solid hop opens the 
 
 Every node records **why** it landed where it did: `layer: "service" — matched rule #4 src/services/**`, `service: "api" — matched root apps/api`, `testKind: "integration" — matched vitest.integration.config.ts include[0]`. Shown in INSPECT. This turns "the tool put my file in the wrong column" from a bug report into a config edit, and it is the single cheapest thing that makes a heuristic tool trustworthy.
 
+### The visual system
+
+Phase 1 made the renderer fast and the theme single-sourced. It still reads as a
+diagram rather than a tool, and four decisions fix that. The phase is **inserted
+as 2.5 rather than renumbering 3–10**, because every gate above references a
+number.
+
+**Two colour channels, because one channel cannot be turned off.** Identity
+writes to *fill*; state writes to *stroke, glow, opacity and badges*. If both
+shared a property, disabling identity colour would also disable the flow
+highlight. `colorMode` is `identity` (the default — layer fill stays, only the
+ground goes neutral) or `mono` (line-art, the whole colour budget on one accent).
+**`mono` disables identity fill and nothing else:** the coverage tint and the
+dotted `DERIVED · NOT VERIFIED` stroke are state, they are the honesty contract
+rendered, and they survive every mode. Colour identity is redundant anyway —
+services are already rows and layers are already columns, so position carries it.
+
+**Cream is retired.** It came from the prototype's one target and reads as a
+themed artefact rather than a tool. Two neutral themes replace it. The real work
+is not the palette: it is that ~12 colour literals sit in `50-render.js` because
+`viewer.test.mjs` banned `#hex` and not `rgba(`. Widening that test is what makes
+the dark theme actually dark instead of dark-with-cream-halos.
+
+**Selection moves out of the static cache.** `cacheKey()` included `S.selected`,
+so clicking re-rasterised the entire city and a *hover* state was unaffordable at
+any frame rate. That — not the choice of face — is why selection read as weak.
+Selection, hover and flow membership are drawn in the live pass after the blit,
+where they are allowed to ignore the painter's algorithm: a silhouette chewed up
+by the box in front of it is depth-realistic and illegible, and legibility wins
+here and only here.
+
+**Two-letter codes name districts, not files.** The reference this borrows from
+draws ~22 hand-authored modules; this tool draws one block per file, 197 of them
+on a mid-size repo. 197 two-char badges is not a mapping anyone learns, and the
+collision rule degrades to `aa, ab, ac`. Districts — one `service/layer` cell, 43
+on the same repo — are this tool's module-sized unit, they already own a plate
+and a label, and the code anchors that label to the plate corner. Per-file codes
+wait for the nested-district layout, which is deferred.
+
+**Dimming eases in the live pass.** The dim tiers live in the static layer, so an
+eased transition would re-rasterise the world every frame. Instead: blit the
+cached city, veil the viewport with the ground token at an animated alpha, redraw
+the on-path geometry on top. One raster, and the ease is free.
+
 ### Camera rotation
 
 The projection generalizes to a yaw parameter; the layout never moves.
@@ -250,6 +294,7 @@ Reordered from the original: **perf moved into Phase 1**, because the `RangeErro
 | **0** | Skeleton, lift-and-shift, viewer concat, `schemaVersion`, `meta.acquisition`, TaxVault taxonomy frozen into `examples/taxvault.config.mjs`, `test/` harness | Payload **byte-identical** to the prototype except `generatedAt`, checked against `test/golden/taxvault.prototype.json` (pinned at `22595f3a`). Turns "I hope nothing changed" into a diff. Plus `generic.test.mjs`: zero target-specific strings in `src/`. |
 | **1** | **Renderer**: `RangeError` fix, world-space cache + mip, `Set`/`Map` for the O(n²) loops, `heightOf` log-p95, theme single-sourced (zero hex in CSS), `VIEWS`/`EDGE_STYLE`/copy into payload, **camera rotation** | 60 fps drag on the largest target; synthetic **5,000-node / 12,000-edge** payload renders with no `RangeError`; `generic.test.mjs` still green once the eight taxvault-coupled viewer strings are gone (needs `meta.suiteCount`, golden re-baselined); 360° rotation never mis-occludes; hit-testing correct at every angle; yaw 45° bit-identical to Phase 0 |
 | **2** | Config, precedence, detection, `atlas init`, total `serviceOf`, layer fallback, graceful degradation, classification provenance, `atlas scan`, streamed progress | `atlas build` with **no config at all** yields a legible atlas for taxvault, Shuttrr, terra, **sonder** (git repo, zero commits), **llmbench** (pyproject only). Assert `nodeCount>0` and every node's service ∈ services. INSPECT shows the matched rule for every node. |
+| **2.5** | **Visual system**: neutral palette, two colour channels, live-pass selection, ground grid, anchored plate tabs, tiered flow dimming, TRAVELLED BY chips, chrome that states the model's own coverage | Select and hover cause **zero** re-rasterisations (120 pans still cause one); zero colour literals outside `:root` and the payload theme; `COVER_TINT` and the derived dotted stroke survive every colour mode; mini-monorepo renders no empty panel section |
 | **3** | Adapters + resolution + **conformance fixtures** | `fixtures/hostile-ts` and `fixtures/hostile-py` resolve **exactly** as asserted. On Shuttrr `unresolved===0` and zero internal specifier classified external (174 `@/…` alias imports, `@/lib/utils/cn` ×24, resolved per-tsconfig). On **llmbench all 172 relative-dot imports resolve** (currently 0). TaxVault counts unchanged. |
 | **4** | Endpoints v2 | Shuttrr yields `POST /api/photos/upload`, `GET /api/photos/gallery`, `GET /health`, ≥12 `/api/ai/*` through the two-level mount, `/sign-in`, `/auth/callback`; `(auth)`/`(dashboard)` absent from every path; ≥8 non-literal registrations reported naming `presets.ts` |
 | **5** | Findings engine + FINDINGS view + `atlas findings --json` | On TaxVault: reports `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true); zero false layering violations against a repo that enforces layering by policy. Cycles found in a synthetic fixture with a known cycle. |

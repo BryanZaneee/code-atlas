@@ -36,6 +36,27 @@ test("meta carries a schema version and an acquisition mode", async () => {
   assert.ok(["worktree", "ref", "fs"].includes(p.meta.acquisition.mode));
 });
 
+/**
+ * The counters the chrome states permanently. They are only worth putting in
+ * the frame if they are recomputable from the payload beside them — a number
+ * nobody can check is decoration.
+ */
+test("meta's coverage counters agree with the payload", async () => {
+  const p = await payloadOf();
+  assert.ok(p.meta.unsortedCount <= p.meta.fileCount);
+  // Not "layer === unsorted": an unmatched file can still be placed by the
+  // directory-derived fallback. What the counter reports is that no rule
+  // matched, which is exactly what the provenance string says.
+  assert.equal(p.meta.unsortedCount, p.nodes.filter((n) => n.layerWhy?.startsWith("no rule matched")).length);
+
+  const observed = new Set(p.edges.filter((e) => e.kind === "import").map((e) => `${e.from}|${e.to}`));
+  const derived = p.flows.reduce(
+    (a, f) => a + f.steps.filter((s) => !observed.has(`${s.from}|${s.to}`)).length,
+    0,
+  );
+  assert.equal(p.meta.derivedCount, derived);
+});
+
 test("node ids are unique", async () => {
   const p = await payloadOf();
   const ids = p.nodes.map((n) => n.id);

@@ -2,13 +2,14 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phase 2's gates both pass; three commands left in it · 1 of 11 phases complete
+**Status:** Phase 2's gates both pass; three commands left in it. Phase 2.5 started · 1 of 12 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
 | 0 | Repo skeleton, lift-and-shift, payload contract | everything | ● done |
 | 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ one gate open |
 | 2 | Config, detection, graceful degradation | 3, 4 | ◐ gates pass |
+| 2.5 | Visual system: palette, selection, chrome | — | ◐ |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ○ |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
 | 5 | Findings engine | — | ○ |
@@ -117,6 +118,40 @@ Legend: ○ not started · ◐ in progress · ● done
     was decided with markdown as the else branch, so every unrecognised extension
     counted as prose and dropped out of `fileCount`; and `subjectOf` still called
     the config's `classify()` directly, which crashed on any repo without one
+
+## Phase 2.5 — Visual system
+
+*Inserted, not renumbered: phases 3–10 and every gate reference are untouched.
+The renderer is fast and honest and reads as a diagram; this is the phase that
+makes it read as a tool. Selection and palette first — both are small, and both
+are visible on every single interaction.*
+
+- [x] `meta.unsortedCount` / `unresolvedCount` / `derivedCount` — the map's own
+      coverage in the payload rather than only on stderr. A curated hop counts as
+      derived: curation and derivation alike model an ordering imports cannot
+      express, and the honesty contract does not distinguish them
+- [ ] `groups[].code` — a stable 2-char district name, and `groups[].parentId`
+- [ ] `nodes[].travelledBy` — the flow index inverted, absent when empty
+- [ ] Selection and hover drawn in the **live** pass, not baked into the world
+      cache; full-silhouette stroke + footprint ring, hover distinct from select
+- [ ] Neutral light/dark palette replacing cream; every colour literal in
+      `50-render.js` promoted into the theme
+- [ ] Two colour channels: identity (fill) vs state (stroke/glow/badge);
+      `colorMode` `identity`/`mono`, state channel identical in both
+- [ ] Isometric ground grid; district plate tabs anchored with a leader line
+- [ ] Tiered flow dimming with a short ease; numbered step badges; caption bar
+- [ ] TRAVELLED BY chips that enter a flow **at this node's step**; sidebar
+      accent edge-bar for the reverse index
+- [ ] Chrome: `DERIVED n · UNMAPPED n` in the top strip, persistent key hints in
+      the bottom strip, hover readout, prose type register
+- [ ] **Gate:** select and hover cause **zero** re-rasterisations; 120 pans still
+      cause exactly one
+- [ ] **Gate:** zero colour literals of any form (`#`, `rgb(`, `hsl(`) outside
+      `:root` and the payload theme
+- [ ] **Gate:** `COVER_TINT` and the derived dotted stroke survive every colour
+      mode — `mono` disables identity, never a honesty channel
+- [ ] **Gate:** mini-monorepo (no flows, no curation) renders no empty panel
+      section and no empty chip row
 
 ## Phase 3 — Language adapters + conformance
 

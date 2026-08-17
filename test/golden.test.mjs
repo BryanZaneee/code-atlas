@@ -36,7 +36,9 @@ test("mini-monorepo payload matches its golden", async () => {
  * regression in what the scanner reports.
  */
 const ADDED_TOP = ["views", "theme"];                          // phase 1
-const ADDED_META = ["schemaVersion", "acquisition", "suiteCount"];
+const ADDED_META = ["schemaVersion", "acquisition", "suiteCount",
+  // phase 2.5: the map's own coverage, so the chrome can state it permanently.
+  "unsortedCount", "unresolvedCount", "derivedCount"];
 // phase 1: the viewer used to sniff a step's prose for two phrases to decide
 // whether to highlight it; the curated data says so outright now.
 const ADDED_STEP = ["warn"];
@@ -113,6 +115,11 @@ test("meta carries the fields later phases added", async (t) => {
   });
   // Four suite kinds, which the viewer used to print as a literal "4".
   assert.equal(payload.meta.suiteCount, 4);
+  // The map's own coverage, on a target that actually has curated flows: every
+  // hop of them is modeled, so DERIVED must be a real number and not zero.
+  assert.ok(payload.meta.derivedCount > 0, "curated flow hops are modeled, not observed");
+  assert.ok(payload.meta.derivedCount <= payload.flows.reduce((a, f) => a + f.steps.length, 0));
+  assert.equal(payload.meta.unresolvedCount, 0);
   assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests"]);
   assert.equal(payload.views.find((v) => v.id === "engagement").showPhase, true);
   assert.equal(payload.views.find((v) => v.id === "api").showPhase, false);
