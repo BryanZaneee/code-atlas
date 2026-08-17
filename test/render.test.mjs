@@ -61,7 +61,7 @@ function runRenderer(atlas) {
     resize();
     const _drawStatic = drawStatic;
     globalThis.scope = {
-      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, LAYOUT, counts: __counts,
+      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, LAYOUT, counts: __counts,
       wrap: () => { drawStatic = function () { __counts.drawStatic++; return _drawStatic.apply(this, arguments); }; },
     };
     `;
@@ -208,6 +208,14 @@ test("mono drops identity colour and nothing else", () => {
   assert.equal(scope.colorOf(n), "#8fae74");
   scope.S.colorMode = "mono";
   assert.equal(scope.colorOf(n), DEFAULT_THEME.face);
+
+  // The other honesty channel: a hop the tool did not observe is dotted, and no
+  // colour mode may quietly make it look like one it did.
+  for (const mode of ["identity", "mono"]) {
+    scope.S.colorMode = mode;
+    assert.deepEqual(scope.EDGE_STYLE.coupling.dash, [6, 4]);
+    assert.deepEqual(scope.EDGE_STYLE["test:exercises"].dash, [3, 3]);
+  }
 });
 
 test("the dark theme is a delta over the base palette", () => {

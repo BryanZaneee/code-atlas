@@ -2,14 +2,14 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phase 2's gates both pass; three commands left in it. Phase 2.5 started · 1 of 12 phases complete
+**Status:** Phase 2.5 complete; Phase 2 has three commands left in it · 2 of 12 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
 | 0 | Repo skeleton, lift-and-shift, payload contract | everything | ● done |
 | 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ one gate open |
 | 2 | Config, detection, graceful degradation | 3, 4 | ◐ gates pass |
-| 2.5 | Visual system: palette, selection, chrome | — | ◐ |
+| 2.5 | Visual system: palette, selection, chrome | — | ● done |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ○ |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
 | 5 | Findings engine | — | ○ |
@@ -152,8 +152,10 @@ are visible on every single interaction.*
       `:root` and the payload theme
 - [x] **Gate:** `COVER_TINT` and the derived dotted stroke survive every colour
       mode — `mono` disables identity, never a honesty channel
-- [ ] **Gate:** mini-monorepo (no flows, no curation) renders no empty panel
-      section and no empty chip row
+- [x] **Gate:** mini-monorepo (no flows, no curation) renders no empty panel
+      section and no empty chip row — checked by hand: no TRAVELLED BY heading
+      without flows, no EXTERNAL PACKAGES heading without packages, and
+      `DERIVED · UNMAPPED` reads `0 · 0` because both are true of it
 
 ## Phase 3 — Language adapters + conformance
 
