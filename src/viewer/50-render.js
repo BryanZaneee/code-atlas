@@ -35,8 +35,11 @@ function resize() {
 /** Everything that changes what the static layer looks like, but not where it sits. */
 function cacheKey() {
   const o = S.opts;
+  // Selection and hover are deliberately NOT here. They used to be, which made
+  // clicking a block re-rasterise the entire city and made a hover state
+  // unaffordable at any frame rate. They are drawn in the live pass instead.
   return [
-    S.view, S.query, S.focusDistrict, S.selected, S.yaw, LAYOUT.nodes.length,
+    S.view, S.query, S.focusDistrict, S.yaw, LAYOUT.nodes.length,
     o.docs, o.tests, o.contract, o.labels,
   ].join("|");
 }
@@ -161,13 +164,11 @@ function drawStatic() {
   // boxes, painter's order
   const edgeStroke = px(1);
   for (const n of LAYOUT.nodes) {
-    const dim = dimOf(n);
-    const sel = n.id === S.selected;
     const base = colorOf(n);
-    octx.globalAlpha = dim ? 0.16 : 1;
+    octx.globalAlpha = dimOf(n) ? 0.16 : 1;
     quad(octx, n.faceLeft,  shade(base, -0.42), "rgba(20,22,16,.28)", edgeStroke);
     quad(octx, n.faceRight, shade(base, -0.22), "rgba(20,22,16,.28)", edgeStroke);
-    quad(octx, n.faceTop,   sel ? THEME.selected : base, sel ? INK : "rgba(20,22,16,.38)", edgeStroke);
+    quad(octx, n.faceTop,   base, "rgba(20,22,16,.38)", edgeStroke);
   }
   octx.globalAlpha = 1;
 
@@ -189,24 +190,19 @@ function drawStatic() {
   octx.textAlign = "center";
   octx.lineWidth = px(3.5);
   octx.strokeStyle = "rgba(216,214,184,.92)";
-  let boldFont = false;
   octx.font = `${px(size)}px ${FONT}`;
+  octx.fillStyle = "rgba(35,37,28,.92)";
 
-  for (let i = LAYOUT.nodes.length - 1; i >= 0; i--) {
+  // The selected node no longer gets a special case here: its label is part of
+  // the live overlay, so it survives labels being off and zoomed past.
+  for (let i = LAYOUT.nodes.length - 1; showLabels && i >= 0; i--) {
     const n = LAYOUT.nodes[i];
-    const sel = n.id === S.selected;
-    if (!((showLabels && !dimOf(n)) || sel)) continue;
-    if (sel !== boldFont) {
-      boldFont = sel;
-      octx.font = `${sel ? "600 " : ""}${px(size)}px ${FONT}`;
-      widths.clear();
-    }
+    if (dimOf(n)) continue;
     const w = widthOf(n.name);
     const box = { x: n.top.x - w / 2, y: n.top.y - px(5) - px(size), w, h: px(size + 3) };
-    if (!sel && hits(box)) continue;
+    if (hits(box)) continue;
     taken.push(box);
     octx.strokeText(n.name, n.top.x, n.top.y - px(5));
-    octx.fillStyle = sel ? INK : "rgba(35,37,28,.92)";
     octx.fillText(n.name, n.top.x, n.top.y - px(5));
   }
   octx.restore();
@@ -231,6 +227,81 @@ function drawDiamond(x, p, r, fill) {
   x.closePath(); x.fillStyle = fill; x.fill();
 }
 
+/**
+ * Convex hull of a point set, monotone chain.
+ *
+ * A box in axonometric projection silhouettes to a hexagon whose vertices are
+ * six of its eight projected corners. There is a closed form, but it has to
+ * case on which quadrant the camera is in; a hull is total at every yaw for the
+ * same dozen lines. It runs for the one or two nodes an overlay touches, never
+ * per node per frame.
+ */
+function hullOf(pts) {
+  const p = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = (src) => {
+    const out = [];
+    for (const q of src) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], q) <= 0) out.pop();
+      out.push(q);
+    }
+    return out;
+  };
+  return half(p).slice(0, -1).concat(half(p.reverse()).slice(0, -1));
+}
+
+/** The four ground corners the layout already knows — the block's footprint. */
+function footprintOf(n) {
+  return [[0, 0], [1, 0], [1, 1], [0, 1]].map(([dx, dy]) => project(n.gx + dx, n.gy + dy, 0));
+}
+
+function silhouetteOf(n) {
+  return hullOf(footprintOf(n).concat([[0, 0], [1, 0], [1, 1], [0, 1]].map(([dx, dy]) => project(n.gx + dx, n.gy + dy, n.h))));
+}
+
+/**
+ * Selection, hover and flow membership, drawn AFTER the city is blitted.
+ *
+ * Two reasons it lives here and not in the static layer. It is state, and state
+ * changes on every interaction — baking it into the world cache meant one click
+ * re-rasterised everything. And an overlay is allowed to ignore the painter's
+ * algorithm: a silhouette chewed up by the block in front of it is
+ * depth-realistic and illegible, and legibility wins here and only here.
+ *
+ * Selection gets the full silhouette AND a footprint ring on the ground,
+ * because the top face is barely a third of a tall block's area and much less
+ * of a short one's. The ring is what makes a one-storey block as legible as a
+ * tower. Hover gets a lighter silhouette and no ring, so the two never read the
+ * same.
+ */
+function drawOverlay() {
+  const pick = (id) => (id && LAYOUT.ids.has(id) ? byId.get(id) : null);
+  const sel = pick(S.selected);
+  const hov = S.hover === S.selected ? null : pick(S.hover);
+
+  ctx.save();
+  if (hov) quad(ctx, silhouetteOf(hov).map(toScreen), null, THEME.accent, 1);
+  if (sel) {
+    ctx.globalAlpha = 0.34;
+    quad(ctx, footprintOf(sel).map(toScreen), THEME.accent, null, 0);
+    ctx.globalAlpha = 1;
+    quad(ctx, silhouetteOf(sel).map(toScreen), null, THEME.accent, 2);
+
+    // The name on a chip rather than a haloed string: at this size the halo is
+    // what the static layer uses to survive a busy background, and the overlay
+    // has one solid colour available that nothing else on the map uses.
+    const s = toScreen(sel.top);
+    ctx.font = `600 11px ${FONT}`;
+    ctx.textAlign = "center";
+    const w = ctx.measureText(sel.name).width;
+    ctx.fillStyle = THEME.accent;
+    ctx.fillRect(s.x - w / 2 - 5, s.y - 28, w + 10, 15);
+    ctx.fillStyle = BG;
+    ctx.fillText(sel.name, s.x, s.y - 17);
+  }
+  ctx.restore();
+}
+
 let livePackets = [];   // screen-space, for hit testing
 
 function draw() {
@@ -242,6 +313,7 @@ function draw() {
   ctx.fillRect(0, 0, W, H);
   const o = toScreen({ x: CACHE.x0, y: CACHE.y0 });
   ctx.drawImage(off, 0, 0, off.width, off.height, o.x, o.y, CACHE.w * S.zoom, CACHE.h * S.zoom);
+  drawOverlay();
   livePackets = [];
 
   // flow arcs above the city so packets are never occluded

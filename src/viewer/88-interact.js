@@ -29,6 +29,7 @@ cv.addEventListener("mousedown", (e) => {
 window.addEventListener("mouseup", () => { dragging = false; rotating = false; cv.classList.remove("drag"); });
 window.addEventListener("mousemove", (e) => {
   if (dragging) {
+    S.hover = null;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     moved += Math.abs(dx) + Math.abs(dy);
     lastX = e.clientX; lastY = e.clientY;
@@ -37,10 +38,17 @@ window.addEventListener("mousemove", (e) => {
     return;
   }
   const r = cv.getBoundingClientRect();
-  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) { $("#tip").style.opacity = 0; return; }
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
+    S.hover = null;
+    $("#tip").style.opacity = 0;
+    return;
+  }
   const sx = e.clientX - r.left, sy = e.clientY - r.top;
   const p = pickPacket(sx, sy);
   const n = p ? null : pickNode(sx, sy);
+  // Free now that the overlay is a live pass: this used to cost a full
+  // re-rasterisation of the city per mouse move, so there was no hover state.
+  S.hover = n ? n.id : null;
   const tip = $("#tip");
   if (p) {
     tip.textContent = p.kind === "step"
@@ -62,14 +70,13 @@ cv.addEventListener("click", (e) => {
   const p = pickPacket(sx, sy);
   if (p) {
     if (p.kind === "step") selectStep(p.data);
-    else { S.pinnedPacket = null; S.selected = p.data.to; renderInspect(); staticDirty = true; }
+    else { S.pinnedPacket = null; S.selected = p.data.to; renderInspect(); }
     return;
   }
   const n = pickNode(sx, sy);
   S.pinnedPacket = null;
   S.selected = n ? n.id : null;
   renderInspect();
-  staticDirty = true;
 });
 cv.addEventListener("wheel", (e) => {
   e.preventDefault();

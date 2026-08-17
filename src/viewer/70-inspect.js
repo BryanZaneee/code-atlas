@@ -5,7 +5,6 @@ function selectStep(st) {
   S.pinnedPacket = st;
   S.selected = st.to;
   renderInspect();
-  staticDirty = true;
 }
 
 function renderInspect() {
@@ -48,7 +47,7 @@ function renderInspect() {
       for (const n of d.members.slice().sort((a, x) => x.loc - a.loc)) {
         const r = el("div", "row mini");
         r.append(el("span", "nm", n.name), el("span", "num", `${n.loc}L`));
-        r.onclick = () => { S.selected = n.id; renderInspect(); staticDirty = true; };
+        r.onclick = () => { S.selected = n.id; renderInspect(); };
         b.append(r);
       }
       return;
@@ -109,7 +108,7 @@ function renderInspect() {
       const t = byId.get(e[key]);
       const r = el("div", "row mini");
       r.append(el("span", "nm", t?.name ?? e[key]), el("span", "sub", e.kind));
-      r.onclick = () => { S.selected = e[key]; S.pinnedPacket = null; renderInspect(); staticDirty = true; };
+      r.onclick = () => { S.selected = e[key]; S.pinnedPacket = null; renderInspect(); };
       b.append(r);
       if (e.note) b.append(el("div", "note warn", e.note));
     }

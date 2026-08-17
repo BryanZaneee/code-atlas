@@ -121,6 +121,7 @@
     "bg": "#d8d6b8",
     "font": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
     "layerFallback": "#8a8a6a",
+    "accent": "#3f5a2c",
     "selected": "#f2ecc0",
     "packetLabel": "#2a2c1f",
     "edgeStyle": {

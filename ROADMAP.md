@@ -130,9 +130,9 @@ are visible on every single interaction.*
       coverage in the payload rather than only on stderr. A curated hop counts as
       derived: curation and derivation alike model an ordering imports cannot
       express, and the honesty contract does not distinguish them
-- [ ] `groups[].code` — a stable 2-char district name, and `groups[].parentId`
-- [ ] `nodes[].travelledBy` — the flow index inverted, absent when empty
-- [ ] Selection and hover drawn in the **live** pass, not baked into the world
+- [x] `groups[].code` — a stable 2-char district name, and `groups[].parentId`
+- [x] `nodes[].travelledBy` — the flow index inverted, absent when empty
+- [x] Selection and hover drawn in the **live** pass, not baked into the world
       cache; full-silhouette stroke + footprint ring, hover distinct from select
 - [ ] Neutral light/dark palette replacing cream; every colour literal in
       `50-render.js` promoted into the theme
@@ -144,7 +144,7 @@ are visible on every single interaction.*
       accent edge-bar for the reverse index
 - [ ] Chrome: `DERIVED n · UNMAPPED n` in the top strip, persistent key hints in
       the bottom strip, hover readout, prose type register
-- [ ] **Gate:** select and hover cause **zero** re-rasterisations; 120 pans still
+- [x] **Gate:** select and hover cause **zero** re-rasterisations; 120 pans still
       cause exactly one
 - [ ] **Gate:** zero colour literals of any form (`#`, `rgb(`, `hsl(`) outside
       `:root` and the payload theme

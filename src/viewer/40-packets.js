@@ -17,7 +17,7 @@ function bez(arc, t) {
 
 function buildPackets() {
   runners = []; ambient = [];
-  const placed = new Set(LAYOUT.nodes.map(n => n.id));
+  const placed = LAYOUT.ids;
 
   const fs = activeFlows();
   if (fs.length) {

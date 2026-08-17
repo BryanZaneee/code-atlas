@@ -15,6 +15,10 @@ export const DEFAULT_THEME = {
   // A literal stack: canvas ignores var(--mono).
   font: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
   layerFallback: "#8a8a6a",
+  // The state channel's one colour. Identity writes to fill; state writes to
+  // stroke, ring and badge, so turning identity colour off cannot also turn the
+  // selection off. See PLAN.md, "The visual system".
+  accent: "#3f5a2c",
   selected: "#f2ecc0",
   packetLabel: "#2a2c1f",
 

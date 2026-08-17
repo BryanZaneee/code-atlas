@@ -144,9 +144,41 @@ test("changing what is drawn does re-render", () => {
   scope.draw();
   assert.equal(scope.counts.drawStatic, start + 1, "a filter changes the picture");
 
+  scope.S.opts.labels = false;
+  scope.draw();
+  assert.equal(scope.counts.drawStatic, start + 2, "dropping the labels changes the picture");
+});
+
+/**
+ * Selection used to be baked into the world cache, so one click re-rasterised
+ * the whole city — and a hover state, which changes on every mouse move, was
+ * therefore unaffordable. Both are drawn in the live pass now. This is the
+ * assertion that keeps them there: it fails the moment either goes back into
+ * cacheKey().
+ */
+test("selecting and hovering never re-render the static layer", () => {
+  const scope = runRenderer(payload(600));
+  scope.draw();
+  const after = scope.counts.drawStatic;
+
+  for (let i = 0; i < 60; i++) {
+    scope.S.hover = scope.LAYOUT.nodes[i % scope.LAYOUT.nodes.length].id;
+    scope.draw();
+  }
   scope.S.selected = scope.LAYOUT.nodes[0].id;
   scope.draw();
-  assert.equal(scope.counts.drawStatic, start + 2, "selection changes the picture");
+  scope.S.selected = scope.LAYOUT.nodes[9].id;
+  scope.draw();
+
+  assert.equal(scope.counts.drawStatic, after, "state belongs in the overlay, not the cache");
+});
+
+/** A selection the current view filtered out has stale geometry; do not draw it. */
+test("an overlay only draws a node that is on the map", () => {
+  const scope = runRenderer(payload(200));
+  scope.S.selected = "s0/nowhere.ts";
+  scope.S.hover = "s0/nowhere.ts";
+  scope.draw();                              // must not throw
 });
 
 test("rotating re-renders", () => {
