@@ -39,7 +39,9 @@ export function extractImports(ctx) {
   const stats = { resolved: 0, unresolved: 0, external: 0, unresolvedSpecs: [] };
   const imports = new Map();
 
+  let done = 0;
   for (const p of ctx.paths) {
+    ctx.progress?.("parse", `${++done}/${ctx.paths.length}`);
     const internal = new Set();
     const external = new Set();
     const adapter = adapterFor(p);

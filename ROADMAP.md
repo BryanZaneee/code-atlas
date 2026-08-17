@@ -111,7 +111,12 @@ Legend: ○ not started · ◐ in progress · ● done
       missing alias is a hundred identical lines otherwise, which hides the
       cause rather than showing it. Its report goes to stdout, because it is the
       command's output rather than its commentary
-- [ ] Streamed progress to stderr, throttled, suppressed when not a TTY
+- [x] Streamed progress to stderr, throttled, suppressed when not a TTY —
+      `walk · parse n/total · resolve · endpoints · derive` on one rewritten
+      line. Entering a phase always draws; only the per-file counter is
+      throttled, or the line reports a phase the scan has already left. A
+      non-TTY stream writes **zero** bytes rather than bytes a consumer is
+      expected to filter, which is what keeps `--json` clean
 - [ ] `atlas init` writes a starter config (the only command that writes to a target repo)
 - [x] **Gate:** `atlas build` with **no config** yields a legible atlas for taxvault, Shuttrr, terra, sonder *(git repo, zero commits)*, llmbench *(pyproject only)*
 - [x] **Gate:** for each — `nodeCount > 0`, `services.length ≥ 1`, every node's service ∈ services

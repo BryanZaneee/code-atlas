@@ -16,8 +16,15 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { scan, report, diagnose } from "../src/build/build.mjs";
 import { assemble } from "../src/build/assemble.mjs";
+import { makeProgress } from "../src/scan/progress.mjs";
 
-const warn = (...m) => process.stderr.write(m.join(" ") + "\n");
+// Draws nothing unless stderr is a terminal, so a redirect or a pipe is
+// untouched and the pipeline never has to know which it is.
+const progress = makeProgress(process.stderr);
+const warn = (...m) => {
+  progress.clear();
+  process.stderr.write(m.join(" ") + "\n");
+};
 const die = (msg) => {
   warn(`fatal: ${msg}`);
   process.exit(1);
@@ -82,10 +89,13 @@ try {
     // A generic tool cannot hard-exit on somebody else's stale curated flow.
     strict: values.strict,
     warn,
+    progress,
   });
 } catch (e) {
+  progress.done();
   die(e.message);
 }
+progress.done();
 
 const { payload, diagnostics } = result;
 

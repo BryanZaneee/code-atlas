@@ -54,13 +54,22 @@ function indexFlows(nodes, flows) {
   }
 }
 
-export function scan({ repo, ref, config: userConfig, fetch = true, strict = false, warn = () => {} }) {
+export function scan({
+  repo,
+  ref,
+  config: userConfig,
+  fetch = true,
+  strict = false,
+  warn = () => {},
+  progress = () => {},
+}) {
   // Everything downstream reads one normalized shape, whether the values came
   // from a config file, from detection, or from the defaults.
   let config = loadConfig(userConfig);
   const source = acquire({ repo, ref, fetch, warn });
   try {
     const { all, paths, fileSet, src } = collect(source.dir, { keep: config.keep, exclude: config.exclude });
+    progress("walk", `${paths.length} files`);
 
     // Detection needs the walk, and the walk needs keep/exclude, so the config
     // is loaded twice: once to filter, once with what the filtered tree revealed.
@@ -70,11 +79,13 @@ export function scan({ repo, ref, config: userConfig, fetch = true, strict = fal
       if (services) config = loadConfig(userConfig, { detected: { services } });
     }
 
-    const ctx = { config, paths, fileSet, src, warn };
+    const ctx = { config, paths, fileSet, src, warn, progress };
     for (const a of ADAPTERS) if (a.prepare) ctx[a.id] = a.prepare(ctx);
 
     const { imports, stats } = extractImports(ctx);
+    progress("resolve");
     const endpoints = extractEndpoints(ctx);
+    progress("endpoints", `${endpoints.length}`);
 
     const suites = readSuites(ctx);
     const testKind = (p) => config.testKind(p, suites);
@@ -91,6 +102,7 @@ export function scan({ repo, ref, config: userConfig, fetch = true, strict = fal
       flows: config.flows,
       extraEdges: config.extraEdges,
     });
+    progress("derive");
     deriveCoverage(nodes, edges);
     indexFlows(nodes, config.flows ?? []);
     const groups = buildGroups(nodes, config.layers);
