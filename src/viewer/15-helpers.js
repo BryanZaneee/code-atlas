@@ -16,10 +16,24 @@ const project = (gx, gy, h) => ({ x: (gx - gy) * (TW / 2), y: (gx + gy) * (TH / 
 const toScreen = (w) => ({ x: w.x * S.zoom + S.panX, y: w.y * S.zoom + S.panY });
 const toWorld = (s) => ({ x: (s.x - S.panX) / S.zoom, y: (s.y - S.panY) / S.zoom });
 
+/**
+ * Height is normalized to the repo's own p95, not to an absolute scale. The old
+ * curve saturated at ~958 lines, so a 1,000-line file and a 5,000-line file drew
+ * identical towers — the exact comparison the map exists to make.
+ */
+const LOC_P95 = (() => {
+  const locs = ATLAS.nodes.filter(n => n.kind === "file" && n.loc > 0).map(n => n.loc).sort((a, b) => a - b);
+  if (!locs.length) return 1;
+  return Math.max(1, locs[Math.min(locs.length - 1, Math.floor(locs.length * 0.95))]);
+})();
+const LOG_P95 = Math.log1p(LOC_P95);
+
 function heightOf(n) {
   if (n.kind === "datastore") return 84;
   if (n.kind === "endpoint") return 22;
-  return 8 + Math.min(Math.sqrt(n.loc) * 4.2, 130);
+  // Files past p95 stay taller than it rather than being clipped to it, but not
+  // without limit: one generated 100k-line file must not flatten the whole map.
+  return 8 + Math.min(130 * Math.log1p(n.loc) / LOG_P95, 260);
 }
 const COVER_TINT = { none:"#b0562f", indirect:"#a89a5c" };
 function colorOf(n) {

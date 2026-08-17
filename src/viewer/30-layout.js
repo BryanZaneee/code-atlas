@@ -45,13 +45,24 @@ function relayout() {
   }
 
   // service plates wrap all of a row's districts
+  const byService = new Map();
+  for (const d of districts) {
+    if (!byService.has(d.service)) byService.set(d.service, []);
+    byService.get(d.service).push(d);
+  }
   const plates = services.map(Sv => {
-    const ds = districts.filter(d => d.service === Sv);
-    if (!ds.length) return null;
+    const ds = byService.get(Sv);
+    if (!ds?.length) return null;
+    const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    for (const d of ds) {
+      if (d.x0 < b.x0) b.x0 = d.x0;
+      if (d.y0 < b.y0) b.y0 = d.y0;
+      if (d.x1 > b.x1) b.x1 = d.x1;
+      if (d.y1 > b.y1) b.y1 = d.y1;
+    }
     return {
       service: Sv, label: svcById.get(Sv)?.label ?? Sv,
-      x0: Math.min(...ds.map(d => d.x0)) - 0.9, y0: Math.min(...ds.map(d => d.y0)) - 0.9,
-      x1: Math.max(...ds.map(d => d.x1)) + 0.9, y1: Math.max(...ds.map(d => d.y1)) + 0.9,
+      x0: b.x0 - 0.9, y0: b.y0 - 0.9, x1: b.x1 + 0.9, y1: b.y1 + 0.9,
     };
   }).filter(Boolean);
 
@@ -68,13 +79,26 @@ function relayout() {
     n.top = P(gx + 0.5, gy + 0.5, h);
   }
 
+  // Accumulated, not spread. `Math.min(...pts)` passes one argument per point —
+  // eight per node — and blows the argument limit into a RangeError somewhere
+  // around 8k nodes, which is a crash on exactly the repos worth drawing.
   let bbox = null;
   if (vis.length) {
-    const pts = vis.flatMap(n => [...n.faceTop, ...n.faceLeft]);
-    bbox = {
-      x0: Math.min(...pts.map(p => p.x)), x1: Math.max(...pts.map(p => p.x)),
-      y0: Math.min(...pts.map(p => p.y)), y1: Math.max(...pts.map(p => p.y)),
-    };
+    bbox = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+    for (const n of vis) {
+      for (const p of n.faceTop) {
+        if (p.x < bbox.x0) bbox.x0 = p.x;
+        if (p.x > bbox.x1) bbox.x1 = p.x;
+        if (p.y < bbox.y0) bbox.y0 = p.y;
+        if (p.y > bbox.y1) bbox.y1 = p.y;
+      }
+      for (const p of n.faceLeft) {
+        if (p.x < bbox.x0) bbox.x0 = p.x;
+        if (p.x > bbox.x1) bbox.x1 = p.x;
+        if (p.y < bbox.y0) bbox.y0 = p.y;
+        if (p.y > bbox.y1) bbox.y1 = p.y;
+      }
+    }
   }
   LAYOUT = { nodes: vis, districts, plates, bbox, edges: visibleEdges(vis) };
   buildPackets();

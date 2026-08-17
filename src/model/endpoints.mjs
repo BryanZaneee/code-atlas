@@ -14,6 +14,8 @@
 export function extractEndpoints(ctx) {
   const { endpointRules = [], classify, serviceOf } = ctx.config;
   const endpoints = [];
+  const seen = new Set();          // service|method|path — dedupe within a service
+  const routeCount = new Map();    // method|path -> how many services declare it
 
   for (const p of ctx.paths) {
     if (!/\.(ts|py)$/.test(p) || classify(p) === "test") continue;
@@ -23,7 +25,11 @@ export function extractEndpoints(ctx) {
         const full = raw.startsWith(mount) ? raw : mount + raw;
         const method = m[1].toUpperCase();
         const service = serviceOf(p);
-        if (endpoints.some((e) => e.service === service && e.method === method && e.path === full)) continue;
+        const key = `${service}|${method}|${full}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const route = `${method}|${full}`;
+        routeCount.set(route, (routeCount.get(route) ?? 0) + 1);
         endpoints.push({ id: `${method} ${full}`, method, path: full, service, definedIn: p });
       }
     }
@@ -32,7 +38,7 @@ export function extractEndpoints(ctx) {
   // Two services can expose the same probe path. Keep the bare id where a path
   // is unique so curated flows stay readable, and qualify only real collisions.
   for (const e of endpoints) {
-    if (endpoints.filter((o) => o.path === e.path && o.method === e.method).length > 1) {
+    if (routeCount.get(`${e.method}|${e.path}`) > 1) {
       e.id = `${e.method} ${e.path} · ${e.service}`;
     }
   }
