@@ -1,54 +1,108 @@
 /**
  * Source acquisition. Read-only on the target, always.
  *
- * `git archive <ref> | tar -x` into a temp directory: no branch is switched and
- * no file in the target is modified. The only write is the optional `git fetch`,
- * which touches remote refs and nothing else.
+ * The ladder, in the order it is tried:
  *
- * Phase 2 adds the rest of the ladder — worktree scan and a plain fs walk for a
- * directory that is not a git repo or has no commits yet. Today there is one
- * rung, and `meta.acquisition` reports which one ran so the UI can say whether
- * the picture includes uncommitted work.
+ *   ref       `git archive <ref> | tar -x` into a temp dir. Reproducible from a
+ *             commit, so a screenshot of it means something later.
+ *   worktree  the working tree as it sits. Includes uncommitted work, which is
+ *             why `dirty` is reported and the UI badges it.
+ *   fs        a plain directory walk, no git involved at all.
+ *
+ * A rung is chosen automatically only when the one above it cannot run: not a
+ * git repository, or a repository with no commits yet, where `rev-parse
+ * --git-dir` succeeds while `rev-parse HEAD` fails. Neither is an error — they
+ * are ordinary states for a repo somebody started this morning, and exiting on
+ * them would make the tool useless exactly when a map is most wanted.
+ *
+ * `--ref fs` and `--ref worktree` name a rung explicitly.
+ *
+ * The only write any of this performs is the optional `git fetch`, which touches
+ * remote refs and nothing else. No branch is switched, no file is modified.
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-export function acquire({ repo, ref, fetch = true, warn = () => {} }) {
-  // The fs rung: scan a directory as it sits, no git involved. Landed early
-  // because the in-repo fixtures are not git repositories and the test suite
-  // must not depend on one. Phase 2 adds the rungs above it (worktree, and a
-  // git repo whose HEAD is unborn) and the fallback logic that picks between
-  // them; today you ask for this one explicitly with --ref fs.
-  if (ref === "fs") {
-    return {
-      dir: repo,
-      commit: "",
-      // A plain-fs scan includes uncommitted work, so it is not reproducible
-      // from any commit. The UI says so; dirty is unknowable here, not false.
-      acquisition: { mode: "fs", ref: null, commit: null, dirty: null },
-      cleanup: () => {},
-    };
+/** Scan a directory as it sits. No git, so nothing about it is reproducible. */
+function fsRung(repo) {
+  return {
+    dir: repo,
+    commit: "",
+    // Not reproducible from any commit, and `dirty` is unknowable rather than
+    // false: without git there is nothing to be dirty relative to.
+    acquisition: { mode: "fs", ref: null, commit: null, dirty: null },
+    cleanup: () => {},
+  };
+}
+
+/**
+ * Scan the working tree of a git repository, uncommitted work included. The
+ * commit is recorded where there is one, so the picture can at least say what it
+ * is a modification of.
+ */
+function worktreeRung(repo, git) {
+  const commit = git("rev-parse", "HEAD") ?? "";
+  const status = git("status", "--porcelain");
+  return {
+    dir: repo,
+    commit,
+    acquisition: {
+      mode: "worktree",
+      ref: null,
+      commit: commit ? commit.slice(0, 7) : null,
+      // No commits yet means everything in the tree is uncommitted.
+      dirty: commit ? Boolean(status) : true,
+    },
+    cleanup: () => {},
+  };
+}
+
+export function acquire({ repo, ref = "HEAD", fetch = true, warn = () => {} }) {
+  // Returns null instead of throwing: every caller here is asking a question
+  // whose negative answer is a rung of the ladder, not a failure.
+  const git = (...args) => {
+    try {
+      return execFileSync("git", args, {
+        cwd: repo,
+        encoding: "utf8",
+        maxBuffer: 1 << 28,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+    } catch {
+      return null;
+    }
+  };
+
+  if (ref === "fs") return fsRung(repo);
+  if (ref === "worktree") {
+    if (git("rev-parse", "--git-dir") === null) {
+      warn("warn: not a git repository — scanning the directory as it sits");
+      return fsRung(repo);
+    }
+    return worktreeRung(repo, git);
   }
 
-  const git = (...args) =>
-    execFileSync("git", args, { cwd: repo, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+  if (git("rev-parse", "--git-dir") === null) {
+    warn(`warn: ${repo} is not a git repository — scanning the directory as it sits`);
+    return fsRung(repo);
+  }
 
-  let commit;
-  try {
-    commit = git("rev-parse", ref);
-  } catch {
+  let commit = git("rev-parse", ref);
+  if (commit === null) {
+    // An unborn HEAD: the repository exists, the commit does not. Falling to the
+    // working tree is the only reading of "scan this repo" that can succeed.
+    if (ref === "HEAD") {
+      warn("warn: no commits yet — scanning the working tree instead");
+      return worktreeRung(repo, git);
+    }
     throw new Error(`cannot resolve ref "${ref}" in ${repo}`);
   }
 
   if (fetch && ref.startsWith("origin/")) {
-    try {
-      git("fetch", "origin", "--quiet");
-      commit = git("rev-parse", ref);
-    } catch {
-      warn("warn: git fetch failed, using the cached ref");
-    }
+    if (git("fetch", "origin", "--quiet") === null) warn("warn: git fetch failed, using the cached ref");
+    else commit = git("rev-parse", ref) ?? commit;
   }
 
   const dir = mkdtempSync(path.join(tmpdir(), "atlas-"));

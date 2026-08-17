@@ -120,7 +120,11 @@ export function scan({ repo, ref, config: userConfig, fetch = true, strict = tru
 export function report(payload, diagnostics, warn) {
   const { stats, unclassified, orphanTests } = diagnostics;
   const m = payload.meta;
-  warn(`atlas: ref ${m.ref} @ ${m.commit}`);
+  // Which rung ran decides whether this picture is reproducible from a commit,
+  // so it leads the report rather than hiding in the payload.
+  const a = m.acquisition;
+  const at = a.commit ? `@ ${a.commit}` : "uncommitted";
+  warn(`atlas: ${a.mode} ${a.ref ?? ""} ${at}${a.dirty ? " · DIRTY" : ""}`);
   warn(`atlas: ${m.fileCount} code files, ${m.lineCount} lines, ${m.edgeCount} edges, ${m.endpointCount} endpoints`);
   warn(`atlas: imports resolved=${stats.resolved} unresolved=${stats.unresolved} external=${stats.external}`);
   // The unsorted share is the honest read on classification quality: a repo

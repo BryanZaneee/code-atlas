@@ -10,12 +10,20 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-export function walk(dir, base = "") {
+/**
+ * Excluded directories are not descended into, rather than walked and filtered
+ * afterwards. On a ref scan that is a small saving; on a worktree scan it is the
+ * difference between reading the repository and reading every dependency it has
+ * ever installed.
+ */
+export function walk(dir, base = "", skip = []) {
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const rel = base ? `${base}/${e.name}` : e.name;
-    if (e.isDirectory()) out.push(...walk(path.join(dir, e.name), rel));
-    else if (e.isFile()) out.push(rel);
+    if (e.isDirectory()) {
+      if (skip.some((re) => re.test(rel + "/"))) continue;
+      out.push(...walk(path.join(dir, e.name), rel, skip));
+    } else if (e.isFile()) out.push(rel);
   }
   return out;
 }
@@ -25,7 +33,7 @@ export function walk(dir, base = "") {
  * node and edge order deterministic, which is what makes the golden diffs work.
  */
 export function collect(dir, { keep, exclude = [] }) {
-  const all = walk(dir).sort();
+  const all = walk(dir, "", exclude).sort();
   const paths = all.filter((p) => keep.test(p) && !exclude.some((re) => re.test(p)));
   return {
     all,
