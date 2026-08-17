@@ -93,47 +93,59 @@ if (command === "init") {
   writeFileSync(file, text);
   warn(`atlas: wrote ${file}`);
   warn(`atlas: ${services.length} service(s) detected over ${fileCount} files -> ${services.map((s) => s.id).join(", ")}`);
-  process.exit(0);
+} else {
+  await run();
 }
-const config = values.config
-  ? (await import(pathToFileURL(path.resolve(values.config)).href)).default
-  : undefined;
 
-let result;
-try {
-  result = scan({
-    repo,
-    ref: values.ref,
-    config,
-    fetch: !values["no-fetch"],
-    // A generic tool cannot hard-exit on somebody else's stale curated flow.
-    strict: values.strict,
-    warn,
-    progress,
-  });
-} catch (e) {
+/**
+ * Everything past acquisition.
+ *
+ * A function, and no `process.exit()` anywhere near a write, because
+ * `process.stdout` is asynchronous when it is a pipe: exiting discards whatever
+ * has not drained, which silently truncated `--json` at the 64 KB pipe buffer.
+ * Letting the event loop run dry is what flushes it.
+ */
+async function run() {
+  const config = values.config
+    ? (await import(pathToFileURL(path.resolve(values.config)).href)).default
+    : undefined;
+
+  let result;
+  try {
+    result = scan({
+      repo,
+      ref: values.ref,
+      config,
+      fetch: !values["no-fetch"],
+      // A generic tool cannot hard-exit on somebody else's stale curated flow.
+      strict: values.strict,
+      warn,
+      progress,
+    });
+  } catch (e) {
+    progress.done();
+    die(e.message);
+  }
   progress.done();
-  die(e.message);
+
+  const { payload, diagnostics } = result;
+
+  // The report is a by-product of `build` and the whole point of `scan`, so it
+  // follows the same rule every other tool does: a command's output goes to
+  // stdout, a command's commentary goes to stderr.
+  if (command === "scan") {
+    diagnose(payload, diagnostics, (...m) => process.stdout.write(m.join(" ") + "\n"));
+    return;
+  }
+
+  report(payload, diagnostics, warn);
+
+  if (values.json) {
+    process.stdout.write(JSON.stringify(payload, null, 2));
+    return;
+  }
+
+  const out = path.resolve(values.out);
+  writeFileSync(out, assemble(payload));
+  warn(`atlas: wrote ${out} (${(statSync(out).size / 1024).toFixed(0)} KB)`);
 }
-progress.done();
-
-const { payload, diagnostics } = result;
-
-// The report is a by-product of `build` and the whole point of `scan`, so it
-// follows the same rule every other tool does: a command's output goes to
-// stdout, a command's commentary goes to stderr.
-if (command === "scan") {
-  diagnose(payload, diagnostics, (...m) => process.stdout.write(m.join(" ") + "\n"));
-  process.exit(0);
-}
-
-report(payload, diagnostics, warn);
-
-if (values.json) {
-  process.stdout.write(JSON.stringify(payload, null, 2));
-  process.exit(0);
-}
-
-const out = path.resolve(values.out);
-writeFileSync(out, assemble(payload));
-warn(`atlas: wrote ${out} (${(statSync(out).size / 1024).toFixed(0)} KB)`);

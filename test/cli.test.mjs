@@ -8,7 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -61,6 +61,27 @@ test("init refuses to overwrite a config that already exists", () => {
       (e) => e.status === 1 && /already exists/.test(e.stderr),
     );
     assert.equal(readFileSync(file, "utf8"), written, "init overwrote an existing config");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--json survives a pipe, whole", () => {
+  // process.stdout is asynchronous when it is a pipe, so exiting after the
+  // write discarded everything past the 64 KB pipe buffer — a payload that
+  // parsed fine redirected to a file and truncated mid-string when piped.
+  // execFileSync gives us a pipe, which is exactly the failing case; the repo
+  // has to out-produce the buffer or the test proves nothing, so it is
+  // generated rather than borrowed from a corpus that may not be checked out.
+  const dir = mkdtempSync(path.join(os.tmpdir(), "atlas-big-"));
+  try {
+    for (let i = 0; i < 400; i++) {
+      writeFileSync(path.join(dir, `mod${i}.ts`), `import { a } from "./mod${(i + 1) % 400}.js";\nexport const a = ${i};\n`);
+    }
+    const out = atlas(["build", "--repo", dir, "--ref", "fs", "--json"], { maxBuffer: 64 * 1024 * 1024 });
+    assert.ok(out.length > 65536, `payload is ${out.length}B — too small to prove anything`);
+    const payload = JSON.parse(out);
+    assert.equal(payload.nodes.length, payload.meta.nodeCount);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
