@@ -2,13 +2,13 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phase 0 complete · 1 of 11 phases complete
+**Status:** Phase 1 done bar an fps measurement · 1 of 11 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
 | 0 | Repo skeleton, lift-and-shift, payload contract | everything | ● done |
-| 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ next |
-| 2 | Config, detection, graceful degradation | 3, 4 | ○ |
+| 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ one gate open |
+| 2 | Config, detection, graceful degradation | 3, 4 | ◐ next |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ○ |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
 | 5 | Findings engine | — | ○ |
@@ -55,23 +55,32 @@ Legend: ○ not started · ◐ in progress · ● done
 
 *Moved ahead of the scanner work: the `RangeError` is a crash, and every later view builds on this renderer.*
 
-- [ ] `RangeError` fix — `reduce` instead of `Math.min(...pts.map())` (currently dies ~8k nodes)
-- [ ] World-space static cache + mip re-render (cache is currently invalidated by every pan frame, buying nothing)
-- [ ] Cached label widths; edges bucketed by style instead of `save()/restore()` per edge
-- [ ] `Set` for endpoint dedupe (O(E²) → O(E)); `Map` for group lookup (O(N·G) → O(N))
-- [ ] `heightOf` → `8 + 130·log1p(loc)/log1p(p95)` (currently saturates at ~958 LOC)
-- [ ] Theme single-sourced into JS tokens; **`style.css` contains zero hex literals** (build-time grep enforces)
-- [ ] `VIEWS`, `EDGE_STYLE`, `PACKET_COLOR`, `COVER_TINT`, hint copy → moved into the payload
-- [ ] **Camera rotation**: yaw-parameterized projection, generalized depth sort, conditional face visibility, `reproject()` split from `relayout()`
-- [ ] Rotation controls: `Q`/`E` 15° steps, Shift+drag free, `R` snap to 45°, yaw in the overlay
-- [ ] **Gate:** 60 fps sustained drag on the largest target
-- [ ] **Gate:** synthetic 5,000-node / 12,000-edge payload renders, no `RangeError`
-- [ ] **Gate:** `generic.test.mjs` still green — this phase removes the eight
-      taxvault-coupled viewer strings (`<title>`, the `engagement` view id ×8,
-      `SIDE_HINT` prose naming OCR/Core, `["SUITES","4"]`, the `#ovTop` title
-      ternary, legend labels, the `/CROSS-BOUNDARY|forwarded/` regex, `createApp`
-      in the coverage copy). Needs `meta.suiteCount` added and the golden re-baselined.
-- [ ] **Gate:** yaw 45° is bit-identical to Phase 0; 360° sweep never mis-occludes; click selects correctly at every angle
+- [x] `RangeError` fix — accumulate instead of `Math.min(...pts.map())`. Also fixed
+      in `focusOn` and the service plates, which had the same spread
+- [x] World-space static cache + mip re-render (was invalidated by every pan frame, buying nothing)
+- [x] Cached label widths; edges bucketed by style instead of `save()/restore()` per edge
+- [x] `Set` for endpoint dedupe (O(E²) → O(E)); `Map` for group lookup (O(N·G) → O(N))
+- [x] `heightOf` → `8 + 130·log1p(loc)/log1p(p95)`, bounded so one generated file cannot flatten the map
+- [x] Theme single-sourced into JS tokens; **`style.css` contains zero hex literals outside `:root`** (test enforces)
+- [x] `VIEWS`, `EDGE_STYLE`, `PACKET_COLOR`, `COVER_TINT`, hint copy → moved into the payload;
+      views are derived per distinct `flows[].view` and the viewer branches on `kind`, not on names
+- [x] `meta.suiteCount` (killed the hardcoded `["SUITES","4"]`)
+- [x] **Camera rotation**: yaw-parameterized projection, generalized depth sort, conditional face visibility, `reproject()` split from `relayout()`
+- [x] Rotation controls: `Q`/`E` 15° steps, Shift+drag free, `R` snap to 45°, yaw in the overlay
+- [ ] **Gate:** 60 fps sustained drag on the largest target — *the mechanism is
+      tested (`render.test.mjs`: 120 pans → 1 rasterisation, 121 blits) and the
+      atlas was checked by hand in Chrome, but the frame-time number itself has
+      not been measured: `requestAnimationFrame` is suspended in a backgrounded
+      tab, so the harness cannot sample it. Needs a human with the window in front.*
+- [x] **Gate:** synthetic 5,000-node / 12,000-edge payload renders, no `RangeError`
+      — plus 20,000, which is past the argument limit on any engine (5,000 alone
+      would not have caught it: this Node build tolerates ~125k arguments)
+- [x] **Gate:** `generic.test.mjs` green with an **empty** accepted list — every
+      taxvault-coupled viewer string is gone
+- [x] **Gate:** yaw 45° is bit-identical to Phase 0; 360° sweep never mis-occludes;
+      click selects correctly at every angle (verified in Chrome at 105° yaw).
+      Both rotation gates are regression-checked: reverting the depth sort to
+      `gx+gy` fails the sweep, pinning a face plane fails visibility at 100°
 
 ## Phase 2 — Config, detection, graceful degradation
 
