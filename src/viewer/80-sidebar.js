@@ -8,19 +8,14 @@ function renderViews() {
   }
 }
 
-const SIDE_HINT = {
-  structure: "Rows are services, columns are the router → controller → service → repository layers AGENTS.md rule 10 mandates. Building height is file length. Click a district to open it and list its files.",
-  api: "Each entry is one endpoint's real call chain. Packets carry a synthetic payload — click one to read the note attached to that hop.",
-  engagement: "The cross-service document trace, in three phases. STEP walks it one hop at a time. The dashed red edges are the two places the OCR service touches Core's tables directly instead of calling its API.",
-  tests: "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
-};
+
 
 function renderList() {
   const wrap = $("#list"); wrap.innerHTML = "";
   const title = $("#listTitle"), count = $("#listCount");
 
-  if (S.view === "api" || S.view === "engagement") {
-    title.textContent = S.view === "api" ? "ENDPOINTS" : "PHASES";
+  if (isFlowView(S.view)) {
+    title.textContent = viewById.get(S.view)?.listLabel ?? "PATHS";
     const fs = flowsForView(S.view);
     count.textContent = fs.length;
     const all = el("div", "row" + (S.activeFlow === "__all__" ? " sel" : ""));
@@ -30,7 +25,7 @@ function renderList() {
     wrap.append(all);
     for (const f of fs) {
       const r = el("div", "row" + (S.activeFlow === f.id ? " sel" : ""));
-      const sw = el("span", "sw"); sw.style.background = "#8a3a2a";
+      const sw = el("span", "sw"); sw.style.background = EDGE_STYLE.http.c;
       r.append(sw, el("span", "nm", f.label), el("span", "num", f.steps.length));
       r.onclick = () => { S.activeFlow = f.id; S.pinnedPacket = null; relayout(); renderList(); fitView(); renderInspect(); };
       wrap.append(r);
@@ -93,9 +88,9 @@ function renderStats() {
   const m = ATLAS.meta;
   $("#bRepo").textContent = m.repo;
   $("#bRef").textContent = `${m.ref} @ ${m.commit} · ${m.generatedAt}`;
-  const rows = S.view === "tests"
+  const rows = viewKind(S.view) === "tests"
     ? [
-        ["TEST FILES", fmt(m.testCount)], ["SUITES", "4"],
+        ["TEST FILES", fmt(m.testCount)], ["SUITES", fmt(m.suiteCount)],
         ["DIRECT", fmt(m.coverDirect)], ["INDIRECT", fmt(m.coverIndirect)],
         ["NO TEST REACHES", fmt(m.coverNone)], ["LINKS", fmt(m.edgeCount)],
       ]
@@ -113,28 +108,22 @@ function renderStats() {
 }
 
 function renderLegend() {
-  const items = S.view === "tests"
-    ? [
-        ["i", "#a8542f", "TEST COVERS (PRIMARY SUBJECT)", false],
-        ["i", "#a8542f", "ALSO EXERCISES", true],
-        ["u", "#7e9a8a", "DIRECT — A TEST IMPORTS IT", false],
-        ["u", "#a89a5c", "INDIRECT — REACHED VIA IMPORTS", false],
-        ["u", "#b0562f", "NONE — NO TEST REACHES IT", false],
-      ]
-    : [
-        ["i", "#6f7358", "IMPORT", false],
-        ["i", "#8a3a2a", "CROSS-SERVICE HTTP", false],
-        ["i", "#8a3a2a", "SHARED-DB COUPLING", true],
-        ["i", "#3f6a7a", "SQL / CACHE", false],
-        ["u", "#2f4a1f", "PACKET — CLICK TO INSPECT", false],
-      ];
+  // Rows name a key in the theme tables rather than repeating a colour, so the
+  // legend cannot drift out of step with what is actually drawn.
+  const rows = THEME.legend[viewKind(S.view) === "tests" ? "tests" : "default"] ?? [];
   const w = $("#legend"); w.innerHTML = "";
-  for (const [tag, c, label, dash] of items) {
+  for (const r of rows) {
+    const style = r.edge ? EDGE_STYLE[r.edge] : null;
+    const color = style?.c
+      ?? (r.swatch ? PACKET_COLOR[r.swatch] : null)
+      ?? (r.tint ? COVER_TINT[r.tint] : null)
+      ?? (r.layer ? layerById.get(r.layer)?.color : null)
+      ?? THEME.layerFallback;
     const g = el("div", "lg");
-    const mark = el(tag);
-    if (tag === "i") { mark.style.borderTopColor = c; if (dash) mark.className = "dash"; }
-    else mark.style.background = c;
-    g.append(mark, el("span", null, label));
+    const mark = el(r.edge ? "i" : "u");
+    if (r.edge) { mark.style.borderTopColor = color; if (style?.dash) mark.className = "dash"; }
+    else mark.style.background = color;
+    g.append(mark, el("span", null, r.label));
     w.append(g);
   }
   const right = el("div", "lg");

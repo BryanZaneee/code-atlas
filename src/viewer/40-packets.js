@@ -33,7 +33,7 @@ function buildPackets() {
     }
   }
 
-  if (S.opts.ambient && (S.view === "structure" || S.view === "tests")) {
+  if (S.opts.ambient && !isFlowView(S.view)) {
     const pool = LAYOUT.edges.filter(e => e.kind === "import" || e.kind.startsWith("test:"));
     const n = Math.min(90, pool.length);
     for (let i = 0; i < n; i++) {

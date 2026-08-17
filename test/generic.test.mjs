@@ -38,22 +38,12 @@ function* sourceFiles(dir) {
 }
 
 /**
- * The Phase 0 lift moved the scanner's taxonomy into config, but the viewer's
- * hardcoded view ids and copy are Phase 1's job — moving them means putting
- * VIEWS and the hint strings into the payload, which changes the payload and so
- * cannot happen while Phase 0's byte-identical gate is the thing being proved.
- *
- * These are the exact remaining hits, as file:word. Phase 1 empties this list.
- * A stale entry fails too, so it cannot rot into a permanent exemption.
+ * Phase 1 emptied this. It exists so a violation that cannot be fixed inside
+ * the phase that introduces it is recorded rather than ignored, and so that
+ * fixing one forces deleting its entry. Adding to it needs a reason and a
+ * named phase that removes it.
  */
-const ACCEPTED = new Set([
-  "src/viewer/00-theme.js:engagement",
-  "src/viewer/20-select.js:engagement",
-  "src/viewer/50-render.js:engagement",
-  "src/viewer/80-sidebar.js:engagement",
-  "src/viewer/88-interact.js:engagement",
-  "src/viewer/80-sidebar.js:AGENTS.md",
-]);
+const ACCEPTED = new Set([]);
 
 function scanForBanned() {
   const hits = [];

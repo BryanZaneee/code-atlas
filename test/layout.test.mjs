@@ -12,6 +12,8 @@ import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { VIEWER_DIR } from "../src/build/assemble.mjs";
+import { DEFAULT_THEME } from "../src/model/theme.mjs";
+import { buildViews } from "../src/model/views.mjs";
 
 const LAYOUT_MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js"];
 
@@ -61,8 +63,10 @@ function synthetic(n, edgeCount) {
   }));
   const groups = [];
   return {
-    meta: { schemaVersion: 1, repo: "synthetic", nodeCount: n },
+    meta: { schemaVersion: 1, repo: "synthetic", nodeCount: n, suiteCount: 0 },
     services, layers, nodes, edges, endpoints: [], flows: [], groups,
+    views: buildViews({}, []),
+    theme: DEFAULT_THEME,
   };
 }
 

@@ -23,7 +23,7 @@ function renderInspect() {
     add("FROM", byId.get(st.from)?.name ?? st.from);
     add("TO", byId.get(st.to)?.name ?? st.to);
     b.append(dl);
-    if (st.note) b.append(el("div", "note" + (/CROSS-BOUNDARY|forwarded/.test(st.note) ? " warn" : ""), st.note));
+    if (st.note) b.append(el("div", "note" + (st.warn ? " warn" : ""), st.note));
     if (st.sample) {
       b.append(el("h3", null, "PACKET PAYLOAD (SYNTHETIC)"));
       const pre = el("pre", "sample", JSON.stringify(st.sample, null, 2));
@@ -81,7 +81,7 @@ function renderInspect() {
   if (n.coverage) {
     const txt = {
       direct: "A test file imports this module directly.",
-      indirect: "No test imports this module, but it is reachable through the import graph from one that is tested — route files reached via createApp land here.",
+      indirect: "No test imports this module, but it is reachable through the import graph from one that is tested — a route file reached through an app factory lands here.",
       none: "Not reachable from any test file through imports. The repo has no coverage tooling, so this is derived from test imports plus the test↔source naming convention, not from execution.",
     }[n.coverage];
     b.append(el("div", "note" + (n.coverage === "none" ? " warn" : ""), `COVERAGE: ${n.coverage.toUpperCase()} — ${txt}`));

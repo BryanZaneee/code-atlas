@@ -83,9 +83,9 @@ function setView(v) {
   renderViews();
   relayout();
   renderList(); renderInspect(); renderLegend(); renderStats();
-  $("#sideHint").textContent = SIDE_HINT[v] ?? "";
-  $("#ovTop").querySelector("b").textContent =
-    v === "structure" ? "THE CODEBASE" : v === "api" ? "API CALL FLOW" : v === "engagement" ? "ENGAGEMENT DOCUMENT FLOW" : "TEST COVERAGE FLOW";
+  const def = viewById.get(v);
+  $("#sideHint").textContent = def?.hint ?? "";
+  $("#ovTop").querySelector("b").textContent = def?.title ?? def?.label ?? "";
   fitView();
 }
 

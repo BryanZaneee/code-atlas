@@ -18,6 +18,8 @@ import { extractEndpoints } from "../model/endpoints.mjs";
 import { readSuites, subjectOf, FIXTURE } from "../model/tests.mjs";
 import { deriveCoverage } from "../model/metrics.mjs";
 import { validateFlows } from "../model/flows.mjs";
+import { buildViews } from "../model/views.mjs";
+import { buildTheme } from "../model/theme.mjs";
 import { ADAPTERS } from "../adapters/index.mjs";
 
 export const SCHEMA_VERSION = 1;
@@ -73,6 +75,9 @@ export function scan({ repo, ref, config, fetch = true, strict = true, warn = ()
         docCount: nodes.filter((n) => n.lang === "md").length,
         endpointCount: endpoints.length,
         testCount: nodes.filter((n) => n.layer === "test").length,
+        // Was a hardcoded "4" in the viewer. Distinct suite kinds actually
+        // observed, so a repo with one suite or none reads correctly.
+        suiteCount: new Set(nodes.map((n) => n.testKind).filter(Boolean)).size,
         coverDirect: nodes.filter((n) => n.coverage === "direct").length,
         coverIndirect: nodes.filter((n) => n.coverage === "indirect").length,
         coverNone: nodes.filter((n) => n.coverage === "none").length,
@@ -80,6 +85,8 @@ export function scan({ repo, ref, config, fetch = true, strict = true, warn = ()
       },
       services: config.services,
       layers: config.layers,
+      views: buildViews(config, config.flows ?? []),
+      theme: buildTheme(config),
       nodes,
       edges,
       endpoints,

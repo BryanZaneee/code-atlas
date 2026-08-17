@@ -63,7 +63,7 @@ function drawStatic() {
   }
 
   // ambient edges sit on the ground, under the boxes
-  if (S.view === "structure" || S.view === "tests") {
+  if (!isFlowView(S.view)) {
     for (const e of LAYOUT.edges) {
       const a = byId.get(e.from), b = byId.get(e.to);
       if (!a?.top || !b?.top) continue;
@@ -91,7 +91,7 @@ function drawStatic() {
     octx.globalAlpha = dim ? 0.16 : 1;
     quad(octx, n.faceLeft,  shade(base, -0.42), "rgba(20,22,16,.28)");
     quad(octx, n.faceRight, shade(base, -0.22), "rgba(20,22,16,.28)");
-    quad(octx, n.faceTop,   sel ? "#f2ecc0" : base, sel ? INK : "rgba(20,22,16,.38)");
+    quad(octx, n.faceTop,   sel ? THEME.selected : base, sel ? INK : "rgba(20,22,16,.38)");
     octx.restore();
   }
 
@@ -159,7 +159,7 @@ function draw() {
 
   for (const p of ambient) {
     const w = bez(p.arc, p.t), s = toScreen(w);
-    drawDiamond(ctx, s, clamp(2.6 * S.zoom, 1.6, 4.5), PACKET_COLOR[p.e.kind] ?? "#4a4e38");
+    drawDiamond(ctx, s, clamp(2.6 * S.zoom, 1.6, 4.5), PACKET_COLOR[p.e.kind] ?? PACKET_COLOR.import);
     livePackets.push({ x:s.x, y:s.y, kind:"edge", data:p.e });
   }
 
@@ -167,7 +167,7 @@ function draw() {
     const st = r.steps[r.i];
     if (!st) continue;
     const w = bez(st.arc, r.t), s = toScreen(w);
-    const col = PACKET_COLOR[st.kind] ?? "#2f4a1f";
+    const col = PACKET_COLOR[st.kind] ?? PACKET_COLOR.request;
     ctx.save();
     ctx.shadowColor = col; ctx.shadowBlur = 8;
     drawDiamond(ctx, s, clamp(5 * S.zoom, 3.5, 8), col);
@@ -182,14 +182,14 @@ function draw() {
       ctx.textAlign = "center"; ctx.lineWidth = 3;
       ctx.strokeStyle = "rgba(216,214,184,.9)";
       ctx.strokeText(st.label, s.x, s.y - 13);
-      ctx.fillStyle = "#2a2c1f";
+      ctx.fillStyle = THEME.packetLabel;
       ctx.fillText(st.label, s.x, s.y - 13);
       ctx.restore();
     }
   }
 
-  // phase overlay for the engagement trace
-  if (S.view === "engagement" && runners[0]?.steps[runners[0].i]) {
+  // phase watermark, for a flow view whose flows carry phases
+  if (viewById.get(S.view)?.showPhase && runners[0]?.steps[runners[0].i]) {
     const f = flowById.get(runners[0].steps[runners[0].i].flowId);
     if (f) {
       ctx.save();

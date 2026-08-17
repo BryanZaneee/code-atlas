@@ -66,6 +66,31 @@ test("payload encoding cannot break out of the script tag", () => {
   assert.deepEqual(JSON.parse(encoded), hostile);
 });
 
+/**
+ * A colour with two definitions eventually has two values. Everything outside
+ * :root must go through a token, so the palette has exactly one home.
+ */
+test("style.css declares colours only in :root", () => {
+  const css = readFileSync(path.join(VIEWER_DIR, "style.css"), "utf8");
+  const rootEnd = css.indexOf("}");
+  const outside = css.slice(rootEnd);
+  const strays = outside.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+  assert.deepEqual(strays, [], "promote these to a custom property in :root");
+});
+
+/**
+ * The tool must not know one repository's palette or view names. Both now come
+ * from the payload, so a viewer that reads them from anywhere else is a bug.
+ */
+test("the viewer reads theme and views from the payload", () => {
+  const bundle = bundleScript();
+  assert.match(bundle, /const THEME = ATLAS\.theme/);
+  assert.match(bundle, /const VIEWS = ATLAS\.views/);
+  // The legend used to repeat ten literals already present in the edge tables.
+  const literals = bundle.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
+  assert.deepEqual(literals, [], `colours belong in the payload theme: ${literals.join(", ")}`);
+});
+
 test("index.html declares exactly one of each marker", () => {
   const html = readFileSync(path.join(VIEWER_DIR, "index.html"), "utf8");
   for (const marker of ["/*__ATLAS_DATA__*/", "/*__ATLAS_STYLE__*/", "/*__ATLAS_SCRIPT__*/"]) {

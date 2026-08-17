@@ -140,6 +140,37 @@ export default {
     return "unit";
   },
 
+  // Order and copy for the view strip. `kind` and `showPhase` are derived from
+  // the flows, so they are deliberately absent here. This is where the prose
+  // that used to be hardcoded in the viewer belongs — it describes THIS
+  // repository, and nothing in src/ should know any of it.
+  views: [
+    {
+      id: "structure",
+      label: "STRUCTURE",
+      title: "THE CODEBASE",
+      hint: "Rows are services, columns are the router → controller → service → repository layers AGENTS.md rule 10 mandates. Building height is file length. Click a district to open it and list its files.",
+    },
+    {
+      id: "api",
+      label: "API FLOW",
+      title: "API CALL FLOW",
+      hint: "Each entry is one endpoint's real call chain. Packets carry a synthetic payload — click one to read the note attached to that hop.",
+    },
+    {
+      id: "engagement",
+      label: "ENGAGEMENT",
+      title: "ENGAGEMENT DOCUMENT FLOW",
+      hint: "The cross-service document trace, in three phases. STEP walks it one hop at a time. The dashed red edges are the two places the OCR service touches Core's tables directly instead of calling its API.",
+    },
+    {
+      id: "tests",
+      label: "TESTS",
+      title: "TEST COVERAGE FLOW",
+      hint: "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+    },
+  ],
+
   flows: FLOWS,
   datastores: DATASTORES,
   extraEdges: EXTRA_EDGES,

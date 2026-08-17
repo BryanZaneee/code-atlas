@@ -31,13 +31,13 @@ export const EXTRA_EDGES = [
     from: "ingestion-ocr-service/app/repository/document_repository.py",
     to: "apps/api/src/repository/audit-entry.repository.ts",
     kind: "coupling",
-    note: "CROSS-BOUNDARY WRITE. insert_audit_entry writes straight into Core's audit_entry table — no API call — matching Core's engagement:{id} target format so Core's audit endpoint picks it up. Shared database, not a contract.",
+    warn: true, note: "CROSS-BOUNDARY WRITE. insert_audit_entry writes straight into Core's audit_entry table — no API call — matching Core's engagement:{id} target format so Core's audit endpoint picks it up. Shared database, not a contract.",
   },
   {
     from: "ingestion-ocr-service/app/repository/document_repository.py",
     to: "apps/api/src/repository/engagement.repository.ts",
     kind: "coupling",
-    note: "CROSS-BOUNDARY READ. find_engagement_tenant SELECTs tenant_id FROM tax_engagement — a table Core owns and migrates. document.engagement_id also carries a real FK into it, which is why Drizzle migrations must run before the OCR ones.",
+    warn: true, note: "CROSS-BOUNDARY READ. find_engagement_tenant SELECTs tenant_id FROM tax_engagement — a table Core owns and migrates. document.engagement_id also carries a real FK into it, which is why Drizzle migrations must run before the OCR ones.",
   },
 
   // Black-box tests drive HTTP, so they import nothing from the code they cover.
@@ -114,7 +114,7 @@ export const FLOWS = [
       { from: "apps/api/src/services/attach-document.service.ts", to: "apps/api/src/repository/engagement.repository.ts", kind: "read", label: "findById", note: "Tenant-scoped. A miss is a 404 before any stage logic runs." },
       { from: "apps/api/src/repository/engagement.repository.ts", to: "db:postgres", kind: "read", label: "SELECT", sample: { stage: "Documents", on_hold: false } },
       { from: "apps/api/src/services/attach-document.service.ts", to: "apps/api/src/ingestion/ingestion.client.ts", kind: "request", label: "stage gate ✓", note: "The engagement must be in the Documents stage; otherwise the service audits the failure and throws DocumentStageRequiredError → 409." },
-      { from: "apps/api/src/ingestion/ingestion.client.ts", to: ING_EXTRACT, kind: "http", label: "CROSS-SERVICE", note: "The caller's Authorization header is forwarded verbatim so the OCR service verifies the same principal against the same issuer. 3 attempts, exponential backoff with full jitter, per-attempt AbortSignal.timeout. 4xx never retries.", sample: { method: "POST", authorization: "Bearer <caller's own token>", attempt: 1 } },
+      { from: "apps/api/src/ingestion/ingestion.client.ts", to: ING_EXTRACT, kind: "http", label: "CROSS-SERVICE", warn: true, note: "The caller's Authorization header is forwarded verbatim so the OCR service verifies the same principal against the same issuer. 3 attempts, exponential backoff with full jitter, per-attempt AbortSignal.timeout. 4xx never retries.", sample: { method: "POST", authorization: "Bearer <caller's own token>", attempt: 1 } },
       { from: ING_EXTRACT, to: "ingestion-ocr-service/app/controllers/document_controller.py", kind: "request", label: "verify again", note: "Ingestion re-verifies the token independently — it does not trust the hop." },
       { from: "ingestion-ocr-service/app/controllers/document_controller.py", to: "ingestion-ocr-service/app/services/document_extract_service.py", kind: "request", label: "extract" },
       { from: "ingestion-ocr-service/app/services/document_extract_service.py", to: "ingestion-ocr-service/app/storage/document_storage.py", kind: "read", label: "get_object" },

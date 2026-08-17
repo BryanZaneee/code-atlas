@@ -35,10 +35,9 @@ function heightOf(n) {
   // without limit: one generated 100k-line file must not flatten the whole map.
   return 8 + Math.min(130 * Math.log1p(n.loc) / LOG_P95, 260);
 }
-const COVER_TINT = { none:"#b0562f", indirect:"#a89a5c" };
 function colorOf(n) {
-  const base = layerById.get(n.layer)?.color ?? "#8a8a6a";
-  if (S.view === "tests" && n.coverage) return COVER_TINT[n.coverage] ?? base;
+  const base = layerById.get(n.layer)?.color ?? THEME.layerFallback;
+  if (viewKind(S.view) === "tests" && n.coverage) return COVER_TINT[n.coverage] ?? base;
   return base;
 }
 

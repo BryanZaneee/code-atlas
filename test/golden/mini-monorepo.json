@@ -18,6 +18,7 @@
     "docCount": 1,
     "endpointCount": 5,
     "testCount": 2,
+    "suiteCount": 1,
     "coverDirect": 2,
     "coverIndirect": 1,
     "coverNone": 3,
@@ -96,6 +97,173 @@
       "color": "#5f6b52"
     }
   ],
+  "views": [
+    {
+      "title": "THE CODEBASE",
+      "hint": "Rows are services, columns are architectural layers. Building height is file length. Click a district to open it and list its files.",
+      "id": "structure",
+      "label": "STRUCTURE",
+      "kind": "structure"
+    },
+    {
+      "title": "TEST COVERAGE",
+      "hint": "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+      "id": "tests",
+      "label": "TESTS",
+      "kind": "tests"
+    }
+  ],
+  "theme": {
+    "ink": "#23251c",
+    "bg": "#d8d6b8",
+    "font": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
+    "layerFallback": "#8a8a6a",
+    "selected": "#f2ecc0",
+    "packetLabel": "#2a2c1f",
+    "edgeStyle": {
+      "import": {
+        "c": "#6f7358",
+        "w": 1,
+        "a": 0.16,
+        "dash": null
+      },
+      "test:subject": {
+        "c": "#a8542f",
+        "w": 1.7,
+        "a": 0.55,
+        "dash": null
+      },
+      "test:exercises": {
+        "c": "#a8542f",
+        "w": 0.9,
+        "a": 0.2,
+        "dash": [
+          3,
+          3
+        ]
+      },
+      "http": {
+        "c": "#8a3a2a",
+        "w": 2,
+        "a": 0.75,
+        "dash": null
+      },
+      "sql": {
+        "c": "#3f6a7a",
+        "w": 1.2,
+        "a": 0.35,
+        "dash": null
+      },
+      "cache": {
+        "c": "#7a5c2c",
+        "w": 1.2,
+        "a": 0.35,
+        "dash": null
+      },
+      "s3": {
+        "c": "#4a6a4a",
+        "w": 1.2,
+        "a": 0.35,
+        "dash": null
+      },
+      "coupling": {
+        "c": "#8a3a2a",
+        "w": 1.8,
+        "a": 0.7,
+        "dash": [
+          6,
+          4
+        ]
+      },
+      "request": {
+        "c": "#3f5a2c",
+        "w": 1.6,
+        "a": 0.5,
+        "dash": null
+      },
+      "response": {
+        "c": "#4a6a7a",
+        "w": 1.6,
+        "a": 0.5,
+        "dash": null
+      },
+      "read": {
+        "c": "#3f6a7a",
+        "w": 1.4,
+        "a": 0.45,
+        "dash": null
+      },
+      "write": {
+        "c": "#8a5a2a",
+        "w": 1.6,
+        "a": 0.5,
+        "dash": null
+      }
+    },
+    "packetColor": {
+      "request": "#2f4a1f",
+      "response": "#2a4a5a",
+      "read": "#2a5a6a",
+      "write": "#7a4a10",
+      "http": "#7a2a1a",
+      "cache": "#6a4a1a",
+      "s3": "#2a5a3a",
+      "import": "#4a4e38",
+      "test:subject": "#8a3a1f",
+      "test:exercises": "#8a3a1f",
+      "coupling": "#7a2a1a"
+    },
+    "coverTint": {
+      "none": "#b0562f",
+      "indirect": "#a89a5c"
+    },
+    "legend": {
+      "default": [
+        {
+          "edge": "import",
+          "label": "IMPORT"
+        },
+        {
+          "edge": "http",
+          "label": "CROSS-SERVICE HTTP"
+        },
+        {
+          "edge": "coupling",
+          "label": "SHARED-DB COUPLING"
+        },
+        {
+          "edge": "sql",
+          "label": "SQL / CACHE"
+        },
+        {
+          "swatch": "request",
+          "label": "PACKET — CLICK TO INSPECT"
+        }
+      ],
+      "tests": [
+        {
+          "edge": "test:subject",
+          "label": "TEST COVERS (PRIMARY SUBJECT)"
+        },
+        {
+          "edge": "test:exercises",
+          "label": "ALSO EXERCISES"
+        },
+        {
+          "layer": "repository",
+          "label": "DIRECT — A TEST IMPORTS IT"
+        },
+        {
+          "tint": "indirect",
+          "label": "INDIRECT — REACHED VIA IMPORTS"
+        },
+        {
+          "tint": "none",
+          "label": "NONE — NO TEST REACHES IT"
+        }
+      ]
+    }
+  },
   "nodes": [
     {
       "id": "docs/overview.md",
