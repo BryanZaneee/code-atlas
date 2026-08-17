@@ -65,6 +65,7 @@ on some kinds.
 | `name` | string | stable | basename, or the label / endpoint id |
 | `dir` | string | stable | parent directory; for an endpoint, its defining file |
 | `service` `layer` | string | stable | ids into `services` / `layers` |
+| `serviceWhy` `layerWhy` | string | stable | the rule that placed it, in prose — `matched rule #4 — a service directory`. File nodes only; INSPECT shows it |
 | `lang` | string | stable | `ts` `py` `sql` `md`, or `-` for non-files |
 | `loc` | int | stable | lines, trailing newline not counted |
 | `kind` | string | stable | `file` · `datastore` · `endpoint` |

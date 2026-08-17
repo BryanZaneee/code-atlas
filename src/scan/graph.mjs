@@ -42,13 +42,17 @@ export function extractImports(ctx) {
 }
 
 export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
-  const { classify, serviceOf, datastores = [] } = ctx.config;
+  const { layerOf, serviceOf, datastores = [] } = ctx.config;
   const nodes = [];
   const unclassified = [];
 
   for (const p of ctx.paths) {
-    const layer = classify(p);
-    if (layer === "other") unclassified.push(p);
+    // Provenanced: the rule that placed this file travels with it into the
+    // payload, so a misclassification is a config edit rather than a bug report.
+    const placed = layerOf(p);
+    const svc = serviceOf(p);
+    if (!placed.matched) unclassified.push(p);
+    const layer = placed.layer;
     const text = ctx.src.get(p);
     const loc = text.length ? text.replace(/\n$/, "").split("\n").length : 0;
     const isTest = layer === "test";
@@ -57,8 +61,10 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
       id: p,
       name: p.split("/").pop(),
       dir: path.posix.dirname(p),
-      service: serviceOf(p),
-      layer: layer === "other" ? "tooling" : layer,
+      service: svc.service,
+      serviceWhy: svc.why,
+      layer,
+      layerWhy: placed.why,
       lang: p.endsWith(".ts") ? "ts" : p.endsWith(".py") ? "py" : p.endsWith(".sql") ? "sql" : "md",
       loc,
       kind: "file",

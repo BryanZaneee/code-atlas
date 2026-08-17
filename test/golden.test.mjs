@@ -40,6 +40,9 @@ const ADDED_META = ["schemaVersion", "acquisition", "suiteCount"];
 // phase 1: the viewer used to sniff a step's prose for two phrases to decide
 // whether to highlight it; the curated data says so outright now.
 const ADDED_STEP = ["warn"];
+// phase 2: every node records the rule that placed it. Additive — the layer and
+// service themselves must still match the prototype exactly, and they do.
+const ADDED_NODE = ["layerWhy", "serviceWhy"];
 
 test("taxvault's observed facts have not drifted from the prototype", async (t) => {
   const repo = corpusRepo("taxvault");
@@ -53,6 +56,7 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   const stripped = structuredClone(payload);
   for (const k of ADDED_TOP) delete stripped[k];
   for (const k of ADDED_META) delete stripped.meta[k];
+  for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];
   for (const f of stripped.flows) for (const st of f.steps) for (const k of ADDED_STEP) delete st[k];
 
   const expected = readFileSync(path.join(GOLDEN_DIR, "taxvault.prototype.json"), "utf8");

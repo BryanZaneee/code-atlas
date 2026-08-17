@@ -64,9 +64,15 @@ function renderInspect() {
   b.append(el("div", "title", n.name));
   b.append(el("div", "path", n.id));
   const dl = el("dl", "kv");
-  const add = (k, v) => { dl.append(el("dt", null, k), el("dd", null, v)); };
-  add("SERVICE", svcById.get(n.service)?.label ?? n.service);
-  add("LAYER", layerById.get(n.layer)?.label ?? n.layer);
+  // `why` is the rule that placed this node. Showing it is what turns "the tool
+  // put my file in the wrong column" into a config edit instead of a bug report.
+  const add = (k, v, why) => {
+    const dd = el("dd", null, v);
+    if (why) dd.append(el("div", "why", why));
+    dl.append(el("dt", null, k), dd);
+  };
+  add("SERVICE", svcById.get(n.service)?.label ?? n.service, n.serviceWhy);
+  add("LAYER", layerById.get(n.layer)?.label ?? n.layer, n.layerWhy);
   if (n.kind === "file") {
     add("LINES", fmt(n.loc));
     add("EXPORTS", n.exports);

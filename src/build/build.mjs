@@ -20,11 +20,15 @@ import { deriveCoverage } from "../model/metrics.mjs";
 import { validateFlows } from "../model/flows.mjs";
 import { buildViews } from "../model/views.mjs";
 import { buildTheme } from "../model/theme.mjs";
+import { loadConfig } from "../config/load.mjs";
 import { ADAPTERS } from "../adapters/index.mjs";
 
 export const SCHEMA_VERSION = 1;
 
-export function scan({ repo, ref, config, fetch = true, strict = true, warn = () => {} }) {
+export function scan({ repo, ref, config: userConfig, fetch = true, strict = true, warn = () => {} }) {
+  // Everything downstream reads one normalized shape, whether the values came
+  // from a config file, from detection, or from the defaults.
+  const config = loadConfig(userConfig);
   const source = acquire({ repo, ref, fetch, warn });
   try {
     const { paths, fileSet, src } = collect(source.dir, { keep: config.keep, exclude: config.exclude });

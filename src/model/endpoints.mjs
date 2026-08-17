@@ -12,19 +12,19 @@
  * guessed at, because a phantom endpoint is worse than a missing one.
  */
 export function extractEndpoints(ctx) {
-  const { endpointRules = [], classify, serviceOf } = ctx.config;
+  const { endpointRules = [], layerOf, serviceOf } = ctx.config;
   const endpoints = [];
   const seen = new Set();          // service|method|path — dedupe within a service
   const routeCount = new Map();    // method|path -> how many services declare it
 
   for (const p of ctx.paths) {
-    if (!/\.(ts|py)$/.test(p) || classify(p) === "test") continue;
+    if (!/\.(ts|py)$/.test(p) || layerOf(p).layer === "test") continue;
     for (const { re, mount } of endpointRules) {
       for (const m of ctx.src.get(p).matchAll(re)) {
         const raw = m[2];
         const full = raw.startsWith(mount) ? raw : mount + raw;
         const method = m[1].toUpperCase();
-        const service = serviceOf(p);
+        const { service } = serviceOf(p);
         const key = `${service}|${method}|${full}`;
         if (seen.has(key)) continue;
         seen.add(key);
