@@ -106,7 +106,11 @@ Legend: ○ not started · ◐ in progress · ● done
       directories, which a worktree scan needs and a `git archive` scan never did
 - [x] Curated-flow validation demoted to a warning; `--strict` restores the hard fail
 - [x] **Classification provenance** — every node records the rule that placed it, shown in INSPECT
-- [ ] `atlas scan` diagnostics report
+- [x] `atlas scan` diagnostics report — the build summary, plus unresolved
+      specifiers **grouped by specifier** and a layer/service histogram. One
+      missing alias is a hundred identical lines otherwise, which hides the
+      cause rather than showing it. Its report goes to stdout, because it is the
+      command's output rather than its commentary
 - [ ] Streamed progress to stderr, throttled, suppressed when not a TTY
 - [ ] `atlas init` writes a starter config (the only command that writes to a target repo)
 - [x] **Gate:** `atlas build` with **no config** yields a legible atlas for taxvault, Shuttrr, terra, sonder *(git repo, zero commits)*, llmbench *(pyproject only)*

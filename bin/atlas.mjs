@@ -14,7 +14,7 @@ import { parseArgs } from "node:util";
 import { writeFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { scan, report } from "../src/build/build.mjs";
+import { scan, report, diagnose } from "../src/build/build.mjs";
 import { assemble } from "../src/build/assemble.mjs";
 
 const warn = (...m) => process.stderr.write(m.join(" ") + "\n");
@@ -26,7 +26,7 @@ const die = (msg) => {
 const USAGE = `atlas <command> [options]
 
   build      scan a repository and write a self-contained HTML atlas
-  scan       human-readable diagnostics                    (phase 2)
+  scan       what the scanner found, and what it could not
   init       write a starter config into a repository      (phase 2)
   findings   cycles, layering violations, orphans          (phase 5)
   serve      local viewer with source reading              (phase 7)
@@ -61,9 +61,9 @@ if (values.help || !command) {
   process.exit(command ? 0 : 1);
 }
 
-const PENDING = { scan: 2, init: 2, findings: 5, serve: 7 };
+const PENDING = { init: 2, findings: 5, serve: 7 };
 if (PENDING[command]) die(`\`atlas ${command}\` lands in phase ${PENDING[command]}`);
-if (command !== "build") die(`unknown command "${command}"\n\n${USAGE}`);
+if (command !== "build" && command !== "scan") die(`unknown command "${command}"\n\n${USAGE}`);
 
 // No config means defaults plus detection, which is the path a repository the
 // tool has never seen takes. A config only ever overrides what it names.
@@ -88,6 +88,15 @@ try {
 }
 
 const { payload, diagnostics } = result;
+
+// The report is a by-product of `build` and the whole point of `scan`, so it
+// follows the same rule every other tool does: a command's output goes to
+// stdout, a command's commentary goes to stderr.
+if (command === "scan") {
+  diagnose(payload, diagnostics, (...m) => process.stdout.write(m.join(" ") + "\n"));
+  process.exit(0);
+}
+
 report(payload, diagnostics, warn);
 
 if (values.json) {

@@ -33,7 +33,10 @@ export function langOf(p) {
 }
 
 export function extractImports(ctx) {
-  const stats = { resolved: 0, unresolved: 0, external: 0 };
+  // `unresolvedSpecs` is collected rather than warned about one line at a time:
+  // an import the tool could not place is a diagnostic, and a repository whose
+  // adapter is missing produces thousands of them. `atlas scan` prints them.
+  const stats = { resolved: 0, unresolved: 0, external: 0, unresolvedSpecs: [] };
   const imports = new Map();
 
   for (const p of ctx.paths) {
@@ -53,7 +56,7 @@ export function extractImports(ctx) {
         stats.external++;
       } else {
         stats.unresolved++;
-        ctx.warn(`  unresolved: ${p} -> ${r.ids[0]}`);
+        stats.unresolvedSpecs.push({ from: p, spec: r.ids[0] });
       }
     }
     imports.set(p, { internal, external });

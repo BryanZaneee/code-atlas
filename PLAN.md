@@ -57,7 +57,7 @@ code-atlas/
   bin/atlas.mjs             subcommand dispatch (node:util parseArgs)
   src/config/               defaults · detect · load · init
   src/scan/                 source · walk · graph · progress
-  src/model/                classify · endpoints · tests · derive · findings · metrics · diagnostics
+  src/model/                classify · endpoints · tests · derive · findings · metrics
   src/adapters/             index · ts · py · generic          <- the contribution surface
   src/serve/                server · files · proxy
   src/build/                assemble · embed
@@ -75,6 +75,8 @@ atlas init  [--repo .]     # the ONLY command that writes to the target repo
 atlas scan  [--repo .]     # human-readable diagnostics
 atlas findings [--repo .]  # code findings (cycles, hotspots, orphans, untested endpoints)
 ```
+
+`atlas scan` writes its report to **stdout** and everything else to stderr: the report *is* that command's output, where under `build` it is commentary alongside an HTML file. The report itself lives beside `report()` in `src/build/build.mjs` rather than the `src/model/diagnostics.mjs` this sketch first named — it reads a finished payload and prints, which is neither a model nor worth a module.
 
 **`src/model/` is a directory boundary on purpose.** The seam: *anything that turns a specifier string into a file path is language-specific; everything after the edge list exists is not.* `src/adapters/` owns the former, `src/model/` the latter.
 
