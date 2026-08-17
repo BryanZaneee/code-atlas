@@ -130,7 +130,7 @@ function setView(v) {
   S.activeFlow = "__all__";
   renderViews();
   relayout();
-  renderList(); renderInspect(); renderLegend(); renderStats();
+  renderList(); renderInspect(); renderLegend(); renderStats(); renderCaption();
   const def = viewById.get(v);
   $("#sideHint").textContent = def?.hint ?? "";
   $("#ovTop").querySelector("b").textContent = def?.title ?? def?.label ?? "";

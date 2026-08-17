@@ -55,6 +55,16 @@ function quad(x, pts, fill, stroke, lw) {
   if (stroke) { x.strokeStyle = stroke; x.lineWidth = lw; x.stroke(); }
 }
 
+const same = (p) => p;
+
+/** One block, in whatever space `map` puts it — world for the raster, screen for the overlay. */
+function drawBlock(x, n, map, lw) {
+  const base = colorOf(n);
+  quad(x, n.faceLeft.map(map),  shade(base, -0.42), alpha(THEME.edge, .28), lw);
+  quad(x, n.faceRight.map(map), shade(base, -0.22), alpha(THEME.edge, .28), lw);
+  quad(x, n.faceTop.map(map),   base, alpha(THEME.edge, .38), lw);
+}
+
 function dimOf(n) {
   if (S.query) {
     const q = S.query.toLowerCase();
@@ -253,11 +263,8 @@ function drawStatic() {
   // boxes, painter's order
   const edgeStroke = px(1);
   for (const n of LAYOUT.nodes) {
-    const base = colorOf(n);
     octx.globalAlpha = dimOf(n) ? 0.16 : 1;
-    quad(octx, n.faceLeft,  shade(base, -0.42), alpha(THEME.edge, .28), edgeStroke);
-    quad(octx, n.faceRight, shade(base, -0.22), alpha(THEME.edge, .28), edgeStroke);
-    quad(octx, n.faceTop,   base, alpha(THEME.edge, .38), edgeStroke);
+    drawBlock(octx, n, same, edgeStroke);
   }
   octx.globalAlpha = 1;
 
@@ -349,6 +356,55 @@ function silhouetteOf(n) {
 }
 
 /**
+ * The flow trace, as a veil over the cached city rather than a second raster.
+ *
+ * The dim tiers live in the static layer, so easing them there would
+ * re-rasterise the whole map every frame. Veiling the viewport and redrawing
+ * what should stay bright costs one fillRect and a handful of blocks, and the
+ * ease comes free — which matters, because the transition is what tells you the
+ * map changed rather than reloaded.
+ *
+ * Not everything dims equally. The grid comes back at full strength so the
+ * frame survives; off-path blocks drop to the veil; off-path labels and codes
+ * are simply not redrawn, because dimmed text is unreadable rather than quiet.
+ */
+let veil = 0;
+
+function drawTrace() {
+  if (veil < 0.02) return;
+  ctx.save();
+  ctx.globalAlpha = veil;
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // The grid, redrawn in world space through the live transform — the same
+  // function the raster uses, so the two can never disagree.
+  ctx.save();
+  ctx.setTransform(DPR * S.zoom, 0, 0, DPR * S.zoom, DPR * S.panX, DPR * S.panY);
+  ctx.globalAlpha = veil * 0.8;
+  drawGrid(ctx, cacheExtent(), (v) => v / S.zoom);
+  ctx.restore();
+
+  const lw = 1;
+  ctx.font = `600 10px ${FONT}`;
+  ctx.textAlign = "center";
+  for (const n of LAYOUT.nodes) {
+    const step = LAYOUT.steps.get(n.id);
+    if (!step) continue;
+    drawBlock(ctx, n, toScreen, lw);
+    const s = toScreen(n.top);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y - 13, 8, 0, 7);
+    ctx.fillStyle = THEME.accent;
+    ctx.fill();
+    ctx.fillStyle = BG;
+    ctx.fillText(step, s.x, s.y - 9.5);
+  }
+  ctx.restore();
+}
+
+/**
  * Selection, hover and flow membership, drawn AFTER the city is blitted.
  *
  * Two reasons it lives here and not in the static layer. It is state, and state
@@ -402,6 +458,7 @@ function draw() {
   ctx.fillRect(0, 0, W, H);
   const o = toScreen({ x: CACHE.x0, y: CACHE.y0 });
   ctx.drawImage(off, 0, 0, off.width, off.height, o.x, o.y, CACHE.w * S.zoom, CACHE.h * S.zoom);
+  drawTrace();
   drawOverlay();
   livePackets = [];
 
@@ -462,6 +519,10 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  // Eased, not cut: the transition is what says the map changed rather than
+  // reloaded. Nothing else in the frame depends on it, so it never invalidates.
+  const target = isFlowView(S.view) && LAYOUT.steps.size ? 0.82 : 0;
+  veil += (target - veil) * Math.min(1, dt * 7);
   if (S.running || S.stepBudget > 0) advance(dt);
   draw();
   requestAnimationFrame(frame);

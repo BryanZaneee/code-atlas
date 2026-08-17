@@ -118,6 +118,14 @@
   #ovTop b { display:block; font-size:11px; letter-spacing:.1em; color:var(--ink); }
   #ovRight { top:9px; right:13px; text-align:right; }
   #ovHint { bottom:8px; left:13px; }
+  /* The caption is the only overlay that says WHERE in a flow you are, so it
+     sits under the eye's resting point rather than in a corner. */
+  #caption {
+    bottom:30px; left:50%; transform:translateX(-50%); max-width:80%;
+    background:var(--panel); border:1px solid var(--border); color:var(--ink);
+    padding:4px 10px; letter-spacing:.08em; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; opacity:0; transition:opacity .2s;
+  }
   #legend {
     flex:0 0 auto; display:flex; flex-wrap:wrap; gap:14px; align-items:center;
     padding:5px 13px; border-top:1px solid var(--border); background:var(--panel);

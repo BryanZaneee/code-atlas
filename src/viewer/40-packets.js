@@ -45,6 +45,25 @@ function buildPackets() {
   }
 }
 
+/**
+ * Where in the flow the animation currently is, in words.
+ *
+ * Written when the step changes rather than every frame: it is DOM, and the
+ * whole reason the dimming is drawn on canvas is that per-frame DOM is not free.
+ */
+function renderCaption() {
+  const bar = $("#caption");
+  const r = runners[0];
+  const st = r?.steps[r.i];
+  if (!st) { bar.style.opacity = 0; return; }
+  const from = byId.get(st.from)?.name ?? st.from;
+  const to = byId.get(st.to)?.name ?? st.to;
+  const parts = [`step ${r.i + 1}/${r.steps.length}`, `${from} → ${to}`];
+  if (st.label) parts.push(st.label);
+  bar.textContent = parts.join(" · ");
+  bar.style.opacity = 1;
+}
+
 function advance(dt) {
   const sp = S.speed;
   for (const p of ambient) {
@@ -58,6 +77,7 @@ function advance(dt) {
     if (r.t >= 1) {
       r.t = 0;
       r.i = (r.i + 1) % r.steps.length;
+      if (r === runners[0]) renderCaption();
       if (S.stepBudget > 0) {
         S.stepBudget = 0; S.running = false;
         selectStep(r.steps[(r.i - 1 + r.steps.length) % r.steps.length]);

@@ -7,16 +7,34 @@ function activeFlows() {
   return S.activeFlow === "__all__" ? fs : fs.filter(f => f.id === S.activeFlow);
 }
 
+/** The nodes the active flows pass through, and the step each one is. */
+function pathSteps() {
+  const at = new Map();
+  for (const f of activeFlows()) {
+    // The badge is the position of the hop that ARRIVES here; the origin is 1.
+    // A branching flow can reach one node twice, and the first arrival wins.
+    f.steps.forEach((s, i) => {
+      if (!at.has(s.from)) at.set(s.from, i + 1);
+      if (!at.has(s.to)) at.set(s.to, i + 2);
+    });
+  }
+  return at;
+}
+
+/**
+ * A flow view used to show ONLY the nodes on the flow, which meant entering one
+ * threw away the map you were reading. Off-path geometry stays and is dimmed
+ * instead: dimming preserves spatial context, hiding destroys it. The flow
+ * decides emphasis, not membership.
+ */
 function visibleSet() {
   const keep = new Set();
-  const add = (id) => { const n = byId.get(id); if (n) keep.add(n); };
-
-  if (isFlowView(S.view)) {
-    for (const f of activeFlows()) for (const s of f.steps) { add(s.from); add(s.to); }
-    return [...keep];
-  }
+  const onPath = isFlowView(S.view) ? pathSteps() : null;
 
   for (const n of ATLAS.nodes) {
+    // A flow's own endpoints and datastores are always on the map, whatever the
+    // sidebar filters say — they are the thing being traced.
+    if (onPath?.has(n.id)) { keep.add(n); continue; }
     if (n.kind === "endpoint") continue;
     if (n.lang === "md" && !S.opts.docs) continue;
     if (!S.services.has(n.service)) continue;

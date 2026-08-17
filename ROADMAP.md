@@ -139,7 +139,7 @@ are visible on every single interaction.*
 - [x] Two colour channels: identity (fill) vs state (stroke/glow/badge);
       `colorMode` `identity`/`mono`, state channel identical in both
 - [x] Isometric ground grid; district plate tabs anchored with a leader line
-- [ ] Tiered flow dimming with a short ease; numbered step badges; caption bar
+- [x] Tiered flow dimming with a short ease; numbered step badges; caption bar
 - [ ] TRAVELLED BY chips that enter a flow **at this node's step**; sidebar
       accent edge-bar for the reverse index
 - [ ] Chrome: `DERIVED n · UNMAPPED n` in the top strip, persistent key hints in

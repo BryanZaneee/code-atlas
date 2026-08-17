@@ -70,7 +70,12 @@ function relayout() {
   // `ids` is what tells an overlay or a packet whether a node is on the map at
   // all: a node selected from the panel may have been filtered out since, and
   // its cached faces would still be sitting on it from an earlier layout.
-  LAYOUT = { nodes: vis, districts, plates, bbox: null, ids: new Set(vis.map(n => n.id)), edges: visibleEdges(vis) };
+  LAYOUT = {
+    nodes: vis, districts, plates, bbox: null,
+    ids: new Set(vis.map(n => n.id)),
+    steps: isFlowView(S.view) ? pathSteps() : new Map(),
+    edges: visibleEdges(vis),
+  };
   reproject();
   buildPackets();
   staticDirty = true;

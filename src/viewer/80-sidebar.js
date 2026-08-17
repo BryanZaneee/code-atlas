@@ -21,13 +21,13 @@ function renderList() {
     const all = el("div", "row" + (S.activeFlow === "__all__" ? " sel" : ""));
     all.append(el("span", "sw"), el("span", "nm", "▸ ALL"), el("span", "num", fs.reduce((a, f) => a + f.steps.length, 0) + " steps"));
     all.querySelector(".sw").style.background = "transparent";
-    all.onclick = () => { S.activeFlow = "__all__"; relayout(); renderList(); fitView(); };
+    all.onclick = () => { S.activeFlow = "__all__"; relayout(); renderList(); fitView(); renderCaption(); };
     wrap.append(all);
     for (const f of fs) {
       const r = el("div", "row" + (S.activeFlow === f.id ? " sel" : ""));
       const sw = el("span", "sw"); sw.style.background = EDGE_STYLE.http.c;
       r.append(sw, el("span", "nm", f.label), el("span", "num", f.steps.length));
-      r.onclick = () => { S.activeFlow = f.id; S.pinnedPacket = null; relayout(); renderList(); fitView(); renderInspect(); };
+      r.onclick = () => { S.activeFlow = f.id; S.pinnedPacket = null; relayout(); renderList(); fitView(); renderInspect(); renderCaption(); };
       wrap.append(r);
       if (S.activeFlow === f.id && f.blurb) wrap.append(el("div", "hint", f.blurb));
     }
