@@ -57,7 +57,7 @@ code-atlas/
   bin/atlas.mjs             subcommand dispatch (node:util parseArgs)
   src/config/               defaults · detect · load · init
   src/scan/                 source · walk · graph · progress
-  src/model/                layers · endpoints · tests · derive · findings · metrics · diagnostics
+  src/model/                classify · endpoints · tests · derive · findings · metrics · diagnostics
   src/adapters/             index · ts · py · generic          <- the contribution surface
   src/serve/                server · files · proxy
   src/build/                assemble · embed
@@ -247,7 +247,7 @@ Reordered from the original: **perf moved into Phase 1**, because the `RangeErro
 
 | # | Work | Gate |
 | --- | --- | --- |
-| **0** | Skeleton, lift-and-shift, viewer concat, `schemaVersion`, `meta.acquisition`, TaxVault taxonomy frozen into `examples/taxvault.config.mjs`, `test/` harness | Payload **byte-identical** to the prototype except `generatedAt`, checked against `test/golden/taxvault.json` (pinned at `22595f3a`). Turns "I hope nothing changed" into a diff. Plus `generic.test.mjs`: zero target-specific strings in `src/`. |
+| **0** | Skeleton, lift-and-shift, viewer concat, `schemaVersion`, `meta.acquisition`, TaxVault taxonomy frozen into `examples/taxvault.config.mjs`, `test/` harness | Payload **byte-identical** to the prototype except `generatedAt`, checked against `test/golden/taxvault.prototype.json` (pinned at `22595f3a`). Turns "I hope nothing changed" into a diff. Plus `generic.test.mjs`: zero target-specific strings in `src/`. |
 | **1** | **Renderer**: `RangeError` fix, world-space cache + mip, `Set`/`Map` for the O(n²) loops, `heightOf` log-p95, theme single-sourced (zero hex in CSS), `VIEWS`/`EDGE_STYLE`/copy into payload, **camera rotation** | 60 fps drag on the largest target; synthetic **5,000-node / 12,000-edge** payload renders with no `RangeError`; `generic.test.mjs` still green once the eight taxvault-coupled viewer strings are gone (needs `meta.suiteCount`, golden re-baselined); 360° rotation never mis-occludes; hit-testing correct at every angle; yaw 45° bit-identical to Phase 0 |
 | **2** | Config, precedence, detection, `atlas init`, total `serviceOf`, layer fallback, graceful degradation, classification provenance, `atlas scan`, streamed progress | `atlas build` with **no config at all** yields a legible atlas for taxvault, Shuttrr, terra, **sonder** (git repo, zero commits), **llmbench** (pyproject only). Assert `nodeCount>0` and every node's service ∈ services. INSPECT shows the matched rule for every node. |
 | **3** | Adapters + resolution + **conformance fixtures** | `fixtures/hostile-ts` and `fixtures/hostile-py` resolve **exactly** as asserted. On Shuttrr `unresolved===0` and zero internal specifier classified external (174 `@/…` alias imports, `@/lib/utils/cn` ×24, resolved per-tsconfig). On **llmbench all 172 relative-dot imports resolve** (currently 0). TaxVault counts unchanged. |

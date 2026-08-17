@@ -2,13 +2,13 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phase 1 done bar an fps measurement · 1 of 11 phases complete
+**Status:** Phase 2's gates both pass; three commands left in it · 1 of 11 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
 | 0 | Repo skeleton, lift-and-shift, payload contract | everything | ● done |
 | 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ one gate open |
-| 2 | Config, detection, graceful degradation | 3, 4 | ◐ next |
+| 2 | Config, detection, graceful degradation | 3, 4 | ◐ gates pass |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ○ |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
 | 5 | Findings engine | — | ○ |
@@ -44,7 +44,7 @@ Legend: ○ not started · ◐ in progress · ● done
 - [x] `fixtures/mini-monorepo/` — the CI-enforced target, plus `docs/payload-schema.md`
 - [x] **Gate:** payload byte-identical to the prototype except `generatedAt`
   - baseline captured from the prototype pinned at taxvault `22595f3a` and committed
-    as `test/golden/taxvault.json` — a file, not a hash, so a failure prints a diff
+    as `test/golden/taxvault.prototype.json` — a file, not a hash, so a failure prints a diff
   - 197 nodes / 467 edges / 18 endpoints / 9 flows / 7 services / 14 layers / 43 groups
   - *(the sha256 previously recorded here was unreproducible against any
     normalization of the prototype's output; the counts were correct)*
@@ -84,22 +84,39 @@ Legend: ○ not started · ◐ in progress · ● done
 
 ## Phase 2 — Config, detection, graceful degradation
 
-- [ ] `src/config/{defaults,detect,load,init}.mjs`; precedence: defaults < detected < config file < CLI flags
-- [ ] Service auto-detection from manifests, run over the **filtered** file list (build artifacts like `.next/package.json` must not register as services)
-- [ ] **Total `serviceOf`** — an explicit fallback service always exists (kills the blank-screen failure)
-- [ ] Directory-derived layer fallback; `unsorted` share reported
-- [ ] No tests → `coverage: null` everywhere; suite count from `meta`
-- [ ] Acquisition ladder: worktree → git ref → plain fs; default ref `HEAD`
+- [x] `src/config/{defaults,detect,load}.mjs`; precedence: defaults < detected < config file < CLI flags
+      — one normalized shape downstream, so nothing in `src/scan/` or `src/model/`
+      knows where a value came from. Both example configs keep their `classify()`
+      function; the loader accepts that shape and the rule-array shape alike
+- [x] Service auto-detection from manifests, run over the **filtered** file list (build artifacts like `.next/package.json` must not register as services)
+      — plus: a manifest directory with no code under it is an umbrella, not a service
+- [x] **Total `serviceOf`** — an explicit fallback service always exists (kills the blank-screen failure).
+      Enforced at the payload too: a service id a config *used* but never *declared*
+      is added, rather than its files being moved or dropped
+- [x] Directory-derived layer fallback; `unsorted` share reported — `unsorted` is its
+      own column, because calling unplaceable application code "tooling" is a claim
+      the tool cannot support. The default taxonomy also gained `ui` and `util`, without
+      which every component in a client-side repo lands in the fallback
+- [x] No tests → `coverage: null` everywhere; suite count from `meta`
+- [x] Acquisition ladder: worktree → git ref → plain fs; default ref `HEAD`
       (`origin/develop` exists only on taxvault), and handle a git repo with an
       **unborn HEAD** — sonder has zero commits, so `rev-parse --git-dir` succeeds
-      while `rev-parse HEAD` fails
-- [ ] Curated-flow validation demoted to a warning; `--strict` restores the hard fail
-- [ ] **Classification provenance** — every node records the rule that placed it, shown in INSPECT
+      while `rev-parse HEAD` fails. The walk no longer descends into excluded
+      directories, which a worktree scan needs and a `git archive` scan never did
+- [x] Curated-flow validation demoted to a warning; `--strict` restores the hard fail
+- [x] **Classification provenance** — every node records the rule that placed it, shown in INSPECT
 - [ ] `atlas scan` diagnostics report
 - [ ] Streamed progress to stderr, throttled, suppressed when not a TTY
 - [ ] `atlas init` writes a starter config (the only command that writes to a target repo)
-- [ ] **Gate:** `atlas build` with **no config** yields a legible atlas for taxvault, Shuttrr, terra, sonder *(git repo, zero commits)*, llmbench *(pyproject only)*
-- [ ] **Gate:** for each — `nodeCount > 0`, `services.length ≥ 1`, every node's service ∈ services
+- [x] **Gate:** `atlas build` with **no config** yields a legible atlas for taxvault, Shuttrr, terra, sonder *(git repo, zero commits)*, llmbench *(pyproject only)*
+- [x] **Gate:** for each — `nodeCount > 0`, `services.length ≥ 1`, every node's service ∈ services
+  - `test/corpus.test.mjs`, skipping per repo so a fresh clone and CI stay green.
+    Also asserts ≥3 layers in use and `unsorted` under 60%: the tool is allowed not
+    to recognise a layout, not allowed to be silently useless on one
+  - two bugs this found, both invisible on the configured targets: a file's language
+    was decided with markdown as the else branch, so every unrecognised extension
+    counted as prose and dropped out of `fileCount`; and `subjectOf` still called
+    the config's `classify()` directly, which crashed on any repo without one
 
 ## Phase 3 — Language adapters + conformance
 

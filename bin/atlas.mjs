@@ -33,12 +33,12 @@ const USAGE = `atlas <command> [options]
 
 options
   --repo PATH      repository to scan            (default: .)
-  --config FILE    config module                 (required until phase 2)
-  --ref REF        git ref to scan               (default: HEAD)
+  --config FILE    config module                 (optional: detected otherwise)
+  --ref REF        git ref, or \`worktree\` / \`fs\`  (default: HEAD)
   --out FILE       output html                   (default: atlas.html)
   --json           print the payload, write no HTML
   --no-fetch       skip \`git fetch origin\` for an origin/* ref
-  --no-strict      warn instead of failing on stale curated flows
+  --strict         fail, instead of warning, on stale curated flows
 `;
 
 const { values, positionals } = parseArgs({
@@ -50,7 +50,7 @@ const { values, positionals } = parseArgs({
     out: { type: "string", default: "atlas.html" },
     json: { type: "boolean", default: false },
     "no-fetch": { type: "boolean", default: false },
-    "no-strict": { type: "boolean", default: false },
+    strict: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
   },
 });
@@ -65,13 +65,12 @@ const PENDING = { scan: 2, init: 2, findings: 5, serve: 7 };
 if (PENDING[command]) die(`\`atlas ${command}\` lands in phase ${PENDING[command]}`);
 if (command !== "build") die(`unknown command "${command}"\n\n${USAGE}`);
 
-// Phase 2 adds defaults and detection, and this becomes optional. Until then a
-// missing config is a clear error rather than a blank atlas.
-if (!values.config) die("--config is required until phase 2 adds detection");
-
+// No config means defaults plus detection, which is the path a repository the
+// tool has never seen takes. A config only ever overrides what it names.
 const repo = path.resolve(values.repo);
-const configPath = path.resolve(values.config);
-const config = (await import(pathToFileURL(configPath).href)).default;
+const config = values.config
+  ? (await import(pathToFileURL(path.resolve(values.config)).href)).default
+  : undefined;
 
 let result;
 try {
@@ -80,7 +79,8 @@ try {
     ref: values.ref,
     config,
     fetch: !values["no-fetch"],
-    strict: !values["no-strict"],
+    // A generic tool cannot hard-exit on somebody else's stale curated flow.
+    strict: values.strict,
     warn,
   });
 } catch (e) {

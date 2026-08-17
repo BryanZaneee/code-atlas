@@ -27,7 +27,7 @@ import { ADAPTERS } from "../adapters/index.mjs";
 
 export const SCHEMA_VERSION = 1;
 
-export function scan({ repo, ref, config: userConfig, fetch = true, strict = true, warn = () => {} }) {
+export function scan({ repo, ref, config: userConfig, fetch = true, strict = false, warn = () => {} }) {
   // Everything downstream reads one normalized shape, whether the values came
   // from a config file, from detection, or from the defaults.
   let config = loadConfig(userConfig);
