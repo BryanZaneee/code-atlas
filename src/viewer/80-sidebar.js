@@ -111,9 +111,14 @@ function renderStats() {
         ["NO TEST REACHES", fmt(m.coverNone)], ["LINKS", fmt(m.edgeCount)],
       ]
     : [
+        // The tool's central caveat leads the strip rather than trailing it:
+        // hops nothing observed, files no rule recognised. The row clips what
+        // does not fit, and a clipped caveat is not a caveat — so it outranks
+        // every count beside it. It took the package count's slot, whose only
+        // real use is the per-node list INSPECT already shows.
+        ["DERIVED · UNMAPPED", `${fmt(m.derivedCount)} · ${fmt(m.unsortedCount)}`],
         ["NODES", fmt(m.nodeCount)], ["SOURCE FILES", fmt(m.fileCount)], ["LINES", fmt(m.lineCount)],
         ["LINKS", fmt(m.edgeCount)], ["ENDPOINTS", fmt(m.endpointCount)], ["TESTS", fmt(m.testCount)],
-        ["PACKAGES", fmt(m.packageCount)],
       ];
   const w = $("#stats"); w.innerHTML = "";
   for (const [k, v] of rows) {

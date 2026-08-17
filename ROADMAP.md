@@ -144,7 +144,7 @@ are visible on every single interaction.*
       accent edge-bar for the reverse index — *hover-to-preview is not done:
       switching flows relayouts, so a preview is not the free thing the design
       assumed*
-- [ ] Chrome: `DERIVED n · UNMAPPED n` in the top strip, persistent key hints in
+- [x] Chrome: `DERIVED n · UNMAPPED n` in the top strip, persistent key hints in
       the bottom strip, hover readout, prose type register
 - [x] **Gate:** select and hover cause **zero** re-rasterisations; 120 pans still
       cause exactly one

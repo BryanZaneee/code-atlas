@@ -12,13 +12,33 @@ function rotateTo(yaw) {
   syncControls();
 }
 
+/** Move the lead runner one hop, in either direction, and stop there. */
+function stepBy(d) {
+  const r = runners[0];
+  if (!r) return;
+  r.i = (r.i + d + r.steps.length) % r.steps.length;
+  r.t = 0;
+  S.running = false;
+  selectStep(r.steps[r.i]);
+  renderCaption();
+  syncControls();
+}
+
+// Every key here is printed in the hint strip, and the strip is only worth
+// having if it is true — so nothing is advertised that is not bound.
 window.addEventListener("keydown", (e) => {
   if (e.target instanceof HTMLInputElement) return;
   const k = e.key.toLowerCase();
   if (k === "q") rotateTo(S.yaw - YAW_STEP);
   else if (k === "e") rotateTo(S.yaw + YAW_STEP);
   else if (k === "r") { rotateTo(YAW0); fitView(); }
-  else return;
+  else if (k === " ") { S.running = !S.running; syncControls(); }
+  else if (k === "arrowright") stepBy(1);
+  else if (k === "arrowleft") stepBy(-1);
+  else if (k === "escape") {
+    S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
+    renderList(); renderInspect(); renderCaption();
+  } else return;
   e.preventDefault();
 });
 
@@ -57,11 +77,7 @@ window.addEventListener("mousemove", (e) => {
   } else if (n) {
     tip.textContent = n.kind === "file" ? `${n.id} · ${n.loc} lines` : n.id;
   }
-  if (p || n) {
-    tip.style.opacity = 1;
-    tip.style.left = (sx + 14) + "px";
-    tip.style.top = (sy + 14) + "px";
-  } else tip.style.opacity = 0;
+  tip.style.opacity = p || n ? 1 : 0;
 });
 cv.addEventListener("click", (e) => {
   if (moved > 4) return;
