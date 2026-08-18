@@ -32,16 +32,17 @@ function renderList() {
     title.textContent = viewById.get(S.view)?.listLabel ?? "PATHS";
     const fs = flowsForView(S.view);
     count.textContent = fs.length;
-    const all = el("div", "row" + (S.activeFlow === "__all__" ? " sel" : ""));
-    all.append(el("span", "sw"), el("span", "nm", "▸ ALL"), el("span", "num", fs.reduce((a, f) => a + f.steps.length, 0) + " steps"));
-    all.querySelector(".sw").style.background = "transparent";
+    const all = el("button", "row flow" + (S.activeFlow === "__all__" ? " sel" : ""));
+    all.append(el("span", "mk", "▶"), el("span", "nm", "all paths"),
+      el("span", "num", fs.reduce((a, f) => a + f.steps.length, 0) + " steps"));
     all.onclick = () => { S.activeFlow = "__all__"; relayout(); renderList(); fitView(); renderCaption(); };
     wrap.append(all);
     for (const f of fs) {
-      const r = el("div", "row" + (S.activeFlow === f.id ? " sel" : ""));
+      // A real <button>: it acts like one, so it should be one — focusable,
+      // keyboard-reachable, and announced as a control rather than as text.
+      const r = el("button", "row flow" + (S.activeFlow === f.id ? " sel" : ""));
       r.dataset.flow = f.id;
-      const sw = el("span", "sw"); sw.style.background = EDGE_STYLE.http.c;
-      r.append(sw, el("span", "nm", f.label), el("span", "num", f.steps.length));
+      r.append(el("span", "mk", "▶"), el("span", "nm", f.label), el("span", "num", f.steps.length));
       r.onclick = () => { S.activeFlow = f.id; S.pinnedPacket = null; relayout(); renderList(); fitView(); renderInspect(); renderCaption(); };
       wrap.append(r);
       if (S.activeFlow === f.id && f.blurb) wrap.append(el("div", "hint", f.blurb));
@@ -88,19 +89,64 @@ function renderList() {
   }
 }
 
+/**
+ * Services, each one a disclosure holding its own districts.
+ *
+ * A flat checkbox list makes every service cost the same amount of vertical
+ * space whether or not you are looking at it, which on a seven-service repo
+ * pushes everything else off the panel. Collapsed, a service is one line and
+ * its own count; open, it is the districts it actually contains — the same
+ * grouping the map draws, so the panel and the map agree about what a service
+ * IS. Ordered by `order`, which is the order the map lays them out in; the
+ * payload's own array order is not that, and a sidebar that disagrees with the
+ * picture is worse than one that says less.
+ */
 function renderServices() {
   const w = $("#svc"); w.innerHTML = "";
-  for (const s of ATLAS.services) {
-    const n = ATLAS.nodes.filter(x => x.service === s.id && x.kind === "file").length;
-    if (!n) continue;
-    const lab = el("label", "chk");
+  const services = ATLAS.services.slice().sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+
+  for (const s of services) {
+    const files = ATLAS.nodes.filter((x) => x.service === s.id && x.kind === "file");
+    if (!files.length) continue;
+
+    const det = el("details", "svc");
+    if (S.openServices.has(s.id)) det.open = true;
+    det.ontoggle = () => det.open ? S.openServices.add(s.id) : S.openServices.delete(s.id);
+
+    const sum = el("summary");
+    // The checkbox lives in the summary so a service can be switched off
+    // without opening it; stopping the click keeps that from also toggling
+    // the disclosure, which would make one gesture do two things.
     const cb = el("input"); cb.type = "checkbox"; cb.checked = S.services.has(s.id);
+    cb.onclick = (e) => e.stopPropagation();
     cb.onchange = () => {
       cb.checked ? S.services.add(s.id) : S.services.delete(s.id);
       relayout(); renderList(); fitView();
     };
-    lab.append(cb, el("span", "nm", s.label), el("span", "num", n));
-    w.append(lab);
+    sum.append(cb, el("span", "nm", s.label), el("span", "num", files.length));
+    det.append(sum);
+
+    const inner = el("div", "svcBody");
+    const districts = [...new Set(files.map((f) => f.layer))]
+      .sort((a, b) => (layerById.get(a)?.rank ?? 99) - (layerById.get(b)?.rank ?? 99));
+    for (const L of districts) {
+      const members = files.filter((f) => f.layer === L);
+      const id = `${s.id}|${L}`;
+      const r = el("div", "row mini" + (S.focusDistrict === id ? " sel" : ""));
+      const cd = el("span", "cd", codeByGroup.get(id) ?? "");
+      if (S.colorMode === "identity") cd.style.borderColor = layerById.get(L)?.color ?? THEME.layerFallback;
+      r.append(cd, el("span", "nm", (layerById.get(L)?.label ?? L).toLowerCase()), el("span", "num", members.length));
+      r.onclick = () => {
+        S.focusDistrict = S.focusDistrict === id ? null : id;
+        S.selected = null; S.pinnedPacket = null;
+        renderList(); renderServices(); renderInspect(); staticDirty = true;
+        const d = LAYOUT.districts.find((x) => x.id === id);
+        if (S.focusDistrict && d) focusOn(d);
+      };
+      inner.append(r);
+    }
+    det.append(inner);
+    w.append(det);
   }
 }
 

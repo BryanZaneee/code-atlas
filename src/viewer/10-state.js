@@ -18,6 +18,7 @@ const S = {
   grid: true,
   query: "",
   services: new Set(ATLAS.services.map(s => s.id)),
+  openServices: new Set(),
   opts: { docs:false, tests:false, contract:true, ambient:true, labels:true },
   hover: null,
 };

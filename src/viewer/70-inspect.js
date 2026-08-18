@@ -84,11 +84,22 @@ function renderInspect() {
 
   const n = byId.get(S.selected);
   if (!n) {
-    b.append(el("div", "hint", "Choose a block in the map, a district on the left, or click a moving packet. The packets follow real relationships — imports in STRUCTURE, real call order in the flow views."));
+    // Names the current view by its own label rather than a hardcoded one: a
+    // config can rename any view, and prose pointing at a button that does not
+    // exist is worse than prose that says less.
+    const here = viewById.get(S.view)?.label ?? "this view";
+    b.append(el("div", "hint", `Choose a block in the map, a district on the left, or click a moving packet. The packets follow real relationships — imports in ${here}, curated call order in a flow view.`));
     return;
   }
 
+  // Eyebrow, title, meta — what kind of thing, what it is called, how big.
+  b.append(el("div", "eyebrow", (layerById.get(n.layer)?.label ?? n.layer).toUpperCase()));
   b.append(el("div", "title", n.name));
+  if (n.kind === "file") {
+    const parts = [`${fmt(n.loc)} lines`];
+    if (n.inDeg || n.outDeg) parts.push(`${n.inDeg} in · ${n.outDeg} out`);
+    b.append(el("div", "meta", parts.join(" · ")));
+  }
   b.append(el("div", "path", n.id));
   const dl = el("dl", "kv");
   // `why` is the rule that placed this node. Showing it is what turns "the tool
@@ -115,7 +126,7 @@ function renderInspect() {
     const txt = {
       direct: "A test file imports this module directly.",
       indirect: "No test imports this module, but it is reachable through the import graph from one that is tested — a route file reached through an app factory lands here.",
-      none: "Not reachable from any test file through imports. The repo has no coverage tooling, so this is derived from test imports plus the test↔source naming convention, not from execution.",
+      none: "Not reachable from any test file through imports. Derived from test imports plus the test\u2194source naming convention, never from execution — this is a claim about the import graph, not about what ran.",
     }[n.coverage];
     b.append(el("div", "note" + (n.coverage === "none" ? " warn" : ""), `COVERAGE: ${n.coverage.toUpperCase()} — ${txt}`));
   }
