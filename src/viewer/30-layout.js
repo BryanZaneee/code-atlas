@@ -15,7 +15,13 @@ function relayout() {
   const svcOrder = ATLAS.services.slice().sort((a, b) => a.order - b.order).map(s => s.id);
   const services = svcOrder.filter(s => vis.some(n => n.service === s));
 
-  const cols = (n) => Math.ceil(Math.sqrt(n));
+  // How a district packs its own members. The district GRID itself — service
+  // down, layer across — is not an option: those axes are the information
+  // design, and rearranging them would be a different diagram rather than a
+  // different look. What a reader gains from here is aspect: a wide district
+  // reads along the layer axis, a tall one reads down the service axis.
+  const PACK = { grid: 1, wide: 1.9, tall: 0.5 }[S.layout] ?? 1;
+  const cols = (n) => Math.max(1, Math.round(Math.sqrt(n) * PACK) || 1);
   const rowsOf = (n) => Math.ceil(n / cols(n));
 
   const layerW = {}, svcH = {};
@@ -96,17 +102,45 @@ function reproject() {
     depthOf(a.gx, a.gy) - depthOf(b.gx, b.gy) ||
     screenXOf(a.gx, a.gy) - screenXOf(b.gx, b.gy));
 
-  // Which vertical faces we can see depends on which way the camera looks, so
-  // the visible plane is chosen per axis instead of assuming one quadrant.
-  const fx = A.y > 0 ? 1 : 0;
-  const fy = B.y > 0 ? 1 : 0;
+  // A face is drawn when it turns toward the camera, decided by the sign of its
+  // projected area rather than by which quadrant the yaw is in. The quadrant
+  // test only ever worked for a four-sided footprint aligned to the axes; this
+  // one is total, so an eight-sided or stepped block is not a special case.
+  const facesCamera = (poly) => {
+    let a = 0;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      a += (poly[j].x - poly[i].x) * (poly[j].y + poly[i].y);
+    }
+    return a < 0;
+  };
+
+  const shape = SHAPES[S.shape] ?? SHAPES.block;
 
   for (const n of vis) {
-    const { gx, gy, h } = n;
+    const { gx, gy } = n;
+    const h = n.h * shape.hs;
     const P = project;
-    n.faceTop   = [P(gx, gy, h), P(gx + 1, gy, h), P(gx + 1, gy + 1, h), P(gx, gy + 1, h)];
-    n.faceRight = [P(gx + fx, gy, h), P(gx + fx, gy + 1, h), P(gx + fx, gy + 1, 0), P(gx + fx, gy, 0)];
-    n.faceLeft  = [P(gx, gy + fy, h), P(gx + 1, gy + fy, h), P(gx + 1, gy + fy, 0), P(gx, gy + fy, 0)];
+    const faces = [];
+
+    for (const prism of shape.prisms) {
+      const z0 = h * prism.z0, z1 = h * prism.z1;
+      const ring = prism.pts.map(([dx, dy]) => [gx + dx, gy + dy]);
+
+      // Sides first, then the cap: within one prism that is already
+      // back-to-front, and the prisms themselves are listed bottom-up.
+      for (let i = 0; i < ring.length; i++) {
+        const [ax, ay] = ring[i], [bx, by] = ring[(i + 1) % ring.length];
+        const quad = [P(ax, ay, z1), P(bx, by, z1), P(bx, by, z0), P(ax, ay, z0)];
+        if (!facesCamera(quad)) continue;
+        // Two shades so adjacent walls read apart, keyed to which way the wall
+        // runs rather than to a fixed left/right that a rotation invalidates.
+        faces.push({ pts: quad, shade: Math.abs(bx - ax) > Math.abs(by - ay) ? -0.42 : -0.22 });
+      }
+      faces.push({ pts: ring.map(([x, y]) => P(x, y, z1)), shade: 0, cap: true });
+    }
+
+    n.faces = faces;
+    n.hDrawn = h;
     n.top = P(gx + 0.5, gy + 0.5, h);
   }
 
@@ -117,8 +151,8 @@ function reproject() {
   if (vis.length) {
     bbox = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
     for (const n of vis) {
-      for (const face of [n.faceTop, n.faceLeft, n.faceRight]) {
-        for (const p of face) {
+      for (const face of n.faces) {
+        for (const p of face.pts) {
           if (p.x < bbox.x0) bbox.x0 = p.x;
           if (p.x > bbox.x1) bbox.x1 = p.x;
           if (p.y < bbox.y0) bbox.y0 = p.y;

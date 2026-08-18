@@ -20,7 +20,10 @@ function pickNode(sx, sy) {
   for (let i = LAYOUT.nodes.length - 1; i >= 0; i--) {
     const n = LAYOUT.nodes[i];
     if (dimOf(n)) continue;
-    if (inPoly(w.x, w.y, n.faceTop) || inPoly(w.x, w.y, n.faceRight) || inPoly(w.x, w.y, n.faceLeft)) return n;
+    // The same polygons the renderer drew. If these ever diverge, the map
+    // becomes a lie you can click on: the thing under the cursor and the thing
+    // that answers are different nodes.
+    for (const f of n.faces) if (inPoly(w.x, w.y, f.pts)) return n;
   }
   return null;
 }

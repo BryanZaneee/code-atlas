@@ -128,6 +128,18 @@ $("#bIsolate").onclick = () => {
   // changes, so the world has to be re-packed and re-rasterised once.
   relayout(); renderList(); fitView();
 };
+// Shape choices come from the SHAPES table rather than the markup, so adding
+// one is a single entry there and never a second list to keep in step.
+for (const id of SHAPE_IDS) {
+  const o = document.createElement("option");
+  o.value = id; o.textContent = SHAPES[id].label.toLowerCase();
+  $("#vShape").append(o);
+}
+$("#vShape").value = S.shape;
+$("#vShape").onchange = (e) => { S.shape = e.target.value; reproject(); staticDirty = true; };
+$("#vLayout").onchange = (e) => { S.layout = e.target.value; relayout(); fitView(); };
+$("#vGrid").onchange = (e) => { S.grid = e.target.checked; staticDirty = true; };
+
 $("#bColor").onclick = () => {
   S.colorMode = S.colorMode === "mono" ? "identity" : "mono";
   $("#bColor").textContent = S.colorMode === "mono" ? "▣ COLOUR" : "▦ MONO";

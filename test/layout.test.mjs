@@ -27,7 +27,7 @@ function runLayout(atlas) {
     LAYOUT_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     // declared in 50-render.js, which needs a canvas and is not loaded here
     "\nvar staticDirty = false;\nsetYaw(S.yaw);\nrelayout();\n" +
-    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0 };\n";
+    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES };\n";
   const ctx = vm.createContext({ ATLAS: atlas, console });
   vm.runInContext(`"use strict";\n${source}`, ctx, { timeout: 60_000 });
   return ctx.scope;
@@ -90,7 +90,7 @@ test("the bbox encloses every drawn face", () => {
   const scope = runLayout(synthetic(400, 600));
   const { bbox, nodes } = scope.LAYOUT;
   for (const n of nodes) {
-    for (const p of [...n.faceTop, ...n.faceLeft]) {
+    for (const p of n.faces.flatMap((f) => f.pts)) {
       assert.ok(p.x >= bbox.x0 && p.x <= bbox.x1, `x ${p.x} outside [${bbox.x0}, ${bbox.x1}]`);
       assert.ok(p.y >= bbox.y0 && p.y <= bbox.y1, `y ${p.y} outside [${bbox.y0}, ${bbox.y1}]`);
     }
@@ -198,9 +198,11 @@ test("every yaw produces a finite bounding box and full face set", () => {
       assert.ok(Number.isFinite(bbox[k]), `bbox.${k} at ${deg}deg`);
     }
     for (const n of nodes) {
-      assert.equal(n.faceTop.length, 4);
-      assert.equal(n.faceLeft.length, 4);
-      assert.equal(n.faceRight.length, 4);
+      // At least one cap and one wall, whatever the shape: a block with no
+      // camera-facing wall is a block drawn inside out.
+      assert.ok(n.faces.some((f) => f.cap), `no cap at ${deg}deg`);
+      assert.ok(n.faces.some((f) => !f.cap), `no visible wall at ${deg}deg`);
+      for (const f of n.faces) assert.ok(f.pts.length >= 3, `degenerate face at ${deg}deg`);
     }
   }
 });
@@ -216,14 +218,18 @@ test("every yaw produces a finite bounding box and full face set", () => {
  */
 test("the drawn side faces are the ones facing the camera", () => {
   const scope = runLayout(synthetic(40, 10));
-  const midY = (face) => (face[2].y + face[3].y) / 2;   // the two ground corners
+  // A wall's ground edge is its last two points, whatever the footprint.
+  const midY = (face) => (face.pts[2].y + face.pts[3].y) / 2;
   for (let deg = 0; deg < 360; deg += 10) {
     scope.setYaw((deg * Math.PI) / 180);
     scope.reproject();
     for (const n of scope.LAYOUT.nodes) {
       const centre = scope.project(n.gx + 0.5, n.gy + 0.5, 0).y;
-      assert.ok(midY(n.faceRight) > centre - 1e-9, `x-face on the far plane at ${deg}deg`);
-      assert.ok(midY(n.faceLeft) > centre - 1e-9, `y-face on the far plane at ${deg}deg`);
+      const walls = n.faces.filter((f) => !f.cap);
+      assert.ok(walls.length, `no wall drawn at ${deg}deg`);
+      for (const w of walls) {
+        assert.ok(midY(w) > centre - 1e-9, `a wall was drawn on the far plane at ${deg}deg`);
+      }
     }
   }
 });
@@ -247,9 +253,49 @@ test("a roof centre stays inside its own polygon at every yaw", () => {
     scope.setYaw((deg * Math.PI) / 180);
     scope.reproject();
     for (const n of scope.LAYOUT.nodes) {
-      assert.ok(inPoly(n.top.x, n.top.y, n.faceTop), `roof centre outside its roof at ${deg}deg`);
+      const cap = n.faces.filter((f) => f.cap).at(-1);
+      assert.ok(inPoly(n.top.x, n.top.y, cap.pts), `roof centre outside its roof at ${deg}deg`);
     }
   }
+});
+
+/**
+ * Every shape draws the same polygons the picker tests.
+ *
+ * These were three named fields — faceTop/Left/Right — read independently by
+ * the renderer, the selection hull and hit testing. The moment a shape is drawn
+ * from anything other than the faces the picker casts against, the map becomes
+ * a lie you can click on: the thing under the cursor and the thing that answers
+ * are different nodes. One face list, read by all three.
+ */
+test("every shape's drawn faces are the faces hit testing uses", () => {
+  const scope = runLayout(synthetic(120, 40));
+  const inPoly = (px, py, pts) => {
+    let hit = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const a = pts[i], b = pts[j];
+      if ((a.y > py) !== (b.y > py) && px < ((b.x - a.x) * (py - a.y)) / (b.y - a.y) + a.x) hit = !hit;
+    }
+    return hit;
+  };
+  for (const shape of scope.SHAPE_IDS) {
+    scope.S.shape = shape;
+    for (const deg of [0, 45, 100, 215]) {
+      scope.setYaw((deg * Math.PI) / 180);
+      scope.reproject();
+      for (const n of scope.LAYOUT.nodes) {
+        assert.ok(n.faces.length, `${shape}: no faces at ${deg}deg`);
+        assert.ok(n.faces.some((f) => f.cap), `${shape}: no cap at ${deg}deg`);
+        // The LAST cap is the roof: a stepped block caps every tier, and the
+        // label anchor belongs on the top one.
+        const roof = n.faces.filter((f) => f.cap).at(-1);
+        assert.ok(inPoly(n.top.x, n.top.y, roof.pts), `${shape}: roof anchor off its roof at ${deg}deg`);
+        for (const f of n.faces) assert.ok(f.pts.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)),
+          `${shape}: non-finite point at ${deg}deg`);
+      }
+    }
+  }
+  scope.S.shape = "block";
 });
 
 test("rotating does not move anything in world space", () => {

@@ -110,6 +110,12 @@
   /* The selected node travels this flow — the TRAVELLED BY index, read back. */
   .row.onpath { box-shadow:inset 2px 0 0 var(--accent); }
 
+  /* A labelled control row: name on the left, the control itself right-aligned,
+     so a column of them scans as a settings list rather than as a form. */
+  label.pick { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 0; }
+  label.pick span { color:var(--dim); }
+  label.pick select { flex:0 0 auto; min-width:96px; text-transform:none; letter-spacing:.04em; }
+
   label.chk { display:flex; align-items:center; gap:6px; padding:2px 0; cursor:pointer; }
   label.chk input { accent-color:var(--accent); margin:0; }
 

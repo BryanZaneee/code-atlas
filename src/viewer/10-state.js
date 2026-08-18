@@ -13,6 +13,9 @@ const S = {
   // seeing the path alone is what makes it readable, and seeing it inside the
   // whole map is what makes it locatable. Both are wanted, so both exist.
   isolate: true,
+  shape: "block",
+  layout: "grid",
+  grid: true,
   query: "",
   services: new Set(ATLAS.services.map(s => s.id)),
   opts: { docs:false, tests:false, contract:true, ambient:true, labels:true },

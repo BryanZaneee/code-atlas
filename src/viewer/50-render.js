@@ -42,7 +42,8 @@ function cacheKey() {
   // clicking a block re-rasterise the entire city and made a hover state
   // unaffordable at any frame rate. They are drawn in the live pass instead.
   return [
-    S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, S.isolate, LAYOUT.nodes.length,
+    S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, S.isolate,
+    S.shape, S.layout, S.grid, LAYOUT.nodes.length,
     o.docs, o.tests, o.contract, o.labels,
   ].join("|");
 }
@@ -60,9 +61,12 @@ const same = (p) => p;
 /** One block, in whatever space `map` puts it — world for the raster, screen for the overlay. */
 function drawBlock(x, n, map, lw) {
   const base = colorOf(n);
-  quad(x, n.faceLeft.map(map),  shade(base, -0.42), alpha(THEME.edge, .45), lw);
-  quad(x, n.faceRight.map(map), shade(base, -0.22), alpha(THEME.edge, .45), lw);
-  quad(x, n.faceTop.map(map),   base, alpha(THEME.edge, .58), lw);
+  // Already ordered back-to-front by reproject(), and already filtered to the
+  // faces that turn toward the camera — so this draws whatever the shape is
+  // without knowing which shape it is.
+  for (const f of n.faces) {
+    quad(x, f.pts.map(map), shade(base, f.shade), alpha(THEME.edge, f.cap ? .58 : .45), lw);
+  }
 }
 
 function dimOf(n) {
@@ -118,7 +122,7 @@ function tab(x, at, dx, dy, text, px) {
  * lines run through the block origins instead of near them.
  */
 function drawGrid(x, ext, px) {
-  if (!LAYOUT.plates.length) return;
+  if (!S.grid || !LAYOUT.plates.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of LAYOUT.plates) {
     if (p.x0 < x0) x0 = p.x0;
@@ -350,13 +354,23 @@ function hullOf(pts) {
   return half(p).slice(0, -1).concat(half(p.reverse()).slice(0, -1));
 }
 
-/** The four ground corners the layout already knows — the block's footprint. */
+/**
+ * The block's ground footprint — the widest prism in the shape, at z=0, which
+ * is what the eye reads as the thing standing on the plate.
+ */
 function footprintOf(n) {
-  return [[0, 0], [1, 0], [1, 1], [0, 1]].map(([dx, dy]) => project(n.gx + dx, n.gy + dy, 0));
+  const shape = SHAPES[S.shape] ?? SHAPES.block;
+  const widest = shape.prisms.reduce((a, b) => (b.pts.length >= a.pts.length && b.z0 <= a.z0 ? b : a));
+  return widest.pts.map(([dx, dy]) => project(n.gx + dx, n.gy + dy, 0));
 }
 
+/**
+ * The outline of whatever was actually drawn. Taken from the face list rather
+ * than from a box assumed around the node, so the selection ring cannot drift
+ * away from the shape under it.
+ */
 function silhouetteOf(n) {
-  return hullOf(footprintOf(n).concat([[0, 0], [1, 0], [1, 1], [0, 1]].map(([dx, dy]) => project(n.gx + dx, n.gy + dy, n.h))));
+  return hullOf(footprintOf(n).concat(n.faces.flatMap((f) => f.pts)));
 }
 
 /**

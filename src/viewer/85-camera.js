@@ -31,8 +31,8 @@ function focusOn(d) {
   if (!d.members.length) return;
   const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
   for (const n of d.members) {
-    for (const face of [n.faceTop, n.faceLeft]) {
-      for (const p of face) {
+    for (const face of n.faces ?? []) {
+      for (const p of face.pts) {
         if (p.x < b.x0) b.x0 = p.x;
         if (p.x > b.x1) b.x1 = p.x;
         if (p.y < b.y0) b.y0 = p.y;
