@@ -16,15 +16,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { scan } from "../src/build/build.mjs";
-import { corpusRepo, scanFixture } from "./helpers.mjs";
+import { requireCorpus, scanTaxvault, scanFixture } from "./helpers.mjs";
 import { calibrate } from "./calibrate.mjs";
 
 test("derivation calibration does not regress against the 9 curated TaxVault flows", async (t) => {
-  const repo = corpusRepo("taxvault");
-  if (!repo) return t.skip("taxvault not present — the corpus lives outside this repo");
+  const repo = requireCorpus(t, "taxvault");
+  if (!repo) return;
 
-  const config = (await import("../examples/taxvault.config.mjs")).default;
-  const { payload } = scan({ repo, ref: "22595f3a", config, fetch: false, warn: () => {} });
+  const { payload } = await scanTaxvault(repo);
   const { flows, aggregate } = calibrate(payload);
 
   assert.equal(flows.length, 9, "all 9 curated flows must be diffed, not a subset");

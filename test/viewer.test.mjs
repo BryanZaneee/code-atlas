@@ -21,19 +21,79 @@ test("the concatenated bundle parses", () => {
   new vm.Script(bundleScript());
 });
 
+/**
+ * Every top-level binding a file introduces, including the ones after a comma.
+ *
+ * A `/^(?:const|let|var)\s+(\w+)/` regex sees only the FIRST declarator, which
+ * left 14 names unchecked across the viewer — among them `ctx`, `octx`, `W`,
+ * `H`, `DPR` and `BG`, precisely the short names a new file is most likely to
+ * re-declare. The guard is worth more than the regex is short: these files are
+ * concatenated into one script scope, so a collision is a real bug that only
+ * appears once the bundle runs.
+ *
+ * Depth-aware rather than parsed: commas inside an initializer's parens,
+ * brackets or braces are not declarator separators, and a string may contain
+ * any of those characters.
+ */
+function topLevelNames(text) {
+  const QUOTES = ['"', "'", "`"];
+  const skipString = (i) => {
+    const q = text[i++];
+    while (i < text.length) {
+      if (text[i] === "\\") { i += 2; continue; }
+      if (text[i] === q) return i + 1;
+      i++;
+    }
+    return i;
+  };
+
+  const names = [];
+  for (const m of text.matchAll(/^(?:function|class)\s+([A-Za-z_$][\w$]*)/gm)) names.push(m[1]);
+
+  for (const m of text.matchAll(/^(?:const|let|var)\s+/gm)) {
+    let i = m.index + m[0].length, depth = 0, expectName = true, lastReal = "";
+    while (i < text.length) {
+      const c = text[i];
+      if (QUOTES.includes(c)) { i = skipString(i); lastReal = '"'; continue; }
+      if ("([{".includes(c)) { depth++; i++; lastReal = c; continue; }
+      if (")]}".includes(c)) { depth--; i++; lastReal = c; continue; }
+      if (depth === 0 && c === ";") break;
+      // A declaration with no semicolon ends at the newline — unless the line
+      // ended on `,` or `=`, which means the statement continues.
+      if (depth === 0 && c === "\n" && lastReal !== "," && lastReal !== "=") break;
+      if (depth === 0 && c === ",") { expectName = true; lastReal = c; i++; continue; }
+      if (expectName && depth === 0 && /[A-Za-z_$]/.test(c)) {
+        const id = text.slice(i).match(/^[A-Za-z_$][\w$]*/)[0];
+        names.push(id);
+        expectName = false;
+        i += id.length;
+        lastReal = "x";
+        continue;
+      }
+      if (!/\s/.test(c)) lastReal = c;
+      i++;
+    }
+  }
+  return names;
+}
+
 test("no top-level name is declared twice across viewer modules", () => {
-  const DECL = /^(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
   const owner = new Map();
   const clashes = [];
   for (const f of viewerFiles()) {
     const text = readFileSync(path.join(VIEWER_DIR, f), "utf8");
-    for (const m of text.matchAll(DECL)) {
-      const name = m[1];
+    for (const name of topLevelNames(text)) {
       if (owner.has(name)) clashes.push(`${name}: ${owner.get(name)} and ${f}`);
       else owner.set(name, f);
     }
   }
   assert.deepEqual(clashes, [], `duplicate top-level names in one shared scope:\n${clashes.join("\n")}`);
+});
+
+/** The guard above must actually see a second declarator, not just the first. */
+test("the duplicate-name guard sees every declarator, not only the first", () => {
+  const names = topLevelNames('const a = 1, b = f(x, y), c = "s,;";\nlet d;\nfunction e() {}\n');
+  assert.deepEqual(names.sort(), ["a", "b", "c", "d", "e"]);
 });
 
 test("viewer modules load in filename order", () => {

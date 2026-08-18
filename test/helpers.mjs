@@ -6,7 +6,8 @@
  * diff is the review artifact. Re-baseline with UPDATE_GOLDEN=1 npm test, then
  * read the diff before committing it.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, cpSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { scan } from "../src/build/build.mjs";
@@ -86,4 +87,49 @@ export function corpusRepo(name) {
   const override = process.env[`ATLAS_TARGET_${name.toUpperCase()}`];
   const dir = path.resolve(REPO_ROOT, override ?? CORPUS[name] ?? "");
   return existsSync(dir) ? dir : null;
+}
+
+/**
+ * A throwaway copy of a fixture, removed when the test ends.
+ *
+ * `init` writes and `serve` reads the working tree, so neither may be pointed
+ * at `fixtures/` itself. Cleanup rides on `t.after` rather than a `try`/
+ * `finally` in every test: the block was repeated twenty-odd times, and a test
+ * that failed before its `finally` still left the directory behind.
+ */
+export function tmpRepo(t, name) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "atlas-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  cpSync(path.join(FIXTURE_DIR, name), dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * A corpus repo, or `null` after skipping the test.
+ *
+ *   const repo = requireCorpus(t, "taxvault");
+ *   if (!repo) return;
+ */
+export function requireCorpus(t, name) {
+  const repo = corpusRepo(name);
+  if (!repo) {
+    t.skip(`${name} not present — the corpus lives outside this repo`);
+    return null;
+  }
+  return repo;
+}
+
+/**
+ * The commit the Phase 0 baseline was captured at.
+ *
+ * A literal in three test files until now, which is three places to find when
+ * the baseline moves — and a golden compared against a different commit fails
+ * as a drift in the scanner rather than as the mismatch it is.
+ */
+export const TAXVAULT_COMMIT = "22595f3a";
+
+/** taxvault at the pinned commit, with its shipped config. */
+export async function scanTaxvault(repo, extra = {}) {
+  const config = (await import("../examples/taxvault.config.mjs")).default;
+  return scan({ repo, ref: TAXVAULT_COMMIT, config, fetch: false, warn: () => {}, ...extra });
 }

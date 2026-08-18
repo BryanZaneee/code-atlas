@@ -16,7 +16,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { scan } from "../src/build/build.mjs";
-import { corpusRepo } from "./helpers.mjs";
+import { corpusRepo, requireCorpus } from "./helpers.mjs";
 
 const TARGETS = ["taxvault", "shuttrr", "terra", "sonder", "llmbench"];
 
@@ -25,8 +25,8 @@ const scanBare = (repo) => scan({ repo, config: undefined, fetch: false, warn: (
 
 for (const name of TARGETS) {
   test(`${name}: no config yields a legible atlas`, (t) => {
-    const repo = corpusRepo(name);
-    if (!repo) return t.skip(`${name} not present — the corpus lives outside this repo`);
+    const repo = requireCorpus(t, name);
+    if (!repo) return;
 
     const p = scanBare(repo);
 
@@ -68,8 +68,8 @@ for (const name of TARGETS) {
    * loose: this is a smoke alarm, not a quality score.
    */
   test(`${name}: the map is more than one column`, (t) => {
-    const repo = corpusRepo(name);
-    if (!repo) return t.skip(`${name} not present`);
+    const repo = requireCorpus(t, name);
+    if (!repo) return;
 
     const p = scanBare(repo);
     const files = p.nodes.filter((n) => n.kind === "file");

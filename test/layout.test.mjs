@@ -14,7 +14,11 @@ import path from "node:path";
 import { VIEWER_DIR } from "../src/build/assemble.mjs";
 import { DEFAULT_THEME, buildViews } from "../src/model/chrome.mjs";
 
-const LAYOUT_MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js"];
+// 60-pick.js is loaded for `inPoly`: the two tests below assert that the faces
+// drawn are the faces hit testing uses, which is only true if they call the
+// SHIPPED predicate. They each carried a local copy, so a regression in
+// 60-pick.js would have left both of them passing.
+const LAYOUT_MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "60-pick.js"];
 
 /**
  * Run the layout half of the viewer over a payload and hand back its scope.
@@ -26,7 +30,7 @@ function runLayout(atlas) {
     LAYOUT_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     // declared in 50-render.js, which needs a canvas and is not loaded here
     "\nvar staticDirty = false;\nsetYaw(S.yaw);\nrelayout();\n" +
-    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES };\n";
+    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES, inPoly };\n";
   const ctx = vm.createContext({ ATLAS: atlas, console });
   vm.runInContext(`"use strict";\n${source}`, ctx, { timeout: 60_000 });
   return ctx.scope;
@@ -240,20 +244,12 @@ test("the drawn side faces are the ones facing the camera", () => {
  */
 test("a roof centre stays inside its own polygon at every yaw", () => {
   const scope = runLayout(synthetic(120, 40));
-  const inPoly = (px, py, pts) => {
-    let hit = false;
-    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-      const a = pts[i], b = pts[j];
-      if ((a.y > py) !== (b.y > py) && px < ((b.x - a.x) * (py - a.y)) / (b.y - a.y) + a.x) hit = !hit;
-    }
-    return hit;
-  };
   for (let deg = 0; deg < 360; deg += 15) {
     scope.setYaw((deg * Math.PI) / 180);
     scope.reproject();
     for (const n of scope.LAYOUT.nodes) {
       const cap = n.faces.filter((f) => f.cap).at(-1);
-      assert.ok(inPoly(n.top.x, n.top.y, cap.pts), `roof centre outside its roof at ${deg}deg`);
+      assert.ok(scope.inPoly(n.top.x, n.top.y, cap.pts), `roof centre outside its roof at ${deg}deg`);
     }
   }
 });
@@ -269,14 +265,6 @@ test("a roof centre stays inside its own polygon at every yaw", () => {
  */
 test("every shape's drawn faces are the faces hit testing uses", () => {
   const scope = runLayout(synthetic(120, 40));
-  const inPoly = (px, py, pts) => {
-    let hit = false;
-    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-      const a = pts[i], b = pts[j];
-      if ((a.y > py) !== (b.y > py) && px < ((b.x - a.x) * (py - a.y)) / (b.y - a.y) + a.x) hit = !hit;
-    }
-    return hit;
-  };
   for (const shape of scope.SHAPE_IDS) {
     scope.S.shape = shape;
     for (const deg of [0, 45, 100, 215]) {
@@ -288,7 +276,7 @@ test("every shape's drawn faces are the faces hit testing uses", () => {
         // The LAST cap is the roof: a stepped block caps every tier, and the
         // label anchor belongs on the top one.
         const roof = n.faces.filter((f) => f.cap).at(-1);
-        assert.ok(inPoly(n.top.x, n.top.y, roof.pts), `${shape}: roof anchor off its roof at ${deg}deg`);
+        assert.ok(scope.inPoly(n.top.x, n.top.y, roof.pts), `${shape}: roof anchor off its roof at ${deg}deg`);
         for (const f of n.faces) assert.ok(f.pts.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)),
           `${shape}: non-finite point at ${deg}deg`);
       }

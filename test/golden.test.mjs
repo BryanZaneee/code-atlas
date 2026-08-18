@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { scan } from "../src/build/build.mjs";
-import { checkGolden, firstDiff, serialize, scanFixture, corpusRepo, GOLDEN_DIR } from "./helpers.mjs";
+import { checkGolden, firstDiff, serialize, scanFixture, requireCorpus, scanTaxvault, TAXVAULT_COMMIT, GOLDEN_DIR } from "./helpers.mjs";
 import { readFileSync } from "node:fs";
 
 test("mini-monorepo payload matches its golden", async () => {
@@ -110,11 +110,10 @@ function undoJsonLangFix(p) {
 }
 
 test("taxvault's observed facts have not drifted from the prototype", async (t) => {
-  const repo = corpusRepo("taxvault");
-  if (!repo) return t.skip("taxvault not present -- the corpus lives outside this repo");
+  const repo = requireCorpus(t, "taxvault");
+  if (!repo) return;
 
-  const config = (await import("../examples/taxvault.config.mjs")).default;
-  const { payload } = scan({ repo, ref: "22595f3a", config, fetch: false });
+  const { payload } = await scanTaxvault(repo);
 
   // Deleting a key leaves the order of the rest intact, so this stays a plain
   // string comparison rather than a structural walk.
@@ -142,16 +141,15 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
 });
 
 test("meta carries the fields later phases added", async (t) => {
-  const repo = corpusRepo("taxvault");
-  if (!repo) return t.skip("taxvault not present");
+  const repo = requireCorpus(t, "taxvault");
+  if (!repo) return;
 
-  const config = (await import("../examples/taxvault.config.mjs")).default;
-  const { payload } = scan({ repo, ref: "22595f3a", config, fetch: false });
+  const { payload } = await scanTaxvault(repo);
 
   assert.equal(payload.meta.schemaVersion, 1);
   assert.deepEqual(payload.meta.acquisition, {
     mode: "ref",
-    ref: "22595f3a",
+    ref: TAXVAULT_COMMIT,
     commit: "22595f3",
     dirty: false,
   });
