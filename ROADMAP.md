@@ -11,6 +11,7 @@ measure, and Phase 7 has its server but not its panel · 5 of 12 phases complete
 | 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ one gate open |
 | 2 | Config, detection, graceful degradation | 3, 4 | ● done |
 | 2.5 | Visual system: palette, selection, chrome | — | ● done |
+| 2.6 | Visual pass against a reference design | — | ● done |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
 | 5 | Findings engine | — | ○ |
@@ -171,6 +172,46 @@ are visible on every single interaction.*
       section and no empty chip row — checked by hand: no TRAVELLED BY heading
       without flows, no EXTERNAL PACKAGES heading without packages, and
       `DERIVED · UNMAPPED` reads `0 · 0` because both are true of it
+
+## Phase 2.6 — Visual pass against a reference design
+
+*Inserted like 2.5 and for the same reason: numbering stays put. Driven by five
+reference screenshots the user supplied, plus four things they named directly.*
+
+- [x] White ground replacing the cream; panels share it and are separated by a
+      hairline rather than a fill. Dark is **derived, not copied** — every
+      reference shot is light, so that palette is ours
+- [x] Contrast hierarchy made explicit, lightest first: **grid ≪ plate < block
+      fill < block stroke**. The grid kept the alpha it had on cream, where it
+      read as texture; on white it read as a second set of edges and the blocks
+      it stood under became hard to find
+- [x] **Isolated flow view restored, and it is the default.** The old behaviour
+      was a re-layout and not a filter, which is why dimming never felt like it:
+      the blocks re-pack, so an 8-step flow draws 9 buildings instead of 200.
+      `IN CONTEXT` gives the dimmed-in-place reading. One answers *what is this
+      path*, the other *where does it sit*
+- [x] Block shape is a **list of prisms** — block, tower, slab, stepped, round —
+      read by the renderer, the selection hull and hit testing from one face
+      list. Face visibility is decided by projected winding rather than by yaw
+      quadrant, so a stepped or eight-sided block is not a special case
+- [x] Packing within a district (grid / wide / tall). The district grid itself
+      is deliberately not on offer: service down, layer across is the
+      information design, not a preference
+- [x] Services are disclosures holding their own districts, sorted by the order
+      the map lays them out in; flows are real buttons; districts carry their
+      two-character code, tinted by layer and legible in `mono`
+- [x] Panel type scale from the references: dim eyebrow → large sans title →
+      quiet meta → detail
+- [x] Three claims that were not true of every repo: prose naming a view label a
+      config can rename, a coverage note asserting the repo has no coverage
+      tooling, and a checkbox saying "show docs/" while filtering markdown
+- [x] **Gate:** every shape's drawn faces are the faces hit testing uses, at four
+      yaws — checked by test, and by hand: picking a node at its own roof centre
+      returns that node for 102 of 105, the rest being correct occlusion
+- [x] **Gate:** select and hover still cause zero re-rasterisations; 120 pans
+      still cause exactly one
+- [x] **Gate:** the empty fixture renders no heading with an empty body, in both
+      themes and both colour modes
 
 ## Phase 3 — Language adapters + conformance
 
