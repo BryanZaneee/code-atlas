@@ -2,9 +2,8 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 3 and 4 complete · 6 of 13. Phase 1 holds one
-gate a human has to measure. Phase 6 is built and calibrated but has not published
-its numbers; Phase 7 has its server but not its panel.
+**Status:** Phases 0, 2, 2.5, 2.6, 3, 4 and 6 complete · 7 of 13. Phase 1 holds
+one gate a human has to measure. Phase 7 has its server but not its panel.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -16,7 +15,7 @@ its numbers; Phase 7 has its server but not its panel.
 | 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
 | 5 | Findings engine | — | ○ |
-| 6 | Path derivation + calibration | 8 | ◐ built, numbers unpublished |
+| 6 | Path derivation + calibration | 8 | ● done |
 | 7 | `atlas serve` + code viewer | 8, 9 | ◐ server done, viewer half open |
 | 8 | Request composer UI | 9 | ○ |
 | 9 | Live proxy mode | — | ○ |
@@ -323,9 +322,11 @@ reference screenshots the user supplied, plus four things they named directly.*
       gate skips without the corpus
 - [x] **Gate:** every endpoint across all targets produces a ≥2-hop path with no crash
       — asserted in `test/derive.test.mjs`
-- [ ] **Gate:** calibration numbers published in the README — measured at taxvault
+- [x] **Gate:** calibration numbers published in the README — measured at taxvault
       `22595f3a`: **precision 17%, recall 12%** (tp=11 of 93 curated, 64 derived;
-      52 invented, 81 missed, 1 mis-ordered). Not yet written up
+      52 invented, 81 missed, 1 mis-ordered), under *Path derivation, calibrated*.
+      Stated plainly rather than softened: expectations are set before first use,
+      or the number is decoration
 
 ## Phase 7 — `atlas serve` + code viewer
 
