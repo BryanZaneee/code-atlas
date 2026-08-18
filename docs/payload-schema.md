@@ -29,6 +29,7 @@ expected to read it, so it is versioned from the first release.
 | `theme` | object | stable | every colour and style table the viewer draws with |
 | `groups` | array | stable | one per `service/layer` pair that has members — the districts of the map |
 | `findings` | array | experimental | structural findings over the graph — cycles, layering violations, and the rest of `src/model/findings.mjs`'s eight checks |
+| `source` | object | experimental | **present only when built with `--embed-source`** — the scanned repository's own text, baked in. See [`source`](#source) |
 
 ## `services`
 
@@ -288,6 +289,38 @@ measured at all (no tests, or none an adapter could resolve), `unreachable`
 when no `entry`-layer node exists to measure reachability from. Thresholds —
 `locThreshold`, `godNodePercentile`, `minGodInDegree`, `orphanRoots`, `mute` —
 are config; see [config.md](./config.md#findings).
+
+## `source`
+
+Absent by default. `atlas build --embed-source [glob]` adds it, and the
+consequence is exactly what the field name says: the shareable HTML this
+produces then contains that source text. The viewer's SOURCE panel reads it
+through the same `SRC.cache` a live `atlas serve` read fills, and the footer
+legend's `SOURCE EMBEDDED` badge is driven by this field being present — it is
+never omitted or downplayed when the field is here.
+
+| field | type | notes |
+| --- | --- | --- |
+| `glob` | string \| null | the glob `--embed-source` was given, or `null` for the whole scanned set |
+| `gzip` | bool | `true` when `--gzip-source` compressed `files` into `blob` below |
+| `paths` | string[] | every embedded path, sorted — present either way, and never compressed, so the viewer can answer "is this file embedded" and count files for the footer badge without inflating anything |
+| `files` | object | **present when `gzip` is `false`.** repo-relative path -> file text |
+| `blob` | string | **present when `gzip` is `true`.** one base64 gzip stream covering every embedded file's text together (`JSON.stringify(files)`, then gzip, then base64) — one shared blob rather than one gzip stream per file, so files that resemble each other actually help compress one another instead of paying a separate header each |
+
+`paths`/`files` are keyed from the same `paths`/`fileSet` `collect()` produces
+for `atlas serve`'s allowlist — the same filter, so the embedded set and the
+map agree by construction — narrowed by `glob` when one was given, using the
+glob syntax `src/model/tests.mjs`'s `globToRe` already implements (`*` within a
+segment, `**/` for any depth). Order follows `collect()`'s sorted `paths`,
+which is what keeps two builds of the same input byte-identical.
+
+A file the glob excluded is not an error: the SOURCE panel says specifically
+that this file was not embedded, distinct from a file that could not be read
+at all. If a live `atlas serve` is also present for the page (uncommon, since
+these flags are `build`-only), embedded text is preferred — it is guaranteed
+complete for what it did embed, where a live fetch depends on a server that a
+plain static file has no way to promise — and the server is asked only for a
+path the glob left out.
 
 ## What is observed and what is modeled
 

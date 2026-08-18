@@ -20,6 +20,7 @@ import { deriveCoverage } from "../model/metrics.mjs";
 import { derivePaths } from "../model/derive.mjs";
 import { deriveFindings } from "../model/findings.mjs";
 import { buildViews, buildTheme } from "../model/chrome.mjs";
+import { embedSourceFiles } from "./embed.mjs";
 import { loadConfig } from "../config/load.mjs";
 import { detectServices } from "../config/detect.mjs";
 import { reconcileServices } from "../model/classify.mjs";
@@ -121,6 +122,9 @@ export function scan({
   config: userConfig,
   fetch = true,
   strict = false,
+  embedSource = false,
+  embedGlob = null,
+  gzipSource = false,
   warn = () => {},
   progress = () => {},
 }) {
@@ -243,6 +247,11 @@ export function scan({
       derivedFlows: derived,
       groups,
       findings,
+      // Present only when `--embed-source` asked for it: a build without the
+      // flag must serialize identically to one from before this field existed,
+      // which is what keeps the golden files from moving under flags nobody
+      // passed.
+      ...(embedSource ? { source: embedSourceFiles({ paths, src, glob: embedGlob, gzip: gzipSource }) } : {}),
     };
 
     const orphanTests = nodes.filter((n) => n.layer === "test" && !n.subject && !FIXTURE.test(n.id));

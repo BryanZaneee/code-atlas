@@ -328,6 +328,9 @@
   .lg i { width:16px; height:0; border-top:2px solid; display:inline-block; }
   .lg i.dash { border-top-style:dashed; }
   .lg u { width:7px; height:7px; display:inline-block; transform:rotate(45deg); text-decoration:none; }
+  /* The one legend entry that is a warning, not a label: source travelling
+     inside this HTML file is worth noticing, not blending into the strip. */
+  .lg span.warn { color:var(--warn); font-weight:600; }
   /* A readout, not a tooltip: fixed under the map rather than chasing the
      cursor, so reading it costs no commitment and no eye chase. */
   #tip {

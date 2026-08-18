@@ -44,6 +44,70 @@ function srcServed() {
   return location.protocol === "http:" || location.protocol === "https:";
 }
 
+/**
+ * Can this page read source at all — live from a server, or from what
+ * `--embed-source` baked into the payload? Everything that used to gate on
+ * `srcServed()` alone now gates on this, so a built, embedded, server-less
+ * atlas keeps every jump-to-line affordance the served one has.
+ */
+function srcCapable() {
+  return srcServed() || !!ATLAS.source;
+}
+
+let srcEmbeddedIndex = null; // ATLAS.source.paths, memoized as a Set for O(1) membership
+
+/** `true` when this exact path was embedded — not just that embedding ran. */
+function srcEmbeddedHas(path) {
+  if (!ATLAS.source) return false;
+  if (!srcEmbeddedIndex) srcEmbeddedIndex = new Set(ATLAS.source.paths);
+  return srcEmbeddedIndex.has(path);
+}
+
+let srcEmbeddedFilesPromise = null; // memoized: the one blob is inflated at most once
+
+/**
+ * `ATLAS.source.files` when the build was not gzip-compressed. Otherwise
+ * `ATLAS.source.blob` is one gzip stream covering every embedded file's text
+ * together — `--embed-source`'s compression works file-against-file, not
+ * file-against-nothing, so it is inflated once, as a whole, with the same
+ * `DecompressionStream` the round trip was built around, and cached rather
+ * than repeated on every file open.
+ */
+function srcEmbeddedFiles() {
+  if (!ATLAS.source.gzip) return Promise.resolve(ATLAS.source.files);
+  if (!srcEmbeddedFilesPromise) {
+    srcEmbeddedFilesPromise = (async () => {
+      const bin = atob(ATLAS.source.blob);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      return JSON.parse(await new Response(stream).text());
+    })();
+  }
+  return srcEmbeddedFilesPromise;
+}
+
+/** Decode one embedded file's text out of `srcEmbeddedFiles()`'s map. */
+async function srcEmbeddedText(path) {
+  return (await srcEmbeddedFiles())[path];
+}
+
+/**
+ * The footer's honesty statement about this exact page — not about the tool in
+ * general. Three states, because "no source" and "source served live" make
+ * very different promises, and `SOURCE EMBEDDED` is the one PLAN.md insists
+ * cannot be quiet: it means this file carries the codebase, not just the map.
+ */
+function srcBadgeText() {
+  if (ATLAS.source) {
+    const n = ATLAS.source.paths.length;
+    return `SOURCE EMBEDDED${ATLAS.source.gzip ? " (GZIP)" : ""} · ${fmt(n)} FILE${n === 1 ? "" : "S"} IN THIS HTML`;
+  }
+  return srcServed()
+    ? "READ-ONLY PROJECTION · SOURCE SERVED LIVE"
+    : "READ-ONLY PROJECTION · NO SOURCE EMBEDDED";
+}
+
 /** Prism grammar for a path, or null — an unknown extension renders as plain text. */
 function srcLangOf(path) {
   const ext = (path.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? "").toLowerCase();
@@ -164,10 +228,10 @@ function openSource(path, line) {
   $("#srcPath").textContent = path ?? "—";
   $("#srcWhere").textContent = line ? `line ${fmt(line)}` : "";
 
-  if (!srcServed()) {
+  if (!srcCapable()) {
     // Not an error. This atlas is a file on disk, and saying so beats a fetch
     // that fails for a reason the reader would have to guess at.
-    srcMessage(SRC_STATIC_COPY, "This atlas was built as a single file, so it carries the map but not the code it maps. Served from `atlas serve`, this panel reads the file straight from the repository.");
+    srcMessage(SRC_STATIC_COPY, "This atlas was built as a single file, so it carries the map but not the code it maps. Served from `atlas serve`, this panel reads the file straight from the repository; rebuilt with --embed-source, it reads what was baked in instead.");
     return;
   }
   if (!path) {
@@ -188,16 +252,41 @@ function openSource(path, line) {
 }
 
 /**
- * Fetch through the server's allowlisted reader.
+ * Read a file, `SRC.cache` first. Embedded source is checked next — it is a
+ * guaranteed-complete, self-contained answer, so it wins over a live fetch
+ * rather than racing it: a page opened as a plain static file (not through
+ * `atlas serve`) can look "served" by protocol alone while no `/api/source`
+ * actually answers behind it, and embedded text never has that failure mode.
+ * A live server is still consulted for any path the embed glob left out, so
+ * `--embed-source some/**` plus `atlas serve` degrades to "embedded first,
+ * live for the rest" rather than an all-or-nothing choice.
  *
- * `path` is the node id, which IS the repository-relative path — the same string
- * the scan put in the allowlist, which is why this needs no path handling of its
- * own. A refusal is a bare 404 by design; the explanation is written here,
- * because the server deliberately tells an attacker nothing.
+ * `path` is the node id, which IS the repository-relative path — the same
+ * string the scan put in the allowlist and the one `--embed-source` keyed its
+ * files by, so neither path needs handling of its own.
  */
 async function srcRead(path) {
   const hit = SRC.cache.get(path);
   if (hit != null) return hit;
+
+  if (srcEmbeddedHas(path)) {
+    const text = await srcEmbeddedText(path);
+    SRC.cache.set(path, text);
+    return text;
+  }
+
+  if (!srcServed()) {
+    // Embedding ran (srcCapable() already required it, or the panel could
+    // never have reached this call) but this particular file was outside the
+    // glob, and there is no server to fall back to. A generic "could not
+    // read this file" would look like a bug; this says exactly why.
+    throw Object.assign(new Error("not embedded"), {
+      title: "This file was not embedded.",
+      detail: ATLAS.source?.glob
+        ? `Built with --embed-source "${ATLAS.source.glob}", which did not match ${path}. Run \`atlas serve\` to read it live, or rebuild without a glob to embed everything.`
+        : `${path} was not part of the scanned set this atlas embedded. Run \`atlas serve\` to read it live.`,
+    });
+  }
 
   let res;
   try {
@@ -273,7 +362,7 @@ function srcHopImport(st) {
  * than no affordance, and the SOURCE tab already carries the explanation.
  */
 function srcJump(label, path, line) {
-  if (!srcServed() || !path) return null;
+  if (!srcCapable() || !path) return null;
   // A null label is the in-row form: inside a list of imports the file is
   // already named by the row, so the chip only has to say which line.
   const text = label === null ? `L${line}` : `${label} ${path.split("/").pop()}${line ? `:${line}` : ""}`;
@@ -284,9 +373,8 @@ function srcJump(label, path, line) {
 }
 
 function srcInit() {
-  const served = srcServed();
   const tab = $("#tabSource");
-  if (!served) {
+  if (!srcCapable()) {
     tab.classList.add("off");
     tab.title = SRC_STATIC_COPY;
   }

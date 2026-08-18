@@ -220,7 +220,10 @@ function renderLegend() {
   }
   const right = el("div", "lg");
   right.style.marginLeft = "auto";
-  right.append(el("span", null, "READ-ONLY PROJECTION · NO SOURCE EMBEDDED"));
+  // `srcBadgeText()` (72-source.js) is the single place that decides what this
+  // page can actually do — served, embedded, or neither — so the legend can
+  // only ever repeat that answer, never contradict it.
+  right.append(el("span", ATLAS.source ? "warn" : null, srcBadgeText()));
   w.append(right);
 }
 
