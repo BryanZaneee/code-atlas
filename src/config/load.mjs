@@ -17,7 +17,7 @@
  * one a stranger's repo takes — gets the good provenance. A hand-written
  * `classify()` keeps working and degrades honestly rather than being rewritten.
  */
-import { DEFAULTS } from "./defaults.mjs";
+import { DEFAULTS, DEFAULT_EXCLUDE } from "./defaults.mjs";
 import { classifyLayer, makeServiceOf } from "../model/classify.mjs";
 
 /** The sentinel a hand-written classify() returns for "no rule of mine matched". */
@@ -25,6 +25,18 @@ const NO_MATCH = "other";
 
 export function loadConfig(user = {}, { detected = {}, overrides = {} } = {}) {
   const merged = { ...DEFAULTS, ...detected, ...user, ...overrides };
+
+  // `exclude` ADDS to the defaults instead of replacing them. Every other key is
+  // a preference a config is entitled to overrule; this one is hygiene. A config
+  // naming a generated-output directory means "also skip this", never "and serve
+  // node_modules" — and forgetting to restate the defaults is silent and
+  // catastrophic rather than merely wrong: a worktree scan then walks every
+  // dependency the repo has ever installed. It stayed hidden because a `git
+  // archive` scan has no node_modules to find; `atlas serve` reads the working
+  // tree, and there it is.
+  merged.exclude = [...DEFAULT_EXCLUDE, ...(detected.exclude ?? []), ...(user.exclude ?? []), ...(overrides.exclude ?? [])]
+    .filter((re, i, all) => all.findIndex((o) => o.source === re.source) === i);
+
   const { layers, services, layerRules, fallbackLayer } = merged;
 
   // A user `classify()` wins over rules: someone who wrote one means it.
