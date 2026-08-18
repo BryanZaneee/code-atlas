@@ -4,10 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phases 0, 2 and 2.5 are complete. Phase 3 (language adapters) is next.**
-`atlas build`, `atlas scan` and `atlas init` work on any repository, with or
-without a config. `serve` and `findings` are stubs that name the phase they land
-in, `src/serve/` is empty, and `tools/calibrate.mjs` does not exist yet.
+**Phases 0, 2, 2.5, 2.6, 3 and 4 are complete. Phase 6 is built and Phase 7 has
+its server; Phase 5 (findings) has not started.**
+
+`build`, `scan`, `init` and `serve` all work on any repository, with or without a
+config. `findings` is the one remaining stub and names the phase it lands in
+(`bin/atlas.mjs`). Derivation (`src/model/derive.mjs`) and its calibration
+harness (`test/calibrate.mjs`, `npm run calibrate`) are in. What Phase 7 still
+lacks is the viewer half — the INFO/SOURCE panel, jump-to-line and the
+highlighter; the server, its allowlist and `/api/source` are done and tested.
 
 Phase 1 is done bar one gate — 60 fps sustained drag — which needs a human with
 the window in front, because `requestAnimationFrame` is suspended in a
@@ -31,7 +36,7 @@ node bin/atlas.mjs build --repo fixtures/mini-monorepo \
 npm test                                  # node --test test/*.test.mjs
 node --test test/golden.test.mjs          # a single file
 UPDATE_GOLDEN=1 npm test                  # re-baseline, then READ the diff
-npm run calibrate                         # tools/calibrate.mjs (phase 6)
+npm run calibrate                         # test/calibrate.mjs; needs the corpus
 ```
 
 `--ref fs` scans a directory with no git involved; the acquisition ladder
@@ -41,17 +46,19 @@ when the repo is absent, so `npm test` is green on a fresh clone.
 CLI surface, flags, and per-phase gates: **PLAN.md**. Checklists and definition of
 done: **ROADMAP.md** — a phase is done when every box is ticked; tick them as you go.
 
-## Non-negotiable constraints
+## Standing constraints
 
-These are design decisions with reasons in PLAN.md, not defaults to revisit:
+Design decisions with reasons in PLAN.md. Most are settled; where one is open
+to change, it says so.
 
-- **Zero dependencies in the CLI and scanner.** Node stdlib only, `.mjs` ESM, no
-  bundler, no TypeScript, no transpile step. Tests use `node:test`, so the test
-  suite is dep-free too. This is the default, not a law: the *viewer* may take a
-  rendering dependency when a phase justifies one (three.js / paper-shaders are
-  wanted eventually). Adding one is a deliberate, documented decision — weigh it
-  against the single-self-contained-file promise, which is what makes vendoring
-  ~600 KB a real cost. Never add a dependency to make one target repo work.
+- **Dependencies are a decision to make together, not a rule to obey.** Use one
+  where it genuinely earns its place — **discuss it first**, before it is added.
+  There are none today, and the defaults that keep it that way are worth keeping
+  by inertia rather than by law: `.mjs` ESM, no bundler, no transpile step, and
+  `node:test` for the suite. The costs to weigh out loud are the
+  single-self-contained-file promise (which is what makes vendoring ~600 KB
+  real) and install friction for a tool people run against someone else's repo.
+  The one hard part: never add a dependency to make one target repo work.
 - **Read-only on the target repo.** `git archive <ref>` into a temp dir, or a plain
   fs walk. Never switch branches, never mutate a working tree. `atlas init` is the
   only command permitted to write to a target repo.
@@ -112,17 +119,21 @@ not hashes: a diff says what moved, a hash only says something did.
 
 ## The honesty contract
 
-The tool renders observed facts and modeled inferences in the same frame, so keeping
-them distinguishable constrains code and UI copy alike:
+The tool draws observed facts and modelled inferences in the same frame:
 
-| Observed | Modeled |
+| Observed | Modelled |
 | --- | --- |
 | files, LOC, import edges, endpoints, live HTTP status/latency | the internal path a request takes |
 
-Consequences that show up as concrete rules: the UI word is **path**, never "call
-chain"; derived paths carry `DERIVED · NOT VERIFIED` **on the canvas**, not just in a
-panel; buttons read `SEND (MODELED)` / `SEND (LIVE)`; a non-2xx live response halts the
-animation at hop 1; **per-hop timing is never rendered** — we don't have it.
+**One rule: never let the second look like the first.** A path this tool inferred
+from the import graph has to be legible as inferred, and something the tool does
+not measure — per-hop timing, most of all — is not drawn at all.
+
+How that gets expressed in the UI is a design question, not a rule here. Wording,
+placement, badge and button copy are all open; earlier drafts of this file pinned
+exact strings, which constrained the design without making the map any more
+honest. What is not open is shipping a modelled path that reads as an observed
+one, or drawing a number we do not have.
 
 ## Architecture — the seams that matter
 
@@ -134,7 +145,7 @@ Adapters are the documented contribution surface, so changes there are API chang
 
 **The viewer is concatenated in both modes.** `src/viewer/00-*.js … 90-*.js` are joined
 into one script — by `src/build/assemble.mjs` once for `build`, and per request by
-`src/serve/`. Separate `<script src>` tags are not an option: top-level `const` is
+`src/serve/server.mjs`. Separate `<script src>` tags are not an option: top-level `const` is
 script-scoped, so multiple tags would work in `build` and break in `serve`. Any new
 viewer file must be safe to concatenate (no duplicate top-level names).
 
@@ -149,9 +160,27 @@ scan includes uncommitted work.
 **Data flow:** acquire ref → walk + filter → per-file import extraction (adapter) →
 resolve to internal/external/unresolved → classify layer + service + test kind →
 build nodes/edges → derive coverage by reverse-reachability from tests → extract
-endpoints (mount resolution to a fixpoint) → derive paths → findings → serialize to
-one JSON payload → inject into the viewer template at a single marker
-(`/*__ATLAS_DATA__*/`, escaping `<`, U+2028, U+2029).
+endpoints (mount resolution to a fixpoint) → derive paths → serialize to one JSON
+payload → inject into the viewer template at a single marker
+(`/*__ATLAS_DATA__*/`, escaping `<`, U+2028, U+2029). Findings slot in after path
+derivation when Phase 5 lands; nothing implements them yet.
+
+**Where things live:**
+
+```
+src/adapters/  ts · py · index            language knowledge, and the only place for it
+src/scan/      source · walk              acquire a ref, walk the tree
+src/model/     graph · classify · endpoints · mounts · derive · tests · metrics · chrome
+src/build/     build · assemble           the pipeline, and the single-file viewer
+src/cli/       report · progress          terminal output; reads a finished payload
+src/serve/     server                     loopback viewer + read-only source
+src/viewer/    00-… 90-…                  concatenated, in filename order
+```
+
+`src/model/chrome.mjs` is the views and theme tables the payload ships to the
+viewer — presentation, not facts about the repository. Endpoint extraction asks
+`adapterFor()` whether a file is in a language this tool reads, so "no adapter"
+is a coverage answer as well as an edge one, and is reported by `atlas scan`.
 
 **Classification is always provenanced.** Every node records the rule that placed it
 (`layer: "service" — matched rule #4 src/services/**`) and INSPECT shows it. When
@@ -176,7 +205,11 @@ required at the process level, and the auth token injected server-side from
 ## Scope guard
 
 PLAN.md's "Explicitly deferred" list is binding: no AST parsing, no call-graph
-analysis, no OTel/real tracing, no multi-repo diffing, no editing. WebGL is
-deferred *until v1.0*, not forever — the renderer keeps a seam so it can be
-swapped in later. If a request amounts to "like Postman" or "like VS Code", the
-answer is no.
+analysis, no OTel/real tracing, no multi-repo diffing, no editing. If a request
+amounts to "like Postman" or "like VS Code", the answer is no.
+
+**WebGL is no longer deferred.** A shader or three.js renderer is on the table
+whenever it is worth building; the renderer keeps a seam so it can be swapped in.
+It is not built today — the viewer is Canvas 2D — and taking three.js or
+paper-shaders on is a dependency decision, so it follows the rule above: discuss
+it first, then do it.
