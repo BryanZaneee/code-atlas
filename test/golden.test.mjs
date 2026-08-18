@@ -54,7 +54,9 @@ const ADDED_GROUP = ["code", "parentId"];
 // phase 4: the line a route is declared on, which is what makes Phase 7's
 // jump-to-line possible. Additive — the method, path and definedIn of all 18
 // endpoints must still match the prototype exactly, and they do.
-const ADDED_ENDPOINT = ["line"];
+// phase 6: the derived internal path, MODELLED rather than observed — it adds
+// a field to every endpoint but changes no observed fact about it.
+const ADDED_ENDPOINT = ["line", "derivedPath"];
 
 /**
  * The one deliberate CORRECTION to the prototype's observed facts, as opposed to

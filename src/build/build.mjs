@@ -17,6 +17,7 @@ import { extractImports, buildNodes, buildEdges, buildGroups } from "../scan/gra
 import { extractEndpoints } from "../model/endpoints.mjs";
 import { readSuites, subjectOf, FIXTURE } from "../model/tests.mjs";
 import { deriveCoverage } from "../model/metrics.mjs";
+import { derivePaths } from "../model/derive.mjs";
 import { validateFlows } from "../model/flows.mjs";
 import { buildViews } from "../model/views.mjs";
 import { buildTheme } from "../model/theme.mjs";
@@ -107,6 +108,7 @@ export function scan({
     });
     progress("derive");
     deriveCoverage(nodes, edges);
+    derivePaths(ctx, { nodes, edges, endpoints });
     indexFlows(nodes, config.flows ?? []);
     const groups = buildGroups(nodes, config.layers);
 
