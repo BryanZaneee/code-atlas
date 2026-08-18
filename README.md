@@ -5,7 +5,9 @@ Isometric, interactive maps of a codebase — its structure, how requests move t
 > **Status: pre-alpha.** All five commands — `build`, `scan`, `init`, `serve` and
 > `findings` — work on any repository, with or without a config.
 >
-> See **[PLAN.md](./PLAN.md)** for the design and **[ROADMAP.md](./ROADMAP.md)** for progress.
+> See **[PLAN.md](./PLAN.md)** for the design and **[ROADMAP.md](./ROADMAP.md)** for
+> progress. Individual structural decisions are recorded as
+> **[ADRs](./docs/adr/)**.
 
 ## Why
 
