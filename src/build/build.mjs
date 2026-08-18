@@ -227,6 +227,21 @@ export function diagnose(payload, diagnostics, out) {
     if (ranked.length > 20) out(`  +${ranked.length - 20} more`);
   }
 
+  // Endpoint registrations the extractor saw but could not turn into an
+  // endpoint without guessing — a non-literal path, or a literal path handed
+  // to a helper whose method this tool does not follow. Grouped by file the
+  // same way unresolved specifiers are grouped by spec: one helper accounts
+  // for most of these, and a flat list of a dozen identical lines hides that.
+  const skips = payload.endpoints.skips ?? [];
+  if (skips.length) {
+    const by = new Map();
+    for (const s of skips) by.set(s.file, (by.get(s.file) ?? 0) + 1);
+    const ranked = [...by].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    out(`atlas: endpoint registrations skipped (non-literal path or invisible method)=${skips.length}`);
+    for (const [file, n] of ranked.slice(0, 20)) out(`  ${String(n).padStart(4)} × ${file}`);
+    if (ranked.length > 20) out(`  +${ranked.length - 20} more`);
+  }
+
   for (const [title, key, order] of [
     ["layers", "layer", payload.layers.map((l) => l.id)],
     ["services", "service", payload.services.map((s) => s.id)],
