@@ -43,10 +43,19 @@ function securityHeaders(res) {
  * absent on old browsers, but a real cross-site value is refused when present.
  */
 function sameOrigin(req, host) {
+  // Host pinning is the actual rebinding defense: the attacker's page reaches
+  // this port under THEIR hostname, so the header names them and not us.
   if (req.headers.host !== host) return false;
+
   const site = req.headers["sec-fetch-site"];
-  if (site && site !== "same-origin" && site !== "none") return false;
-  return true;
+  if (!site || site === "same-origin" || site === "none") return true;
+
+  // A cross-site *fetch* is the thing worth refusing — a page on another origin
+  // reading this one's responses. A cross-site top-level navigation is not: it
+  // is a person following a link, the response is rendered rather than read,
+  // and refusing it means typing this server's own URL from any other page
+  // yields a bare 403. Host pinning still governs both.
+  return req.headers["sec-fetch-mode"] === "navigate" && req.headers["sec-fetch-dest"] === "document";
 }
 
 function send(res, status, body, type = "text/plain; charset=utf-8") {

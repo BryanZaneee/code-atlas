@@ -243,3 +243,30 @@ test("encoded traversal and a null byte are refused like any other non-member", 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a cross-site top-level navigation is allowed; a cross-site fetch is not", async () => {
+  const dir = copyFixture("flat-app");
+  const { server, port } = await startServer(dir);
+  try {
+    // Following a link to this server from any other page sends
+    // `Sec-Fetch-Site: cross-site`. Refusing that made the server 403 its own
+    // URL — found by navigating to it from a page on a different port.
+    const nav = await rawRequest(port, [
+      "GET / HTTP/1.1", `Host: 127.0.0.1:${port}`,
+      "Sec-Fetch-Site: cross-site", "Sec-Fetch-Mode: navigate", "Sec-Fetch-Dest: document",
+    ]);
+    assert.match(nav, /^HTTP\/1\.1 200/, "a person following a link was refused");
+
+    // The attack shape — another origin reading this one's responses — stays refused.
+    const fetched = await rawRequest(port, [
+      "GET /api/source?path=src/server.ts HTTP/1.1", `Host: 127.0.0.1:${port}`,
+      "Sec-Fetch-Site: cross-site", "Sec-Fetch-Mode: cors", "Sec-Fetch-Dest: empty",
+    ]);
+    assert.match(fetched, /^HTTP\/1\.1 403/);
+    assert.ok(!fetched.includes("export const"));
+  } finally {
+    server.closeAllConnections?.();
+    server.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
