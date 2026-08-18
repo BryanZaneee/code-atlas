@@ -15,6 +15,7 @@ import { loadConfig } from "../src/config/load.mjs";
 import { classifyLayer, makeServiceOf, reconcileServices } from "../src/model/classify.mjs";
 import { DEFAULT_EXCLUDE } from "../src/config/defaults.mjs";
 import { detectServices } from "../src/config/detect.mjs";
+import { globToRe } from "../src/model/tests.mjs";
 import { FIXTURE_DIR } from "./helpers.mjs";
 
 test("an empty config still yields a working classifier", () => {
@@ -213,4 +214,24 @@ test("reconciliation leaves a consistent payload untouched", () => {
   const declared = [{ id: "api", root: "api" }];
   const out = reconcileServices(declared, [{ service: "api" }]);
   assert.equal(out, declared, "no copy, no synthesized rows, nothing to say");
+});
+
+/**
+ * `suiteConfigs` names a runner config whose include/exclude globs decide which
+ * files count as which kind of test, so the glob translation is config surface.
+ * The globstar case is the one worth pinning: a single-star expansion that ate
+ * `**` would silently stop matching any nested test file.
+ */
+test("a glob translates to a regexp, and the globstar survives the single-star pass", () => {
+  const cases = [
+    ["**/*.test.ts", ["a.test.ts", "src/deep/a.test.ts"], ["a.ts", "a.test.tsx"]],
+    ["src/**/*.ts", ["src/a.ts", "src/x/y/a.ts"], ["lib/a.ts"]],
+    ["*.py", ["a.py"], ["pkg/a.py"]],
+    ["test/**/test_*.py", ["test/test_a.py", "test/x/test_a.py"], ["test/a.py"]],
+  ];
+  for (const [glob, hits, misses] of cases) {
+    const re = globToRe(glob);
+    for (const h of hits) assert.ok(re.test(h), `${glob} should match ${h}`);
+    for (const m of misses) assert.ok(!re.test(m), `${glob} should not match ${m}`);
+  }
 });
