@@ -148,6 +148,7 @@ uncovered flag would libel well-tested files.
 | `from` `to` | string | stable | node ids; both always resolve |
 | `kind` | string | stable | `import` `http` `sql` `cache` `s3` `coupling` `request` `response` `read` `write` `test:subject` `test:exercises` |
 | `cross` | bool | stable | crosses a service boundary, ignoring `infra` |
+| `line` | int | stable | 1-based line in `from` declaring the import; what jump-to-line opens. `kind: "import"` only — a target imported on several lines gets its first occurrence in file order; other kinds never carry it |
 | `note` | string | experimental | present on curated edges |
 | `flow` | string | experimental | the flow that contributed the edge |
 

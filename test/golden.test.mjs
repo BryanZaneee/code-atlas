@@ -60,6 +60,10 @@ const ADDED_GROUP = ["code", "parentId"];
 // phase 6: the derived internal path, MODELLED rather than observed — it adds
 // a field to every endpoint but changes no observed fact about it.
 const ADDED_ENDPOINT = ["line", "derivedPath"];
+// phase 7 prep: the line an import edge is declared on — the same
+// jump-to-line field as ADDED_ENDPOINT's, on the other side of the graph.
+// Additive — from/to/kind/cross of every edge must still match, and do.
+const ADDED_EDGE = ["line"];
 
 /**
  * The one deliberate CORRECTION to the prototype's observed facts, as opposed to
@@ -132,6 +136,7 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];
   for (const g of stripped.groups) for (const k of ADDED_GROUP) delete g[k];
   for (const e of stripped.endpoints) for (const k of ADDED_ENDPOINT) delete e[k];
+  for (const e of stripped.edges) for (const k of ADDED_EDGE) delete e[k];
   for (const f of stripped.flows) for (const st of f.steps) for (const k of ADDED_STEP) delete st[k];
 
   const expected = readFileSync(path.join(GOLDEN_DIR, "taxvault.prototype.json"), "utf8");

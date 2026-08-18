@@ -237,8 +237,8 @@ reference screenshots the user supplied, plus four things they named directly.*
 - [x] `src/adapters/generic.mjs` — no edges, still renders; now also the
       documented skeleton a new language is copied from
 - [x] Import line numbers recorded; comment/string blanking before extraction
-      — carried on the extraction result only. Nothing consumes them until
-      Phase 7, and the payload is a versioned public contract
+      — held on the extraction result until Phase 7 needed them, then promoted
+      to `edges[].line` as an additive field, so no `schemaVersion` bump
 - [x] **Gate:** both fixtures resolve exactly as asserted
 - [x] **Gate:** Shuttrr `unresolved === 0`, zero internal specifier classified external (174 `@/…` alias imports total, of which `@/lib/utils/cn` ×24)
   - 161 → 423 resolved, 9 → 3 unresolved. Not zero: the three are `.css` and

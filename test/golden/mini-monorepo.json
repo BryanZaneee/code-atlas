@@ -566,19 +566,22 @@
       "from": "services/api/src/routes/users.ts",
       "to": "services/api/src/services/user-service.ts",
       "kind": "import",
-      "cross": false
+      "cross": false,
+      "line": 2
     },
     {
       "from": "services/api/src/server.ts",
       "to": "services/api/src/routes/users.ts",
       "kind": "import",
-      "cross": false
+      "cross": false,
+      "line": 1
     },
     {
       "from": "services/api/src/services/user-service.ts",
       "to": "services/api/src/repository/user-repo.ts",
       "kind": "import",
-      "cross": false
+      "cross": false,
+      "line": 1
     },
     {
       "from": "services/api/test/user-service.test.ts",
@@ -590,7 +593,8 @@
       "from": "services/worker/app/main.py",
       "to": "services/worker/app/services/job_service.py",
       "kind": "import",
-      "cross": false
+      "cross": false,
+      "line": 3
     },
     {
       "from": "services/worker/test/test_job_service.py",
