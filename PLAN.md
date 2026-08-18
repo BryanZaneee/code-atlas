@@ -7,7 +7,7 @@
 | Layer | Choice | Why |
 | --- | --- | --- |
 | Runtime | **Node.js ≥ 20** (dev on 24.18.0), ESM `.mjs` | `.mjs` runs as ESM with no `package.json` ceremony |
-| Dependencies | **Zero deps in the CLI and scanner** — `node:child_process`, `node:fs`, `node:http`, `node:os`, `node:path`, `node:url`, `node:zlib`; `node:test` for tests | no install step, no supply chain, no version drift. A default, not a law: the *viewer* may take a rendering dep (three.js, paper-shaders) when a phase justifies one, weighed against the single-file promise |
+| Dependencies | **None today** — `node:child_process`, `node:fs`, `node:http`, `node:os`, `node:path`, `node:url`, `node:zlib`; `node:test` for tests | no install step, no supply chain, no version drift. **Not a ban** (reversed, see Decisions reversed): take one where it earns its place, discussed before it is added, weighed against the single-file promise |
 | Build | **None.** No bundler, no TypeScript, no transpile | the tool must stay readable by whoever is debugging it at 3am |
 | Source acquisition | worktree → `git archive <ref>` → plain fs | read-only; never mutates the target or switches branches |
 | Viewer | **Vanilla JS + Canvas 2D + CSS custom properties** | no framework, no CDN, no external fetch — works over `file://` |
@@ -56,25 +56,34 @@ code-atlas/
   package.json              bin:{atlas}, engines>=20, NO dependencies field
   bin/atlas.mjs             subcommand dispatch (node:util parseArgs)
   src/config/               defaults · detect · load · init
-  src/scan/                 source · walk · graph · progress
-  src/model/                classify · endpoints · tests · derive · findings · metrics
-  src/adapters/             index · ts · py · generic          <- the contribution surface
-  src/serve/                server · files · proxy
-  src/build/                assemble · embed
+  src/scan/                 source · walk
+  src/model/                graph · classify · endpoints · mounts · derive · tests · metrics · chrome
+                            (+ findings, phase 5)
+  src/adapters/             index · ts · py                    <- the contribution surface
+  src/cli/                  report · progress
+  src/serve/                server (+ proxy, phase 9)
+  src/build/                build · assemble
   src/viewer/               00-theme … 90-boot, index.html, style.css
   docs/                     payload-schema.md · adapters.md · config.md
-  fixtures/                 hostile-ts/ · hostile-py/          <- conformance fixtures
-  examples/                 taxvault.config.mjs · shuttrr.config.mjs
-  tools/calibrate.mjs       derived-vs-curated diff harness
+  fixtures/                 hostile-ts · hostile-py            <- conformance
+                            mini-monorepo · flat-app · express-js · file-routes
+                            param-styles · route-skips
+  examples/                 taxvault.config.mjs · taxvault.flows.mjs
+  test/calibrate.mjs        derived-vs-curated diff harness
 ```
 
 ```
-atlas build [--repo .] [--config f] [--ref R] [--out atlas.html] [--json] [--embed-source [glob]] [--gzip-source]
-atlas serve [--repo .] [--port 4173] [--target URL] [--allow-live] [--auth-env VAR] [--open]
+atlas build [--repo .] [--config f] [--ref R] [--out atlas.html] [--json] [--no-fetch] [--strict]
+            [--embed-source [glob]] [--gzip-source]                      <- the last two, phase 7
+atlas serve [--repo .] [--port 4173] [--open]
+            [--target URL] [--allow-live] [--auth-env VAR]               <- phase 9
 atlas init  [--repo .]     # the ONLY command that writes to the target repo
 atlas scan  [--repo .]     # human-readable diagnostics
 atlas findings [--repo .]  # code findings (cycles, hotspots, orphans, untested endpoints)
 ```
+
+`--help` on any command, and `--no-fetch` / `--strict` on anything that scans.
+Flags below a `<- phase N` marker are designed, not built.
 
 `atlas scan` writes its report to **stdout** and everything else to stderr: the report *is* that command's output, where under `build` it is commentary alongside an HTML file. The report itself lives beside `report()` in `src/build/build.mjs` rather than the `src/model/diagnostics.mjs` this sketch first named — it reads a finished payload and prints, which is neither a model nor worth a module.
 
@@ -297,6 +306,7 @@ Reordered from the original: **perf moved into Phase 1**, because the `RangeErro
 | **1** | **Renderer**: `RangeError` fix, world-space cache + mip, `Set`/`Map` for the O(n²) loops, `heightOf` log-p95, theme single-sourced (zero hex in CSS), `VIEWS`/`EDGE_STYLE`/copy into payload, **camera rotation** | 60 fps drag on the largest target; synthetic **5,000-node / 12,000-edge** payload renders with no `RangeError`; `generic.test.mjs` still green once the eight taxvault-coupled viewer strings are gone (needs `meta.suiteCount`, golden re-baselined); 360° rotation never mis-occludes; hit-testing correct at every angle; yaw 45° bit-identical to Phase 0 |
 | **2** | Config, precedence, detection, `atlas init`, total `serviceOf`, layer fallback, graceful degradation, classification provenance, `atlas scan`, streamed progress | `atlas build` with **no config at all** yields a legible atlas for taxvault, Shuttrr, terra, **sonder** (git repo, zero commits), **llmbench** (pyproject only). Assert `nodeCount>0` and every node's service ∈ services. INSPECT shows the matched rule for every node. |
 | **2.5** | **Visual system**: neutral palette, two colour channels, live-pass selection, ground grid, anchored plate tabs, tiered flow dimming, TRAVELLED BY chips, chrome that states the model's own coverage | Select and hover cause **zero** re-rasterisations (120 pans still cause one); zero colour literals outside `:root` and the payload theme; `COVER_TINT` and the derived dotted stroke survive every colour mode; mini-monorepo renders no empty panel section |
+| **2.6** | **Visual pass against a reference design**: panel hierarchy, service lids, a block as a list of prisms with a reader-chosen one, white ground | The atlas reads as one designed surface rather than a debug view, checked against the reference screenshots by eye — a human gate, like Phase 1's frame rate |
 | **3** | Adapters + resolution + **conformance fixtures** | `fixtures/hostile-ts` and `fixtures/hostile-py` resolve **exactly** as asserted. On Shuttrr `unresolved===0` and zero internal specifier classified external (174 `@/…` alias imports, `@/lib/utils/cn` ×24, resolved per-tsconfig). On **llmbench all 172 relative-dot imports resolve** (currently 0). TaxVault counts unchanged. |
 | **4** | Endpoints v2 | Shuttrr yields `POST /api/photos/upload`, `GET /api/photos/gallery`, `GET /health`, ≥12 `/api/ai/*` through the two-level mount, `/sign-in`, `/auth/callback`; `(auth)`/`(dashboard)` absent from every path; ≥8 non-literal registrations reported naming `presets.ts` |
 | **5** | Findings engine + FINDINGS view + `atlas findings --json` | On TaxVault: reports `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true); zero false layering violations against a repo that enforces layering by policy. Cycles found in a synthetic fixture with a known cycle. |
@@ -314,6 +324,34 @@ Regex, not AST — under-reports, quantified by the conformance fixtures. File-l
 
 Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (`generic.mjs` still renders them) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
 
-**Deferred until v1.0, not forever:** WebGL rendering (three.js / paper-shaders) and a desktop shell. Phase 1 keeps `relayout()`/`reproject()` emitting plain world-space geometry that `draw*` consumes, so a WebGL renderer is a swap rather than a rewrite. No renderer abstraction gets built ahead of that — one seam, not an interface with a single implementation.
+**A desktop shell** stays deferred until after v1.0, as a separate package.
+
+**WebGL is no longer deferred** (see Decisions reversed). Phase 1 keeps `relayout()`/`reproject()` emitting plain world-space geometry that `draw*` consumes, so a WebGL renderer is a swap rather than a rewrite. No renderer abstraction gets built ahead of that — one seam, not an interface with a single implementation. Nothing is built yet: the viewer is Canvas 2D.
 
 Scope guard: the code viewer is read-only with no search and no editing; the composer has no collections, environments, or scripting. If a request is "like Postman" or "like VS Code", the answer is no.
+
+## Decisions reversed
+
+Kept here rather than edited away, because the reasoning that produced them was
+sound and the reason for changing them is the interesting part.
+
+**Zero dependencies, from a law to a conversation.** It was written as a default
+rather than a rule even at the start, but it read as a ban and was applied as
+one. It now blocks nothing on its own: take a dependency where it genuinely earns
+its place, and discuss it before adding it. The costs that made the original rule
+worth having are unchanged and are what a discussion should weigh — the
+single-self-contained-file promise, and install friction for a tool people point
+at someone else's repository. The one part that stays hard: never add a
+dependency to make one target repo work.
+
+**WebGL, from deferred-until-v1.0 to available.** The deferral existed to stop a
+renderer rewrite displacing the scanner work, and the scanner work is now largely
+done. The seam it protected still exists and is still the plan. Adopting three.js
+or paper-shaders is a dependency decision and goes through the rule above.
+
+**The honesty contract, from four UI rules to one idea.** Exact button strings,
+mandated badge placement and a banned synonym were pinning the interface without
+making the map more honest — and two of the four governed phases that do not
+exist. What survives: a modelled path must never read as an observed one, and a
+number the tool does not measure is not drawn. How that reads on screen is a
+design question.

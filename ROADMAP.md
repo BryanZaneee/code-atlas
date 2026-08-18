@@ -2,8 +2,9 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 3 and 4 complete; Phase 1 holds one gate a human has to
-measure, and Phase 7 has its server but not its panel · 5 of 12 phases complete
+**Status:** Phases 0, 2, 2.5, 2.6, 3 and 4 complete · 6 of 13. Phase 1 holds one
+gate a human has to measure. Phase 6 is built and calibrated but has not published
+its numbers; Phase 7 has its server but not its panel.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -15,7 +16,7 @@ measure, and Phase 7 has its server but not its panel · 5 of 12 phases complete
 | 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
 | 5 | Findings engine | — | ○ |
-| 6 | Path derivation + calibration | 8 | ○ |
+| 6 | Path derivation + calibration | 8 | ◐ built, numbers unpublished |
 | 7 | `atlas serve` + code viewer | 8, 9 | ◐ server done, viewer half open |
 | 8 | Request composer UI | 9 | ○ |
 | 9 | Live proxy mode | — | ○ |
@@ -307,26 +308,38 @@ reference screenshots the user supplied, plus four things they named directly.*
 
 *Calibration is a script and it runs before any composer UI exists. One endpoint is an anecdote.*
 
-- [ ] `src/model/derive.mjs` — mount-chain seed, handler-slice BFS seed, non-decreasing rank, neutral `io` terminals, response leg
-- [ ] Per-hop certainty: `wired` / `imported` / `inferred`
-- [ ] Derived at scan time; steps stored as integer node indices
-- [ ] `tools/calibrate.mjs` — diff derived vs curated across **all 9 flows**
-- [ ] Per-flow and aggregate precision/recall; names hops invented, missed, and mis-ordered
-- [ ] Calibration output committed and wired as a regression test
-- [ ] **Gate:** every endpoint across all targets produces a ≥2-hop path with no crash
-- [ ] **Gate:** calibration numbers published in the README
+- [x] `src/model/derive.mjs` — mount-chain seed, handler-slice BFS seed, non-decreasing rank, neutral `io` terminals, response leg
+- [x] Per-hop certainty: `wired` / `imported` / `inferred` — computed and shipped;
+      **the viewer does not read it yet**, so an inferred hop and a proven one draw
+      identically. See the open items below
+- [x] Derived at scan time; steps stored as integer node indices
+- [x] `test/calibrate.mjs` — diff derived vs curated across **all 9 flows**
+      (moved out of `tools/`: it imports `test/helpers.mjs` and the regression test
+      imports it)
+- [x] Per-flow and aggregate precision/recall; names hops invented, missed, and mis-ordered
+- [x] Calibration wired as a regression test (`test/calibrate.test.mjs`), with floors
+      rather than a committed artifact — plus fixture-driven invariants in
+      `test/derive.test.mjs` that run on a fresh clone, because the calibration
+      gate skips without the corpus
+- [x] **Gate:** every endpoint across all targets produces a ≥2-hop path with no crash
+      — asserted in `test/derive.test.mjs`
+- [ ] **Gate:** calibration numbers published in the README — measured at taxvault
+      `22595f3a`: **precision 17%, recall 12%** (tp=11 of 93 curated, 64 derived;
+      52 invented, 81 missed, 1 mis-ordered). Not yet written up
 
 ## Phase 7 — `atlas serve` + code viewer
 
-- [ ] `src/serve/server.mjs` — `listen(port, "127.0.0.1")`, bind host hardcoded, not a flag
-- [ ] File allowlist from the scanned set (**membership is the defense**), `lstat` symlink refusal, size cap, always `text/plain`
-- [ ] `Host` header check + `Sec-Fetch-Site` rejection (DNS rebinding); CSP; `no-store`; `nosniff`
+- [x] `src/serve/server.mjs` — `listen(port, "127.0.0.1")`, bind host hardcoded, not a flag
+- [x] File allowlist from the scanned set (**membership is the defense**), `lstat` symlink refusal, size cap, always `text/plain`
+- [x] `Host` header check + `Sec-Fetch-Site` rejection (DNS rebinding); CSP; `no-store`; `nosniff`
 - [ ] `INFO | SOURCE` tabs; wide right-docked overlay; line gutter; target line centered
 - [ ] Jump-to-line from endpoint, import edge, test subject, and derived hop
 - [ ] ~60-line regex highlighter (ts/js/tsx, py, sql, json); escape-as-you-emit, never `innerHTML` on source
 - [ ] `--embed-source [glob]` + permanent `SOURCE EMBEDDED` badge + CLI size warning
 - [ ] `--gzip-source` via `node:zlib` + `DecompressionStream("gzip")`
-- [ ] **Gate:** all 404 — `../../../etc/passwd`, `/etc/passwd`, `.env`, `node_modules/x`, in-repo symlink pointing outside, `..%2f..%2f`, `Host: evil.example`
+- [x] **Gate:** all 404 — `../../../etc/passwd`, `/etc/passwd`, `.env`, `node_modules/x`, in-repo symlink pointing outside, `..%2f..%2f`, `Host: evil.example`
+      — `test/serve.test.mjs` covers the list verbatim, plus a null byte and a
+      post-scan symlink swap
 - [ ] **Gate:** clicking `POST /api/photos/upload` opens `photos.ts` at line 12
 - [ ] **Gate:** gzip round-trips; embedded size cut ≥3×
 
@@ -361,6 +374,49 @@ reference screenshots the user supplied, plus four things they named directly.*
 - [ ] `docs/adapters.md` — "add a language in 30 lines", against a real fixture
 - [ ] `docs/config.md`
 - [ ] **Gate:** a reader who has never seen the repo goes from `git clone` to a rendered atlas of their own project using only the README, on a repo with no config
+
+---
+
+## Open findings
+
+Raised by the quality sweep, verified against the code, and deliberately not
+fixed in it. None is a crash; each is something the map currently claims or
+omits without saying so.
+
+**The viewer ignores `certainty`.** `derive.mjs` computes `wired`/`imported`/
+`inferred` per hop and the payload ships it, but nothing in `src/viewer/` reads
+it — dashes come from edge *kind*, not from certainty. The blurb on every derived
+flow says "Dotted hops are gaps the import graph could not justify", which
+describes something the renderer does not do. Either draw it or change the copy;
+the copy is one line.
+
+**The derived badge hides on a narrow window.** `style.css` drops `#ovRight` under
+1024px, and that is where `DERIVED · NOT VERIFIED` is written — so the caveat
+disappears while the derived path keeps animating.
+
+**Modelled hops inside curated flows carry no badge.** `build.mjs` counts them
+(`meta.derivedCount`) and its own comment says curation and derivation alike
+model an ordering imports cannot express — but only tool-derived flows raise the
+badge. The caveat for a curated flow's unobserved hops appears in the sidebar
+strip and nowhere on the canvas.
+
+**Language-specific code in `src/model/`.** The adapters↔model seam says language
+knowledge lives in an adapter. Four places breach it: `derive.mjs`'s
+`importBindings` branches on `ts`/`py` with seven regexes; `mounts.mjs`'s
+`specifierFor` understands ES `import` only; `endpoints.mjs`'s `ROUTE_FILE` and
+`METHOD_EXPORT` are JS-only; `tests.mjs`'s `subjectOf` treats any non-`.ts` file
+as Python. The fix is to widen the adapter contract, not to add branches.
+
+**Mount resolution does not follow `require()`.** `specifierFor` reads `import`
+syntax, so a CommonJS router still yields its endpoints but at the path it
+declares rather than the one it is served at. `fixtures/express-js` uses ESM in
+its server for exactly this reason and says so.
+
+**Endpoint and datastore nodes carry no provenance.** File nodes record the rule
+that placed them and INSPECT reads those fields; `graph.mjs` builds endpoint and
+datastore nodes without them, so INSPECT on an endpoint shows a bare label.
+`endpoints.mjs`'s `add()` also discards which rule matched and where the prefix
+came from — the two facts a user needs to correct a wrong path.
 
 ---
 
