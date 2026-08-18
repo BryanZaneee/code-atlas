@@ -166,7 +166,7 @@ export function buildEdges(nodes, { imports, endpoints, flows = [], extraEdges =
     if (b) b.inDeg++;
   }
 
-  return { edges, nodeIds, byId };
+  return { edges, nodeIds };
 }
 
 /**

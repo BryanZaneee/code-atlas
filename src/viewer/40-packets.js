@@ -23,7 +23,7 @@ function buildPackets() {
   if (fs.length) {
     for (const f of fs) {
       const steps = f.steps
-        .map((s, i) => ({ ...s, i, flowId: f.id, flowLabel: f.label }))
+        .map((s, i) => ({ ...s, i, flowId: f.id }))
         .filter(s => placed.has(s.from) && placed.has(s.to));
       if (!steps.length) continue;
       for (const s of steps) s.arc = arcFor(byId.get(s.from).top, byId.get(s.to).top);

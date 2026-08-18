@@ -240,7 +240,7 @@ export function scan({
     };
 
     const orphanTests = nodes.filter((n) => n.layer === "test" && !n.subject && !FIXTURE.test(n.id));
-    return { payload, diagnostics: { stats, unclassified, orphanTests, suites } };
+    return { payload, diagnostics: { stats, unclassified, orphanTests } };
   } finally {
     source.cleanup();
   }

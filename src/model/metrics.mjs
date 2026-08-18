@@ -48,5 +48,4 @@ export function deriveCoverage(nodes, edges) {
     n.uncovered = n.coverage === "none";
   }
 
-  return { direct, reached };
 }

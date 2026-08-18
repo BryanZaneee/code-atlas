@@ -140,7 +140,6 @@ function reproject() {
     }
 
     n.faces = faces;
-    n.hDrawn = h;
     n.top = P(gx + 0.5, gy + 0.5, h);
   }
 

@@ -176,7 +176,6 @@
     display:inline-block; padding:1px 5px; font-size:8.5px; letter-spacing:.1em;
     border:1px solid var(--border); background:var(--bg); margin:0 3px 3px 0;
   }
-  .tag.k { background:var(--ink); color:var(--bg); border-color:var(--ink); }
   .tag.act { cursor:pointer; border-color:var(--accent); color:var(--accent); }
   .tag.act:hover { background:var(--accent); color:var(--bg); }
 

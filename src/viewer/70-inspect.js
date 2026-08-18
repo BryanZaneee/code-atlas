@@ -1,5 +1,4 @@
 /* ════════════════════ inspect panel ════════════════════ */
-function esc(s) { return String(s).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c])); }
 
 function selectStep(st) {
   S.pinnedPacket = st;
