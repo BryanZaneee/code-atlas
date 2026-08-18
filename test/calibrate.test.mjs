@@ -1,5 +1,5 @@
 /**
- * Regression gate for derivation calibration (tools/calibrate.mjs).
+ * Regression gate for derivation calibration (test/calibrate.mjs).
  *
  * Pinned to the same commit the golden files use, so a drift-causing change in
  * the corpus repository itself never fails this test — only a change to
@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { scan } from "../src/build/build.mjs";
 import { corpusRepo, scanFixture } from "./helpers.mjs";
-import { calibrate } from "../tools/calibrate.mjs";
+import { calibrate } from "./calibrate.mjs";
 
 test("derivation calibration does not regress against the 9 curated TaxVault flows", async (t) => {
   const repo = corpusRepo("taxvault");

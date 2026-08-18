@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolveMounts } from "../src/model/mounts.mjs";
-import { diagnose } from "../src/build/build.mjs";
+import { diagnose } from "../src/cli/report.mjs";
 import { scanFixture } from "./helpers.mjs";
 
 const ids = (payload) => payload.endpoints.map((e) => e.id).sort();

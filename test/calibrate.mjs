@@ -19,7 +19,7 @@
  * derivation actually attempts: the forward path.
  */
 import { scan } from "../src/build/build.mjs";
-import { corpusRepo } from "../test/helpers.mjs";
+import { corpusRepo } from "./helpers.mjs";
 import taxvaultConfig from "../examples/taxvault.config.mjs";
 import { FLOWS } from "../examples/taxvault.flows.mjs";
 
@@ -145,7 +145,9 @@ async function main() {
 }
 
 // Only run as a script — importing this module (the regression test does) must
-// not scan a repository as a side effect of loading it.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// not scan a repository as a side effect of loading it. Compared on paths
+// rather than by building a file:// URL by hand, which does not survive a
+// repository checked out under a directory with a space in its name.
+if (import.meta.filename === process.argv[1]) {
   main();
 }

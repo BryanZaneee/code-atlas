@@ -7,8 +7,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { diagnose } from "../src/build/build.mjs";
-import { makeProgress } from "../src/scan/progress.mjs";
+import { diagnose } from "../src/cli/report.mjs";
+import { makeProgress } from "../src/cli/progress.mjs";
 import { scanFixture } from "./helpers.mjs";
 
 /** Run diagnose against a sink instead of stdout. */

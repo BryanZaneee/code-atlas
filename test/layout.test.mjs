@@ -12,8 +12,7 @@ import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { VIEWER_DIR } from "../src/build/assemble.mjs";
-import { DEFAULT_THEME } from "../src/model/theme.mjs";
-import { buildViews } from "../src/model/views.mjs";
+import { DEFAULT_THEME, buildViews } from "../src/model/chrome.mjs";
 
 const LAYOUT_MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js"];
 

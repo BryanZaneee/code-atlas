@@ -32,7 +32,7 @@
  */
 import { resolveMounts } from "./mounts.mjs";
 import { adapterFor } from "../adapters/index.mjs";
-import { langOf } from "../scan/graph.mjs";
+import { langOf } from "./graph.mjs";
 
 // Prose and data. A `.md` or `.json` file having no endpoints is not a gap in
 // what this tool can read, so it is not worth reporting as one.

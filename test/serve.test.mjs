@@ -19,7 +19,7 @@ import net from "node:net";
 import { scan } from "../src/build/build.mjs";
 import { loadConfig } from "../src/config/load.mjs";
 import { listen } from "../src/serve/server.mjs";
-import { resolveAllowed } from "../src/serve/files.mjs";
+import { resolveAllowed } from "../src/serve/server.mjs";
 import { FIXTURE_DIR } from "./helpers.mjs";
 
 function copyFixture(name) {

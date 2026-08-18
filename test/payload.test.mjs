@@ -70,7 +70,7 @@ test("district codes are unique and survive a new file", async () => {
 
   // Dropping the first district's members simulates the file churn that
   // first-appearance ordering would have reshuffled the whole set on.
-  const { buildGroups } = await import("../src/scan/graph.mjs");
+  const { buildGroups } = await import("../src/model/graph.mjs");
   const survivors = p.groups.slice(1).flatMap((g) => g.members);
   const kept = p.nodes.filter((n) => survivors.includes(n.id));
   const after = new Map(buildGroups(kept, p.layers).map((g) => [g.id, g.code]));
