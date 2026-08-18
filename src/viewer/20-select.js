@@ -29,7 +29,13 @@ function pathSteps() {
  */
 function visibleSet() {
   const keep = new Set();
+  const kind = viewKind(S.view);
   const onPath = isFlowView(S.view) ? pathSteps() : null;
+  // The blocks the selected finding names. A finding whose evidence a sidebar
+  // filter had removed would otherwise light up nothing at all, which reads as
+  // "this finding is about nowhere" rather than as "you switched that service
+  // off" — the same reason a flow's own endpoints ignore the filters below.
+  const evidence = findEvidenceIds();
 
   // ISOLATED: only the flow, re-packed by relayout() into its own districts.
   // This is deliberately a different LAYOUT and not a filter — the blocks move,
@@ -45,11 +51,14 @@ function visibleSet() {
     // A flow's own endpoints and datastores are always on the map, whatever the
     // sidebar filters say — they are the thing being traced.
     if (onPath?.has(n.id)) { keep.add(n); continue; }
+    if (evidence?.has(n.id)) { keep.add(n); continue; }
     if (n.kind === "endpoint") continue;
     if (n.lang === "md" && !S.opts.docs) continue;
     if (!S.services.has(n.service)) continue;
-    if (viewKind(S.view) === "structure" && n.layer === "test" && !S.opts.tests) continue;
-    if (viewKind(S.view) === "tests" && n.layer === "docs") continue;
+    // The findings view draws the structure view's city, because a finding
+    // highlighted in place needs the place to be the one you were just reading.
+    if ((kind === "structure" || kind === "findings") && n.layer === "test" && !S.opts.tests) continue;
+    if (kind === "tests" && n.layer === "docs") continue;
     keep.add(n);
   }
   return [...keep];

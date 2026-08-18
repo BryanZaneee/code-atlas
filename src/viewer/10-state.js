@@ -9,6 +9,10 @@ const S = {
   pinnedPacket: null,
   focusDistrict: null,  // "service|layer"
   activeFlow: "__all__",
+  // The finding whose evidence is lit on the map, by id. Overlay state, like
+  // `selected` — it never enters the raster cache, so picking one costs a veil
+  // and a handful of blocks rather than a re-rasterised city.
+  finding: null,
   // Flow views show ONLY the flow by default. Off by choice, not by accident:
   // seeing the path alone is what makes it readable, and seeing it inside the
   // whole map is what makes it locatable. Both are wanted, so both exist.

@@ -11,6 +11,11 @@
     --accent:#2563eb; --warn:#c2410c;
     --hover:#eef1f3; --note-ink:#26292b; --sample-bg:#f7f8f9;
     --swatch-edge:#00000038;
+    /* Findings severity. The same three the payload theme carries for the
+       canvas — canvas cannot read a custom property and CSS cannot read the
+       payload, so the two tables are unavoidable; what is avoidable is a third
+       copy, which is why nothing else in this file states a severity colour. */
+    --sev-error:#b3261e; --sev-warning:#b5730f; --sev-info:#4a7a8c;
     /* The source reader. One family for syntax, so a colour here can never
        drift from a colour there — same rule as the rest of this file. */
     --src-bg:#fbfcfc; --src-gutter:#9aa1a7; --src-hit:#eaf0ff; --src-hit-edge:#2563eb;
@@ -30,6 +35,7 @@
     --accent:#5b8dff; --warn:#f97316;
     --hover:#1e2325; --note-ink:#d5d8da; --sample-bg:#161a1c;
     --swatch-edge:#ffffff45;
+    --sev-error:#ff6b5e; --sev-warning:#f0a03c; --sev-info:#79b8d0;
     --src-bg:#121517; --src-gutter:#767d82; --src-hit:#1a2434; --src-hit-edge:#5b8dff;
     --src-key:#c9a9ff; --src-str:#6fd7a4; --src-com:#7f878d; --src-num:#f0a868;
     --src-fn:#7fa9ff; --src-punct:#98a0a6;
@@ -161,6 +167,32 @@
   button.row.flow .mk { color:var(--accent); font-size:8px; flex:0 0 auto; }
   button.row.flow.sel .mk { color:var(--bg); }
 
+  /* ── findings ──────────────────────────────────────────── */
+  /* A heading inside a list, shared by the service groups above and the
+     finding-type groups below — the same grouping the CLI prints. */
+  .grp { margin-top:7px; letter-spacing:.12em; color:var(--dim); }
+  /* Severity, in text. The chip is three letters before it is a colour: a map
+     read in greyscale still has to say which findings are the bad ones. */
+  .row .sev {
+    flex:0 0 auto; width:26px; text-align:center; padding:1px 0;
+    font-size:8.5px; letter-spacing:.04em; color:var(--dim);
+    border:1px solid var(--border); background:var(--bg);
+  }
+  .row .sev.sev-error { color:var(--sev-error); border-color:var(--sev-error); }
+  .row .sev.sev-warning { color:var(--sev-warning); border-color:var(--sev-warning); }
+  .row .sev.sev-info { color:var(--sev-info); border-color:var(--sev-info); }
+  button.row.fnd {
+    width:100%; text-transform:none; letter-spacing:0; font-size:10.5px;
+    background:transparent; border:1px solid transparent; text-align:left;
+  }
+  button.row.fnd:hover { background:var(--panel-2); }
+  button.row.fnd.sel { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  button.row.fnd.sel .sev { background:transparent; }
+  /* Muted is quieter, not gone: the dashes match the dashed ring the map draws
+     for the same finding, and the row is still there to be clicked. */
+  button.row.fnd.mute .nm { opacity:.6; }
+  button.row.fnd.mute .sev { border-style:dashed; }
+
   /* ── inspect panel ─────────────────────────────────────── */
   /* The reference designs put a dim letterspaced eyebrow over a large sans
      title over a quiet meta line. That order is doing real work: what kind of
@@ -178,6 +210,8 @@
   .kv dd { margin:0; font-size:10.5px; word-break:break-word; }
   /* Classification provenance: why this node landed where it did. */
   .kv dd .why { color:var(--dim); font-size:9px; line-height:1.35; margin-top:1px; }
+  /* The same relationship one level up: the fact, then why it matters. */
+  .note .why { color:var(--dim); font-size:10px; line-height:1.45; margin-top:5px; }
   .note {
     margin-top:8px; padding:7px 9px; background:var(--bg); font-family:var(--sans);
     border-left:2px solid var(--accent); font-size:11px; line-height:1.55; color:var(--note-ink);

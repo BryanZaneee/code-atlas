@@ -179,8 +179,14 @@ test("meta carries the fields later phases added", async (t) => {
   // rather than letting the config lose it by not knowing to list it. On this
   // target that means curated and derived paths sit in the same strip, which is
   // the only way to compare what a person asserted against what was inferred.
-  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived"]);
+  // Phase 5 appends FINDINGS to a config that predates it for the same reason
+  // Phase 6 appends DERIVED PATHS: a config cannot lose a view by not having
+  // known to list it. Unlike the derived view it is unconditional — a clean
+  // repository has a result to show, and hiding the view would make "checked,
+  // found nothing" look like "never checked".
+  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived", "findings"]);
   assert.equal(payload.views.find((v) => v.id === "derived").derived, true);
+  assert.equal(payload.views.find((v) => v.id === "findings").kind, "findings");
   assert.ok(payload.derivedFlows.length > 0, "endpoints exist, so derived paths should too");
   // Curated data keeps its exact shape: derivation never writes into `flows`.
   assert.ok(payload.flows.every((f) => !f.derived));

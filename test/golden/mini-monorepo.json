@@ -122,6 +122,13 @@
       "id": "tests",
       "label": "TESTS",
       "kind": "tests"
+    },
+    {
+      "title": "STRUCTURAL FINDINGS",
+      "hint": "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
+      "id": "findings",
+      "label": "FINDINGS",
+      "kind": "findings"
     }
   ],
   "theme": {
@@ -231,6 +238,11 @@
       "none": "#b0562f",
       "indirect": "#a89a5c"
     },
+    "findingSeverity": {
+      "error": "#b3261e",
+      "warning": "#b5730f",
+      "info": "#4a7a8c"
+    },
     "dark": {
       "ink": "#e8eaec",
       "bg": "#0e1011",
@@ -239,7 +251,12 @@
       "plate": "#98a2a9",
       "edge": "#e4e8ec",
       "face": "#333a3f",
-      "packetLabel": "#e8eaec"
+      "packetLabel": "#e8eaec",
+      "findingSeverity": {
+        "error": "#ff6b5e",
+        "warning": "#f0a03c",
+        "info": "#79b8d0"
+      }
     },
     "legend": {
       "default": [
@@ -262,6 +279,25 @@
         {
           "swatch": "request",
           "label": "PACKET — CLICK TO INSPECT"
+        }
+      ],
+      "findings": [
+        {
+          "sev": "error",
+          "label": "ERROR"
+        },
+        {
+          "sev": "warning",
+          "label": "WARNING"
+        },
+        {
+          "sev": "info",
+          "label": "INFO"
+        },
+        {
+          "sev": "warning",
+          "dash": true,
+          "label": "DASHED — MUTED BY CONFIG, STILL COUNTED"
         }
       ],
       "tests": [

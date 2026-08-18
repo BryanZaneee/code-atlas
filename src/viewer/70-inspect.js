@@ -38,6 +38,12 @@ function renderInspect() {
   const b = $("#insBody");
   b.innerHTML = "";
 
+  // A lit finding owns the panel until you click past it — into one of its own
+  // evidence rows, or onto a block on the map. Both of those set `selected`,
+  // and the map keeps the highlight while you read what you clicked.
+  const finding = S.selected || S.pinnedPacket ? null : findSelected();
+  if (finding) { renderFinding(b, finding); return; }
+
   if (S.pinnedPacket) {
     const st = S.pinnedPacket;
     const f = flowById.get(st.flowId);

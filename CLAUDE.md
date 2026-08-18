@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phases 0, 2, 2.5, 2.6, 3, 4 and 6 are complete. Phase 7 has its server and
-its reader; Phase 5 (findings) has not started.**
+**Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 are complete. Phase 7 has its server
+and its reader.**
 
 `build`, `scan`, `init` and `serve` all work on any repository, with or without a
-config. `findings` is the one remaining stub and names the phase it lands in
-(`bin/atlas.mjs`). Derivation (`src/model/derive.mjs`) and its calibration
+config, and `findings` reports the eight structural checks over the graph.
+Derivation (`src/model/derive.mjs`) and its calibration
 harness (`test/calibrate.mjs`, `npm run calibrate`) are in, and the numbers
 they produce are published in the README rather than left in a commit message.
 Phase 7's server and its reader are both in — allowlisted `/api/source`,

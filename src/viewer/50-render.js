@@ -522,6 +522,9 @@ function draw() {
   const o = toScreen({ x: CACHE.x0, y: CACHE.y0 });
   ctx.drawImage(off, 0, 0, off.width, off.height, o.x, o.y, CACHE.w * S.zoom, CACHE.h * S.zoom);
   drawTrace();
+  // Before the overlay, after the city: a finding veils the map, and the
+  // selection ring has to stay legible on top of the veil.
+  drawFindings();
   drawOverlay();
   livePackets = [];
 
@@ -588,6 +591,7 @@ function frame(now) {
   // Nothing to veil when the map holds only the flow already.
   const target = isFlowView(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
   veil += (target - veil) * Math.min(1, dt * 7);
+  easeFindings(dt);
   if (S.running || S.stepBudget > 0) advance(dt);
   draw();
   requestAnimationFrame(frame);

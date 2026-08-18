@@ -28,6 +28,11 @@ function renderList() {
   const wrap = $("#list"); wrap.innerHTML = "";
   const title = $("#listTitle"), count = $("#listCount");
 
+  if (viewKind(S.view) === "findings") {
+    renderFindingList(wrap, title, count);
+    return;
+  }
+
   if (isFlowView(S.view)) {
     title.textContent = viewById.get(S.view)?.listLabel ?? "PATHS";
     const fs = flowsForView(S.view);
@@ -67,10 +72,9 @@ function renderList() {
   for (const d of ds) {
     if (d.service !== lastSvc) {
       lastSvc = d.service;
-      const h = el("div", "hint");
-      h.style.cssText = "margin-top:7px;letter-spacing:.12em;color:var(--dim)";
-      h.textContent = (svcById.get(d.service)?.label ?? d.service).toUpperCase();
-      wrap.append(h);
+      // Same heading the findings list uses for its type groups, as a class
+      // rather than as an inline style repeated in two places.
+      wrap.append(el("div", "hint grp", (svcById.get(d.service)?.label ?? d.service).toUpperCase()));
     }
     const r = el("div", "row" + (S.focusDistrict === d.id ? " sel" : ""));
     // The district's two-character code, tinted with its layer's identity
@@ -154,7 +158,18 @@ function renderStats() {
   const m = ATLAS.meta;
   $("#bRepo").textContent = m.repo;
   $("#bRef").textContent = `${m.ref} @ ${m.commit} · ${m.generatedAt}`;
-  const rows = viewKind(S.view) === "tests"
+  const kind = viewKind(S.view);
+  // Severity counts lead the findings strip for the same reason the DERIVED
+  // caveat leads the default one: it is the number the view exists to report,
+  // and a strip that clips has to clip the least important thing on it.
+  const sevCount = (sev) => FINDINGS.filter((f) => !f.muted && f.severity === sev).length;
+  const rows = kind === "findings"
+    ? [
+        ["ERROR", fmt(sevCount("error"))], ["WARNING", fmt(sevCount("warning"))],
+        ["INFO", fmt(sevCount("info"))], ["MUTED", fmt(FINDINGS.filter((f) => f.muted).length)],
+        ["SOURCE FILES", fmt(m.fileCount)], ["LINKS", fmt(m.edgeCount)],
+      ]
+    : kind === "tests"
     ? [
         ["TEST FILES", fmt(m.testCount)], ["SUITES", fmt(m.suiteCount)],
         ["DIRECT", fmt(m.coverDirect)], ["INDIRECT", fmt(m.coverIndirect)],
@@ -181,18 +196,24 @@ function renderStats() {
 function renderLegend() {
   // Rows name a key in the theme tables rather than repeating a colour, so the
   // legend cannot drift out of step with what is actually drawn.
-  const rows = THEME.legend[viewKind(S.view) === "tests" ? "tests" : "default"] ?? [];
+  // Keyed by view KIND, like everything else the viewer branches on, with the
+  // default as the fallback — a kind with no legend of its own gets the map's.
+  const rows = THEME.legend[viewKind(S.view)] ?? THEME.legend.default ?? [];
   const w = $("#legend"); w.innerHTML = "";
   for (const r of rows) {
     const style = r.edge ? EDGE_STYLE[r.edge] : null;
     const color = style?.c
       ?? (r.swatch ? PACKET_COLOR[r.swatch] : null)
       ?? (r.tint ? COVER_TINT[r.tint] : null)
+      ?? (r.sev ? THEME.findingSeverity?.[r.sev] : null)
       ?? (r.layer ? layerById.get(r.layer)?.color : null)
       ?? THEME.layerFallback;
     const g = el("div", "lg");
-    const mark = el(r.edge ? "i" : "u");
-    if (r.edge) { mark.style.borderTopColor = color; if (style?.dash) mark.className = "dash"; }
+    // A severity is drawn as a stroke on the map — a ring and an arc — so the
+    // legend shows it as one rather than as a swatch that matches nothing.
+    const line = r.edge || r.sev;
+    const mark = el(line ? "i" : "u");
+    if (line) { mark.style.borderTopColor = color; if (style?.dash || r.dash) mark.className = "dash"; }
     else mark.style.background = color;
     g.append(mark, el("span", null, r.label));
     w.append(g);

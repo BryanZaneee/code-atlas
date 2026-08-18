@@ -2,8 +2,8 @@
 
 Isometric, interactive maps of a codebase — its structure, how requests move through it, what the tests reach, and what's structurally wrong with it.
 
-> **Status: pre-alpha.** `atlas build`, `atlas scan`, `atlas init` and `atlas serve`
-> work on any repository, with or without a config. `findings` doesn't exist yet.
+> **Status: pre-alpha.** All five commands — `build`, `scan`, `init`, `serve` and
+> `findings` — work on any repository, with or without a config.
 >
 > See **[PLAN.md](./PLAN.md)** for the design and **[ROADMAP.md](./ROADMAP.md)** for progress.
 
@@ -79,7 +79,7 @@ atlas build     # -> a single self-contained HTML atlas
 atlas scan      # what the scanner found, and what it couldn't
 atlas init      # write a starter config by inspecting the repo
 atlas serve     # local viewer on 127.0.0.1, with read-only source reading
-atlas findings  # cycles, layering violations, orphans, untested endpoints   (planned)
+atlas findings  # cycles, layering violations, orphans, untested endpoints
 ```
 
 Common flags: `--repo PATH` (default `.`), `--config FILE` (optional — atlas

@@ -167,13 +167,15 @@ edge kind does not drop the other eleven.
 | `layerFallback` | string | a layer with no `color` |
 | `font` | string | a literal font stack — canvas cannot read `var(--mono)` |
 | `edgeStyle` `packetColor` `coverTint` | object | per edge kind / packet kind / coverage state |
+| `findingSeverity` | object | the ring and evidence-edge colour per finding severity (`error` `warning` `info`) in the findings view. Colour is the second channel there, never the only one — the list chips and the panel spell the severity out |
 | `legend` | object | legend rows per view kind; each row *names* a key in the tables above rather than repeating a colour, so the legend cannot drift from the map |
 | `dark` | object | the dark theme, as a **delta** over the keys above |
 
-Only the scalars appear in `dark`. Everything mixed from them follows, which is
-why `edge` inverts to near-white there: in a line-art map the stroke carries the
-whole form, and a dark outline on a dark ground is not a dimmer map, it is no
-map.
+Only the scalars — and `findingSeverity`, which is drawn over a veiled city and
+has to lighten with the ground — appear in `dark`. Everything mixed from them
+follows, which is why `edge` inverts to near-white there: in a line-art map the
+stroke carries the whole form, and a dark outline on a dark ground is not a
+dimmer map, it is no map.
 
 ## Findings
 

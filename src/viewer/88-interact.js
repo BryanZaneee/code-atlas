@@ -41,7 +41,12 @@ window.addEventListener("keydown", (e) => {
     // thing you opened the file to look at.
     if (SRC.open) closeSource();
     else {
+      const lit = S.finding;
       S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
+      S.finding = null;
+      // Only when there was one: the evidence set decides what is on the map,
+      // so dropping it has to re-pack — and nothing else here does.
+      if (lit) relayout();
       renderList(); renderInspect(); renderCaption();
     }
   } else return;
@@ -184,6 +189,9 @@ function setView(v) {
   S.view = v;
   S.focusDistrict = null; S.selected = null; S.pinnedPacket = null;
   S.activeFlow = "__all__";
+  // Cleared before relayout(), because the evidence of a finding is part of
+  // what `visibleSet()` keeps.
+  S.finding = null;
   renderViews();
   relayout();
   renderList(); renderInspect(); renderLegend(); renderStats(); renderCaption();

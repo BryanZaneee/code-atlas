@@ -2,9 +2,9 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 3, 4 and 6 complete · 7 of 13. Phase 1 holds
-one gate a human has to measure. Phase 7's server and reader are in; what is
-left there is `--embed-source` and `--gzip-source`, which share a gate.
+**Status:** Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 complete · 8 of 13. Phase 1
+holds one gate a human has to measure. Phase 7's server and reader are in; what
+is left there is `--embed-source` and `--gzip-source`, which share a gate.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -15,7 +15,7 @@ left there is `--embed-source` and `--gzip-source`, which share a gate.
 | 2.6 | Visual pass against a reference design | — | ● done |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
-| 5 | Findings engine | — | ○ |
+| 5 | Findings engine | — | ● done |
 | 6 | Path derivation + calibration | 8 | ● done |
 | 7 | `atlas serve` + code viewer | 8, 9 | ◐ reader done, embed/gzip open |
 | 8 | Request composer UI | 9 | ○ |
@@ -303,7 +303,11 @@ reference screenshots the user supplied, plus four things they named directly.*
       does not flag half of it)
 - [x] Cross-service coupling that bypasses declared boundaries
 - [x] Each finding carries `severity`, **evidence** (exact nodes/edges), and a one-line "why this matters"
-- [ ] FINDINGS view highlights implicated blocks in place on the map
+- [x] FINDINGS view highlights implicated blocks in place on the map — the rest
+      of the city dims rather than disappearing, so a cycle reads AS a cycle.
+      The view is unconditional: a repo with nothing to report has a result
+      worth showing, and dropping the view would make "eight checks ran and
+      matched nothing" look like "this tool does not check"
 - [x] `atlas findings --json`; configurable thresholds; per-finding mute with a reason
       — a muted finding stays in the payload marked, never removed: silencing one
       should be a visible diff, not a silent subtraction

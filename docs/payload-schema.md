@@ -212,19 +212,28 @@ branches on `kind`, never on an id.
 
 | field | type | notes |
 | --- | --- | --- |
-| `id` | string | `structure`, `tests`, `derived`, or one per distinct `flows[].view` |
+| `id` | string | `structure`, `tests`, `findings`, `derived`, or one per distinct `flows[].view` |
 | `label` | string | what the strip shows |
-| `kind` | string | `structure` \| `flow` \| `tests` — **the only thing the viewer branches on** |
+| `kind` | string | `structure` \| `flow` \| `tests` \| `findings` — **the only thing the viewer branches on** |
 | `title` `hint` | string | heading and explanatory line; config may override |
 | `showPhase` | bool | present on a flow view whose flows carry `phase` |
 | `derived` | bool | present and `true` on the derived-paths view |
+
+The `structure` and `tests` views are always present, and so is `findings` —
+**including when `findings` is empty**. A repository with nothing wrong with it
+has a result to report, and dropping the view would make "eight checks ran and
+matched nothing" indistinguishable from "this tool does not check". The
+derived-paths view is the one conditional entry: it appears only when there are
+derived paths to play.
 
 ## `theme`
 
 Colour and style tables, shipped rather than hardcoded because canvas cannot read
 CSS custom properties. Scalars: `ink`, `bg`, `face`, `packetLabel`, `accent`,
 `plate`, `edge`, `layerFallback`, `font`. Tables: `edgeStyle`, `packetColor`,
-`coverTint`, `legend`. `dark` is a **delta** over the scalars — only what changes.
+`coverTint`, `findingSeverity`, `legend`. `dark` is a **delta** over the scalars,
+plus `findingSeverity` — the one table it carries, because a severity ring is
+drawn over a veiled city and a deep red disappears into a near-black ground.
 Config may replace any branch; see [config.md](./config.md).
 
 ## `derivedFlows`
@@ -262,7 +271,7 @@ already carries; nothing here is a second analysis pass over source.
 | `severity` | string | `info` \| `warning` \| `error` |
 | `message` | string | one line, naming the exact ids involved |
 | `why` | string | one line — why this finding matters, not what it is |
-| `evidence` | object | `{ nodes: string[], edges: {from,to,kind}[] }` — the exact node/edge ids implicated, for a renderer to highlight in place. Never a prose description |
+| `evidence` | object | `{ nodes: string[], edges: {from,to,kind}[] }` — the exact node/edge ids implicated, for a renderer to highlight in place. Never a prose description. The viewer's findings view draws exactly this: the named blocks and edges at full strength, the rest of the map dimmed rather than removed |
 | `muted` | bool | `true` when `findings.mute` in config names this finding's `id` |
 | `muteReason` | string\|null | the reason given alongside it, or `null` when not muted |
 

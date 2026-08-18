@@ -33,7 +33,9 @@ function buildPackets() {
     }
   }
 
-  if (S.opts.ambient && !isFlowView(S.view)) {
+  // Ambient packets are drawn above the veil and would be the brightest thing
+  // on a map that is trying to point at four blocks. A lit finding stops them.
+  if (S.opts.ambient && !isFlowView(S.view) && !findSelected()) {
     const pool = LAYOUT.edges.filter(e => e.kind === "import" || e.kind.startsWith("test:"));
     const n = Math.min(90, pool.length);
     for (let i = 0; i < n; i++) {
