@@ -38,6 +38,7 @@
  * certainty, inferred}`; certainty is `wired` | `imported` | `inferred`.
  */
 import { adapterFor } from "../adapters/index.mjs";
+import { mountParents } from "./mounts.mjs";
 
 // The router -> controller -> service -> repository spine is what this exists
 // to trace. Test, docs and tooling code sit past that spine, not inside it
@@ -135,53 +136,6 @@ function importBindings(text, langId) {
     }
   }
   return out;
-}
-
-// `receiver.route/use(prefix, symbol)` or `receiver.route/use(prefix,
-// factory(args))` — the second form is the common "router built by a
-// factory function" shape (`app.use("/v1", createAuthRouter(deps))`), and the
-// symbol this needs is the factory's own name: it is what was imported, and
-// resolving its specifier lands on the same file a bare symbol would.
-// mounts.mjs resolves a full endpoint path against the bare-symbol form only;
-// duplicated here rather than imported because that module returns the
-// accumulated URL PREFIXES per file, not the parent/child file relationship
-// itself, and this needs the latter: which file(s) actually call route/use
-// naming this one.
-const MOUNT_RE = /\b(\w+)\s*\.\s*(?:route|use)\s*\(\s*["']([^"']*)["']\s*,\s*(\w+)\s*(?:\([^()]*\))?\s*[,)]/g;
-
-/** The specifier a bare symbol was imported from, in this file — mounts.mjs's own approach. */
-function specifierFor(text, symbol) {
-  const named = new RegExp(`\\bimport\\s*(?:type\\s*)?\\{([^}]*\\b${symbol}\\b[^}]*)\\}\\s*from\\s*["']([^"']+)["']`);
-  const asDefault = new RegExp(`\\bimport\\s+${symbol}\\s*(?:,|from)[^"']*["']([^"']+)["']`);
-  return text.match(named)?.[2] ?? text.match(asDefault)?.[1] ?? null;
-}
-
-/**
- * Every file, mapped to the file(s) that mount it: `{child -> Set<parent>}`.
- * Built once per scan and reused across every endpoint — same cost class as
- * `resolveMounts`, which this deliberately mirrors rather than calls, for the
- * reason above.
- */
-function buildMountParents(ctx) {
-  const parents = new Map();
-  for (const p of ctx.paths) {
-    if (ctx.config.layerOf?.(p).layer === "test") continue;
-    const text = ctx.src.get(p);
-    if (!text) continue;
-    const adapter = adapterFor(p);
-    if (!adapter) continue;
-    for (const m of text.matchAll(MOUNT_RE)) {
-      if (m[2].includes("*")) continue; // middleware over a wildcard, not a mount
-      const spec = specifierFor(text, m[3]);
-      if (!spec) continue;
-      const r = adapter.resolve(p, spec, ctx);
-      const child = r.kind === "internal" ? r.ids[0] : null;
-      if (!child || child === p) continue;
-      if (!parents.has(child)) parents.set(child, new Set());
-      parents.get(child).add(p);
-    }
-  }
-  return parents;
 }
 
 /** Internal files reached by imports whose bound name is used in `slice`. */
@@ -355,9 +309,9 @@ export function derivePaths(ctx, { nodes, edges, endpoints }) {
     endpointsByFile.get(e.definedIn).push(e);
   }
 
-  const mountParents = buildMountParents(ctx);
+  const parents = mountParents(ctx);
 
-  const shared = { byId, idIdx, importAdj, layerRank, edgeSet, dsAdj, nodesInOrder: nodes, endpointsByFile, mountParents };
+  const shared = { byId, idIdx, importAdj, layerRank, edgeSet, dsAdj, nodesInOrder: nodes, endpointsByFile, mountParents: parents };
   for (const endpoint of endpoints) {
     endpoint.derivedPath = deriveOne(endpoint, shared, ctx);
   }

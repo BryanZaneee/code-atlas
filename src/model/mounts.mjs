@@ -15,9 +15,14 @@
  */
 import { adapterFor } from "../adapters/index.mjs";
 
-// `app.route("/api/ai", aiRouter)` / `app.use("/v1", router)` — a literal prefix
-// and a bare symbol. A prefix that is not a literal is not a prefix we can use.
-const MOUNT = /\b(\w+)\s*\.\s*(?:route|use)\s*\(\s*["']([^"']*)["']\s*,\s*(\w+)\s*[,)]/g;
+// `receiver.route/use(prefix, symbol)` — a literal prefix and a bare symbol —
+// or `receiver.route/use(prefix, factory(args))`, the common "router built by a
+// factory" shape (`app.use("/v1", createAuthRouter(deps))`). The symbol worth
+// resolving in the second form is the factory's own name: it is what was
+// imported, and its specifier lands on the same file a bare symbol would.
+//
+// A prefix that is not a literal is not a prefix we can use.
+const MOUNT = /\b(\w+)\s*\.\s*(?:route|use)\s*\(\s*["']([^"']*)["']\s*,\s*(\w+)\s*(?:\([^()]*\))?\s*[,)]/g;
 
 /** The specifier a symbol was imported from, in this file. */
 function specifierFor(text, symbol) {
@@ -25,33 +30,31 @@ function specifierFor(text, symbol) {
     `\\bimport\\s*(?:type\\s*)?\\{([^}]*\\b${symbol}\\b[^}]*)\\}\\s*from\\s*["']([^"']+)["']`,
   );
   const asDefault = new RegExp(`\\bimport\\s+${symbol}\\s*(?:,|from)[^"']*["']([^"']+)["']`);
-  const m = text.match(named);
-  if (m) return m[2];
-  return text.match(asDefault)?.[1] ?? null;
-}
-
-/** The file a symbol imported into `from` actually lives in, or null. */
-function fileForSymbol(from, symbol, ctx) {
-  const spec = specifierFor(ctx.src.get(from) ?? "", symbol);
-  if (!spec) return null;
-  const adapter = adapterFor(from);
-  if (!adapter) return null;
-  const r = adapter.resolve(from, spec, ctx);
-  return r.kind === "internal" ? r.ids[0] : null;
+  return text.match(named)?.[2] ?? text.match(asDefault)?.[1] ?? null;
 }
 
 const join = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
 
+// One scan answers two questions, so it runs once per ctx and both callers read
+// the same result. They used to be two near-identical passes in two modules,
+// which is how they drifted: only one of them learned the factory form, so
+// `resolveMounts` and the derived parent map disagreed about which files were
+// mounted in the same repository.
+const SCAN = Symbol("mount scan");
+
 /**
- * Every prefix each file is mounted under.
+ * `{ edges, parents, mounted }` from a single pass.
  *
- * A set per file, not one string: a router mounted twice genuinely serves its
- * routes at both paths, and collapsing that would report one of them as fiction.
+ *   edges    parent -> [{ child, prefix }]   (what the fixpoint walks)
+ *   parents  child  -> Set<parent>           (who mounts this file)
  */
-export function resolveMounts(ctx) {
-  // file -> [{ child, prefix }]
+function scanMounts(ctx) {
+  if (ctx[SCAN]) return ctx[SCAN];
+
   const edges = new Map();
+  const parents = new Map();
   const mounted = new Set();
+
   for (const p of ctx.paths) {
     // A test harness routinely mounts a router at "/" to exercise it in
     // isolation. That is how the test reaches it, not how the application
@@ -60,18 +63,53 @@ export function resolveMounts(ctx) {
     if (ctx.config.layerOf?.(p).layer === "test") continue;
     const text = ctx.src.get(p);
     if (!text) continue;
+    const adapter = adapterFor(p);
+    if (!adapter) continue;
+
     const out = [];
     for (const m of text.matchAll(MOUNT)) {
       // `app.use("/*", handler)` is middleware over a wildcard, not a mount
       // point: nothing is served *at* `/*`.
       if (m[2].includes("*")) continue;
-      const child = fileForSymbol(p, m[3], ctx);
+      // Symbol -> file is the load-bearing step, and it is done by asking the
+      // adapter to resolve the specifier the symbol was imported from.
+      // Guessing which file exports a name would be the fabrication this tool
+      // refuses to make: a mount we cannot follow yields no prefix, and the
+      // route it guards is reported at the path the file itself declares.
+      const spec = specifierFor(text, m[3]);
+      if (!spec) continue;
+      const r = adapter.resolve(p, spec, ctx);
+      const child = r.kind === "internal" ? r.ids[0] : null;
       if (!child || child === p) continue;
       out.push({ child, prefix: m[2] });
       mounted.add(child);
+      if (!parents.has(child)) parents.set(child, new Set());
+      parents.get(child).add(p);
     }
     if (out.length) edges.set(p, out);
   }
+
+  ctx[SCAN] = { edges, parents, mounted };
+  return ctx[SCAN];
+}
+
+/**
+ * Every file, mapped to the file(s) that mount it: `{child -> Set<parent>}`.
+ * Path derivation seeds from this — it needs the parent/child relation itself,
+ * where endpoint extraction needs the accumulated URL prefixes below.
+ */
+export function mountParents(ctx) {
+  return scanMounts(ctx).parents;
+}
+
+/**
+ * Every prefix each file is mounted under.
+ *
+ * A set per file, not one string: a router mounted twice genuinely serves its
+ * routes at both paths, and collapsing that would report one of them as fiction.
+ */
+export function resolveMounts(ctx) {
+  const { edges, mounted } = scanMounts(ctx);
   if (!edges.size) return new Map();
 
   // A file nobody mounts is a root: its own routes sit at the prefix it

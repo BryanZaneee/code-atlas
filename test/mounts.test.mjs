@@ -68,6 +68,25 @@ test("a test harness mounting a router does not become a mount prefix", () => {
   assert.deepEqual([...ifTestsCounted.get("items.ts")].sort(), ["/", "/api"]);
 });
 
+/**
+ * `app.use("/v1", createAuthRouter(deps))` — a router built by a factory rather
+ * than imported ready-made. The symbol worth resolving is the factory's own
+ * name: it is what was imported, and its specifier lands on the same file.
+ *
+ * Path derivation already understood this form while mount resolution did not,
+ * because the two kept separate copies of one scan. They share it now, so the
+ * factory-mounted router gets the prefix it is really served at instead of
+ * reporting its route at the path it declares.
+ */
+test("a router built by a factory is mounted where the factory call says", () => {
+  const files = {
+    "app.ts": `import { createAuthRouter } from "./auth.js";\napp.use("/v1", createAuthRouter(deps));\n`,
+    "auth.ts": `export const createAuthRouter = (d) => ({});\n`,
+  };
+  const mounts = resolveMounts(ctxOf(files, () => ({ layer: "route" })));
+  assert.deepEqual([...(mounts.get("auth.ts") ?? [])], ["/v1"]);
+});
+
 test("a config that declares a mount is not overruled by discovery", async () => {
   // mini-monorepo's config states "/api". Discovery is for repositories that
   // said nothing; a config naming the prefix is stating a fact about its own
