@@ -1,0 +1,8 @@
+{
+  // A DECLARED "baseUrl" — unlike app/ (paths, no baseUrl) and server/
+  // (neither) — is what lets a bare specifier resolve against this directory
+  // instead of node_modules.
+  "compilerOptions": {
+    "baseUrl": "."
+  }
+}

@@ -79,7 +79,10 @@ export function scan({
       if (services) config = loadConfig(userConfig, { detected: { services } });
     }
 
-    const ctx = { config, paths, fileSet, src, warn, progress };
+    // `dir` and `all` exist for adapters that need a file `keep` never admits
+    // into `src` — `ts.mjs`'s tsconfig.json is the first one; every other
+    // field downstream of this point still reads only `paths`/`fileSet`/`src`.
+    const ctx = { config, paths, fileSet, src, dir: source.dir, all, warn, progress };
     for (const a of ADAPTERS) if (a.prepare) ctx[a.id] = a.prepare(ctx);
 
     const { imports, stats } = extractImports(ctx);

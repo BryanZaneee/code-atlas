@@ -1,0 +1,9 @@
+{
+  // "paths" with no "baseUrl" resolves relative to this file's own directory —
+  // the shape a real repo uses when only one workspace declares an alias.
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
