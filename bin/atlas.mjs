@@ -19,7 +19,7 @@ import { writeFileSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { scan } from "../src/build/build.mjs";
-import { report, diagnose } from "../src/cli/report.mjs";
+import { report, diagnose, findingsReport } from "../src/cli/report.mjs";
 import { assemble } from "../src/build/assemble.mjs";
 import { makeProgress } from "../src/cli/progress.mjs";
 import { starterConfig } from "../src/config/init.mjs";
@@ -44,7 +44,7 @@ const USAGE = `atlas <command> [options]
   build      scan a repository and write a self-contained HTML atlas
   scan       what the scanner found, and what it could not
   init       write a starter config by inspecting the repo
-  findings   cycles, layering violations, orphans          (phase 5)
+  findings   cycles, layering violations, orphans, and the rest of the graph
   serve      local viewer with source reading
 
 options
@@ -85,9 +85,9 @@ if (values.help || !command) {
   process.exit(values.help ? 0 : 1);
 }
 
-const PENDING = { findings: 5 };
+const PENDING = {};
 if (PENDING[command]) die(`\`atlas ${command}\` lands in phase ${PENDING[command]}`);
-if (!["build", "scan", "init", "serve"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
+if (!["build", "scan", "init", "serve", "findings"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
 
 // No config means defaults plus detection, which is the path a repository the
 // tool has never seen takes. A config only ever overrides what it names.
@@ -151,6 +151,18 @@ async function run() {
   // stdout, a command's commentary goes to stderr.
   if (command === "scan") {
     diagnose(payload, diagnostics, (...m) => process.stdout.write(m.join(" ") + "\n"));
+    return;
+  }
+
+  // Findings are the report, same as `scan` — its own stdout, not build's
+  // stderr commentary — so `--json` stays pipeable and pairs with `--json`'s
+  // existing meaning on `build`: the payload, not the log.
+  if (command === "findings") {
+    if (values.json) {
+      process.stdout.write(JSON.stringify(payload.findings, null, 2));
+    } else {
+      findingsReport(payload, (...m) => process.stdout.write(m.join(" ") + "\n"));
+    }
     return;
   }
 

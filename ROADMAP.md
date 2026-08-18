@@ -289,20 +289,30 @@ reference screenshots the user supplied, plus four things they named directly.*
 
 *`atlas scan` diagnoses the tool. This diagnoses the code.*
 
-- [ ] Import cycles (Tarjan SCC), smallest-first
-- [ ] Layering violations — an edge whose target rank is lower than its source
-- [ ] Oversized files, ranked against the repo's own p95
-- [ ] Endpoints no test reaches
-- [ ] Orphans (zero in and out edges, excluding entrypoints)
-- [ ] Unreachable from any entrypoint (reverse BFS)
-- [ ] God nodes (in-degree percentile)
-- [ ] Cross-service coupling that bypasses declared boundaries
-- [ ] Each finding carries `severity`, **evidence** (exact nodes/edges), and a one-line "why this matters"
+- [x] Import cycles (Tarjan SCC), smallest-first
+- [x] Layering violations — an edge whose target rank is lower than its source,
+      **spine layers only**: `tooling`/`test`/`docs`/`unsorted` carry ranks for the
+      layout, not for the spine, and `unsorted` ranks above every real layer — so
+      judging it turned "no rule matched" into "every import runs backwards".
+      Shared with `derive.mjs` as `OFF_SPINE_LAYERS` rather than restated
+- [x] Oversized files, ranked against the repo's own p95
+- [x] Endpoints no test reaches
+- [x] Orphans (zero in and out edges, excluding entrypoints and configured roots)
+- [x] Unreachable from any entrypoint (BFS from entry-layer files)
+- [x] God nodes (in-degree percentile, with a floor so a small repo's low p95
+      does not flag half of it)
+- [x] Cross-service coupling that bypasses declared boundaries
+- [x] Each finding carries `severity`, **evidence** (exact nodes/edges), and a one-line "why this matters"
 - [ ] FINDINGS view highlights implicated blocks in place on the map
-- [ ] `atlas findings --json`; configurable thresholds; per-finding mute with a reason
-- [ ] **Gate:** on TaxVault reports the `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true)
-- [ ] **Gate:** zero false layering violations on a repo that enforces layering by policy
-- [ ] **Gate:** finds a known cycle in a synthetic fixture
+- [x] `atlas findings --json`; configurable thresholds; per-finding mute with a reason
+      — a muted finding stays in the payload marked, never removed: silencing one
+      should be a visible diff, not a silent subtraction
+- [x] **Gate:** on TaxVault reports the `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true) — run against the corpus, passes
+- [x] **Gate:** zero false layering violations on a repo that enforces layering by policy
+      — plus a second gate over fixtures that DO have unplaceable files, because
+      the first one passed throughout the period the off-spine bug was live
+- [x] **Gate:** finds a known cycle in a synthetic fixture — `fixtures/import-cycle`,
+      built so each of the eight findings has one isolated known-true instance
 
 ## Phase 6 — Path derivation + calibration
 

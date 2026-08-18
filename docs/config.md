@@ -175,6 +175,34 @@ why `edge` inverts to near-white there: in a line-art map the stroke carries the
 whole form, and a dark outline on a dark ground is not a dimmer map, it is no
 map.
 
+## Findings
+
+| key | type | default | what it does |
+| --- | --- | --- | --- |
+| `findings.locThreshold` | number | `400` | a file's `loc` past this is an oversized-file candidate |
+| `findings.godNodePercentile` | number | `95` | in-degree percentile past which a file is a god node |
+| `findings.minGodInDegree` | number | `5` | floor beside the percentile, so a small repo's low p95 does not flag half its files |
+| `findings.orphanRoots` | string[] | `[]` | path prefixes excluded from the orphan check, beyond entrypoints |
+| `findings.mute` | array | `[]` | `{ id, reason }` — silences one finding by its own `id` |
+
+Overriding `findings` replaces the whole object, the same as every other key
+except `exclude` — a config that sets `locThreshold` and wants the other
+defaults kept restates them.
+
+`atlas findings --json` prints each finding's `id`; paste it into `mute` with
+a reason to silence it. A muted finding still appears in the payload with
+`muted: true` — see [payload-schema.md](./payload-schema.md#findings).
+
+```js
+findings: {
+  locThreshold: 400,
+  godNodePercentile: 95,
+  minGodInDegree: 5,
+  orphanRoots: ["scripts/one-off-migration.ts"],
+  mute: [{ id: "orphan:scripts/seed.ts", reason: "run by name from package.json, not imported" }],
+},
+```
+
 ## Curated data
 
 | key | type | what it does |

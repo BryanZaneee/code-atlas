@@ -28,6 +28,7 @@ expected to read it, so it is versioned from the first release.
 | `views` | array | stable | which views the strip offers, derived from the flows present |
 | `theme` | object | stable | every colour and style table the viewer draws with |
 | `groups` | array | stable | one per `service/layer` pair that has members — the districts of the map |
+| `findings` | array | experimental | structural findings over the graph — cycles, layering violations, and the rest of `src/model/findings.mjs`'s eight checks |
 
 ## `services`
 
@@ -246,6 +247,38 @@ with `from`/`to` as **integer node indices** rather than ids — the top-level
 > **These are inferences, not observations.** See the table at the end of this
 > document. A consumer that renders them identically to `edges` is making a claim
 > the scanner did not.
+
+## `findings`
+
+`atlas findings --json` prints this array. Every entry is structural — no
+style opinions, nothing that needs an AST (PLAN.md, "Findings engine") — and
+is computed from the graph, coverage and derived paths this same payload
+already carries; nothing here is a second analysis pass over source.
+
+| field | type | notes |
+| --- | --- | --- |
+| `id` | string | deterministic — same input, same id. What a config's `findings.mute` names to silence a finding |
+| `type` | string | `cycle` `layering` `oversized-file` `untested-endpoint` `orphan` `unreachable` `god-node` `cross-service` |
+| `severity` | string | `info` \| `warning` \| `error` |
+| `message` | string | one line, naming the exact ids involved |
+| `why` | string | one line — why this finding matters, not what it is |
+| `evidence` | object | `{ nodes: string[], edges: {from,to,kind}[] }` — the exact node/edge ids implicated, for a renderer to highlight in place. Never a prose description |
+| `muted` | bool | `true` when `findings.mute` in config names this finding's `id` |
+| `muteReason` | string\|null | the reason given alongside it, or `null` when not muted |
+
+**Muting never removes a finding from the array.** It only stamps
+`muted`/`muteReason` — the finding stays visible, which is what keeps
+`atlas findings --json` a complete account of what was found rather than a
+list a config can quietly shrink. A consumer wanting only the live findings
+filters on `!f.muted`.
+
+Each finding type is total by construction (CLAUDE.md, "Graceful degradation")
+and several report **nothing** rather than a false claim when their basis is
+not measured for a given repository: `untested-endpoint` when no coverage was
+measured at all (no tests, or none an adapter could resolve), `unreachable`
+when no `entry`-layer node exists to measure reachability from. Thresholds —
+`locThreshold`, `godNodePercentile`, `minGodInDegree`, `orphanRoots`, `mute` —
+are config; see [config.md](./config.md#findings).
 
 ## What is observed and what is modeled
 

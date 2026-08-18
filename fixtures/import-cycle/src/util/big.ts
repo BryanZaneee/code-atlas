@@ -1,0 +1,27 @@
+// A deliberately large file — the oversized-file finding's fixture target.
+export const A = 1;
+export const B = 2;
+export const C = 3;
+export const D = 4;
+export const E = 5;
+export const F = 6;
+export const G = 7;
+export const H = 8;
+export const I = 9;
+export const J = 10;
+export const K = 11;
+export const L = 12;
+export const M = 13;
+export const N = 14;
+export const O = 15;
+export const P = 16;
+export const Q = 17;
+export const R = 18;
+export const S = 19;
+export const T = 20;
+export const U = 21;
+export const V = 22;
+export const W = 23;
+export const X = 24;
+export const Y = 25;
+export const Z = 26;

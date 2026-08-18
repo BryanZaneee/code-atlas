@@ -18,6 +18,7 @@ import { extractEndpoints } from "../model/endpoints.mjs";
 import { readSuites, subjectOf, FIXTURE } from "../model/tests.mjs";
 import { deriveCoverage } from "../model/metrics.mjs";
 import { derivePaths } from "../model/derive.mjs";
+import { deriveFindings } from "../model/findings.mjs";
 import { buildViews, buildTheme } from "../model/chrome.mjs";
 import { loadConfig } from "../config/load.mjs";
 import { detectServices } from "../config/detect.mjs";
@@ -170,6 +171,10 @@ export function scan({
     derivePaths(ctx, { nodes, edges, endpoints });
     indexFlows(nodes, config.flows ?? []);
     const groups = buildGroups(nodes, config.layers);
+    // After path derivation, per CLAUDE.md's data flow: "endpoints no test
+    // reaches" reads derivedPath, and everything else here reads the finished
+    // graph and coverage rather than re-deriving anything.
+    const findings = deriveFindings({ nodes, edges, endpoints, layers: config.layers }, config.findings);
 
     const bad = validateFlows(config, nodeIds);
     if (bad.length && strict) {
@@ -237,6 +242,7 @@ export function scan({
       // every existing `flows` consumer.
       derivedFlows: derived,
       groups,
+      findings,
     };
 
     const orphanTests = nodes.filter((n) => n.layer === "test" && !n.subject && !FIXTURE.test(n.id));

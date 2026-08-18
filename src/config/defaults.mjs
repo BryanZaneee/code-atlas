@@ -44,6 +44,23 @@ export const DEFAULT_LAYERS = [
 ];
 
 /**
+ * The layers that sit PAST the request spine rather than on it.
+ *
+ * Their ranks order them in the layout — they have to go somewhere, and after
+ * everything else is the honest place — but a rank is not a position on the
+ * spine, and comparing one to a real layer's is a category error. `unsorted`
+ * is the case that bites: it ranks above every real layer, so treating its rank
+ * as meaningful makes every unclassified file's import look like it runs
+ * backwards. "No rule matched" is an absence of knowledge, not a high rank.
+ *
+ * PLAN.md ("The visual system") puts it as: the layers outside the spine sit
+ * past it rather than inside it. Anything reasoning about direction along the
+ * spine — path derivation, layering findings — has to skip them, and has to
+ * skip the same ones, which is why this lives here and not in either.
+ */
+export const OFF_SPINE_LAYERS = new Set(["test", "docs", "tooling", "unsorted"]);
+
+/**
  * Layer rules, in `src/model/classify.mjs`'s shape. First match wins, so the
  * order is the whole design: a file under `services/` that is named
  * `user.test.ts` is a test, not a service, which is why every test rule comes
@@ -143,6 +160,25 @@ export const DEFAULT_ENDPOINT_RULES = [
  */
 export const DEFAULT_SERVICES = [{ id: "app", label: "APP", lang: "-", root: null, order: 0 }];
 
+/**
+ * Findings thresholds (`src/model/findings.mjs`, Phase 5). Every value here is
+ * a magnitude, never a verdict about a particular repository — a
+ * `locThreshold` of 400 says "worth a second look past this many lines," not
+ * "this file is bad."
+ *
+ * `mute` is empty by default. A finding's own `id`, printed by
+ * `atlas findings --json`, is what a config pastes back in here to mute it —
+ * the finding still appears in the payload with `muted: true`, so muting never
+ * makes the map quietly incomplete.
+ */
+export const DEFAULT_FINDINGS = {
+  locThreshold: 400,
+  godNodePercentile: 95,
+  minGodInDegree: 5,
+  orphanRoots: [],
+  mute: [],
+};
+
 export const DEFAULTS = {
   layers: DEFAULT_LAYERS,
   layerRules: DEFAULT_LAYER_RULES,
@@ -151,4 +187,5 @@ export const DEFAULTS = {
   keep: DEFAULT_KEEP,
   exclude: DEFAULT_EXCLUDE,
   endpointRules: DEFAULT_ENDPOINT_RULES,
+  findings: DEFAULT_FINDINGS,
 };

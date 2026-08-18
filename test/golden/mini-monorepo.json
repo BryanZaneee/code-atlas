@@ -1246,5 +1246,44 @@
         "POST /jobs"
       ]
     }
+  ],
+  "findings": [
+    {
+      "id": "untested-endpoint:GET /health",
+      "type": "untested-endpoint",
+      "severity": "warning",
+      "message": "GET /health — no test reaches its handler or its derived path",
+      "why": "A route with no test on its path fails silently: nothing breaks CI when the handler itself breaks.",
+      "evidence": {
+        "nodes": [
+          "GET /health",
+          "services/worker/app/main.py"
+        ],
+        "edges": [
+          {
+            "from": "GET /health",
+            "to": "services/worker/app/main.py",
+            "kind": "http"
+          }
+        ]
+      },
+      "muted": false,
+      "muteReason": null
+    },
+    {
+      "id": "orphan:docs/overview.md",
+      "type": "orphan",
+      "severity": "info",
+      "message": "docs/overview.md has no incoming or outgoing edges",
+      "why": "Nothing imports it and it imports nothing — either dead code, or wiring this tool cannot see (config, DI, a script run by name).",
+      "evidence": {
+        "nodes": [
+          "docs/overview.md"
+        ],
+        "edges": []
+      },
+      "muted": false,
+      "muteReason": null
+    }
   ]
 }

@@ -38,7 +38,11 @@ test("mini-monorepo payload matches its golden", async () => {
 const ADDED_TOP = ["views", "theme",
   // phase 6: derived paths, kept in their own array so curated data keeps its
   // exact prototype shape and nothing conflates the two.
-  "derivedFlows"];
+  "derivedFlows",
+  // phase 5: structural findings over the graph the prototype never computed
+  // at all — an addition, not a correction, so the observed facts above it
+  // still have to match exactly.
+  "findings"];
 const ADDED_META = ["schemaVersion", "acquisition", "suiteCount",
   // phase 2.5: the map's own coverage, so the chrome can state it permanently.
   "unsortedCount", "unresolvedCount", "derivedCount"];
