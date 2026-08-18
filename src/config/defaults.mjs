@@ -120,9 +120,17 @@ export const DEFAULT_EXCLUDE = [
  * because a phantom endpoint is worse than a missing one. Phase 4 replaces the
  * single-pass mount with symbol -> file resolution run to a fixpoint.
  */
+// No `mount`: the prefix is discovered from the repository's own mount chain.
+// A rule that states one is a claim by a config, and that always wins — see
+// src/model/endpoints.mjs.
+// The receiver must END in a router-ish word, so `photosRouter.post(...)` and
+// `router.post(...)` both match. Deliberately not any identifier at all, and
+// deliberately not a bare `api`: `api.get("/photos")` in client code is a call
+// *to* an endpoint, and reporting it as one would invent a route this
+// repository does not serve.
 export const DEFAULT_ENDPOINT_RULES = [
-  { re: /\b(?:app|router|api|server)\.(get|post|patch|put|delete)\(\s*["']([^"']+)["']/g, mount: "" },
-  { re: /@(?:app|router|api)\.(get|post|patch|put|delete)\(\s*["']([^"']+)["']/g, mount: "" },
+  { re: /\b\w*(?:[Rr]outer|[Aa]pp|[Ss]erver)\s*\.\s*(get|post|patch|put|delete)\s*\(\s*["']([^"']+)["']/g },
+  { re: /@\w*(?:[Rr]outer|[Aa]pp)\s*\.\s*(get|post|patch|put|delete)\s*\(\s*["']([^"']+)["']/g },
 ];
 
 /**

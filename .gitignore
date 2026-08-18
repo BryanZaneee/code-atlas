@@ -13,3 +13,6 @@ atlas.html
 
 # Node — the tool has no dependencies, but contributors may install dev tooling
 node_modules/
+
+# Design references, kept locally: ~12 MB of screenshots
+IMG/
