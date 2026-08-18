@@ -23,8 +23,23 @@ expected to read it, so it is versioned from the first release.
 | `nodes` | array | stable | files, datastores and endpoints |
 | `edges` | array | stable | directed, deduplicated by `from|to|kind` |
 | `endpoints` | array | stable | the HTTP surface |
-| `flows` | array | experimental | curated request flows; Phase 6 adds derived ones |
+| `flows` | array | experimental | curated request flows — hand-authored in config |
+| `derivedFlows` | array | experimental | flows this tool inferred. **Separate from `flows` on purpose**: a reader has to be able to tell an asserted path from an inferred one without inspecting a field |
+| `views` | array | stable | which views the strip offers, derived from the flows present |
+| `theme` | object | stable | every colour and style table the viewer draws with |
 | `groups` | array | stable | one per `service/layer` pair that has members — the districts of the map |
+
+## `services`
+
+The rows of the map.
+
+| field | type | notes |
+| --- | --- | --- |
+| `id` | string | referenced by every node's `service` |
+| `label` | string | shown on the row plate |
+| `lang` `root` | string | detected language, and the directory that defines the row (`null` for a single-package repo) |
+| `order` | int | row order |
+| `synthesized` | bool | present and `true` when the tool **added** this row because a node claimed a service the config never declared. Dropping those nodes instead would filter them out of the view with no checkbox to bring them back |
 
 ## `groups`
 
@@ -47,6 +62,7 @@ of the districts around it.
 | field | type | tier | notes |
 | --- | --- | --- | --- |
 | `schemaVersion` | int | stable | `1` |
+| `suiteCount` | int | stable | distinct test-suite kinds found (unit/integration/…) |
 | `repo` | string | stable | basename of the scanned directory |
 | `ref` | string | stable | the ref as requested, not resolved |
 | `commit` | string | stable | short sha, `""` for an `fs` scan |
@@ -78,7 +94,7 @@ How the source was read, because it decides whether the picture is reproducible.
 | `mode` | meaning | `dirty` |
 | --- | --- | --- |
 | `ref` | `git archive <ref>` into a temp dir | `false` — a commit is immutable |
-| `worktree` | the working tree as it sits *(phase 2)* | `true` when uncommitted changes exist |
+| `worktree` | the working tree as it sits | `true` when uncommitted changes exist |
 | `fs` | a plain directory walk, no git | `null` — unknowable |
 
 A `worktree` or `fs` scan includes uncommitted work and therefore cannot be
@@ -148,6 +164,7 @@ kinds. Self-edges are dropped.
 | `service` | string | stable | service id |
 | `definedIn` | string | stable | the file declaring it |
 | `line` | number | stable | 1-based line the route is declared on; what jump-to-line opens |
+| `derivedPath` | object | `{ steps }` — the modelled path in, and back out of, this endpoint. Node **indices**, not ids. See [`derivedFlows`](#derivedflows) |
 
 **`path` is the source's own text, never rewritten.** `:id` and `{id}` are the
 same logical param in two frameworks' syntax and collapse onto one node, but
@@ -184,6 +201,50 @@ instead of drawing a chain that is not there.
 | `steps` | array | `{from, to, kind, label?, note?, sample?}` |
 
 `sample` payloads are synthetic placeholders and carry no real data.
+
+## `views`
+
+One entry per view in the strip. Derived from the scan, not declared, so a repo
+whose flows are named anything at all still gets its flow views — the viewer
+branches on `kind`, never on an id.
+
+| field | type | notes |
+| --- | --- | --- |
+| `id` | string | `structure`, `tests`, `derived`, or one per distinct `flows[].view` |
+| `label` | string | what the strip shows |
+| `kind` | string | `structure` \| `flow` \| `tests` — **the only thing the viewer branches on** |
+| `title` `hint` | string | heading and explanatory line; config may override |
+| `showPhase` | bool | present on a flow view whose flows carry `phase` |
+| `derived` | bool | present and `true` on the derived-paths view |
+
+## `theme`
+
+Colour and style tables, shipped rather than hardcoded because canvas cannot read
+CSS custom properties. Scalars: `ink`, `bg`, `face`, `packetLabel`, `accent`,
+`plate`, `edge`, `layerFallback`, `font`. Tables: `edgeStyle`, `packetColor`,
+`coverTint`, `legend`. `dark` is a **delta** over the scalars — only what changes.
+Config may replace any branch; see [config.md](./config.md).
+
+## `derivedFlows`
+
+The same shape as `flows`, produced by `src/model/derive.mjs` instead of by a
+person, one per endpoint. Every entry carries `derived: true` and a `blurb`
+saying so.
+
+Steps carry two extra fields that `flows` steps do not:
+
+| field | type | notes |
+| --- | --- | --- |
+| `certainty` | string | `wired` — a mount registration this tool read; `imported` — an import edge justifies the hop; `inferred` — a gap, admitted |
+| `inferred` | bool | `certainty === "inferred"`, as a boolean for the renderer |
+
+`endpoints[].derivedPath` is the same path attached to the endpoint it belongs to,
+with `from`/`to` as **integer node indices** rather than ids — the top-level
+`derivedFlows` array is the id-bearing form. Both describe one derivation.
+
+> **These are inferences, not observations.** See the table at the end of this
+> document. A consumer that renders them identically to `edges` is making a claim
+> the scanner did not.
 
 ## What is observed and what is modeled
 

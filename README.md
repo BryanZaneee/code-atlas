@@ -46,7 +46,7 @@ The tool can show a **real** HTTP response and a **modeled** internal path in th
 | Import edges | **Observed** — parsed from source (regex; under-reports) |
 | Endpoints and mount prefixes | **Observed** — statically resolved through the router graph |
 | HTTP response, status, latency | **Observed** — a real request really was sent |
-| **The internal path a request takes** | **MODELED** — inferred from imports. Never observed. |
+| **The internal path a request takes** | **MODELED** — inferred from imports. Never observed. Calibrated at 17% precision / 12% recall against nine hand-curated flows |
 | Per-hop timing | **Never rendered.** We don't have it and won't imply we do. |
 
 ## Commands

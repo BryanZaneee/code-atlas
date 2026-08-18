@@ -29,8 +29,24 @@ adapter whose `extensions` match, so the list order is the tie-break.
 | `id` | unique; also the key `prepare`'s return value is stored under on `ctx` |
 | `extensions` | the file suffixes this adapter claims. A path no adapter claims yields no edges — a supported outcome, not a failure |
 | `prepare(ctx)` | optional, called **once** before extraction. Return whatever per-repo state resolution needs; it lands on `ctx[id]` |
-| `extractImports(text, from, ctx)` | → `[{ spec, kind, line }]`. One entry per import *site*, not per unique specifier |
+| `extractImports(text, from, ctx)` | → `[{ spec, symbols?, kind, line }]`, in source order. One entry per import *site*, not per unique specifier |
 | `resolve(from, spec, ctx, symbols)` | → `{ kind, ids }` where `kind` is `"internal"`, `"external"` or `"unresolved"` |
+
+### `symbols` is how a barrel gets resolved
+
+`from . import thing` names no module — the imported *symbol* is the module. An
+adapter that knows this emits `symbols: ["thing"]` alongside `spec`, and the
+pipeline hands it straight back as `resolve`'s fourth argument. `src/adapters/py.mjs`
+does exactly that; an adapter that returns only `{ spec }` still works, it just
+cannot resolve that shape.
+
+`kind` and `line` are extraction facts the pipeline does not currently read.
+Emit them anyway: `kind` is what the conformance table asserts to prove *which*
+pattern matched, and `line` is what Phase 7's jump-to-line needs.
+
+**Order is part of the contract.** Return matches in source order — import edges
+are emitted in the order extraction produced them and never re-sorted, so this is
+what makes two runs of one input byte-identical.
 
 ### `ids` is always an array
 
@@ -64,6 +80,7 @@ missing one is a gap somebody can see.
 | `dir` | the acquired tree's root on disk |
 | `all` | the exclude-filtered walk **before** `keep` — the only way to reach a file `keep` never admits |
 | `ctx[yourId]` | whatever your `prepare` returned |
+| `progress` | `progress(phase, done, total)` — the scan's own progress line |
 | `warn` | one line to stderr |
 
 `dir` and `all` exist because a resolver often needs a file that is not itself
@@ -88,9 +105,29 @@ once — never per import.
 
 ## Adding a language
 
-`src/adapters/generic.mjs` is the skeleton: it claims nothing, extracts nothing,
-and is what "this language has no adapter" already behaves like. Copy it, and
-copy a fixture.
+Start from this skeleton. It claims nothing and extracts nothing, which is
+exactly what "this language has no adapter" already behaves like, so it is a
+working no-op before it is anything else:
+
+```js
+export default {
+  id: "go",
+  extensions: [".go"],
+  extractImports(text) {
+    return [];          // -> [{ spec, symbols?, kind, line }]
+  },
+  resolve(from, spec, ctx) {
+    return { kind: "unresolved", ids: [spec] };
+  },
+};
+```
+
+Register it in `src/adapters/index.mjs`, then copy a fixture.
+
+Note what registering costs you beyond edges: `adapterFor()` is also what endpoint
+extraction asks before running a route rule over a file, and what `atlas scan`
+reports as unreadable when it answers null. Claiming an extension is claiming the
+tool can read that language.
 
 **Start with the fixture, not the regex.** `fixtures/hostile-ts/` and
 `fixtures/hostile-py/` are small hand-built repos whose every file exists to

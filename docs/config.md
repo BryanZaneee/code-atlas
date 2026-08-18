@@ -3,7 +3,8 @@
 **A config is optional.** `atlas build --repo .` detects what it can and falls
 back to defaults for the rest, which is the path a repository the tool has never
 seen takes. A config exists to override what detection got wrong, and it only
-ever overrides the keys it names.
+ever overrides the keys it names — **with one exception, `exclude`, which adds
+to the defaults rather than replacing them.**
 
 Precedence, lowest to highest:
 
@@ -36,7 +37,15 @@ overwrite an existing config** — delete it first, or edit it in place. Run
 | `layerRules` | array | the default rules | how a file is assigned to a layer |
 | `fallbackLayer` | string | `"unsorted"` | where a file no rule matched goes |
 | `keep` | RegExp | source, schema and prose extensions | which files are drawn at all |
-| `exclude` | RegExp[] | dependencies, build output, lockfiles | which paths are never walked |
+| `exclude` | RegExp[] | dependencies, build output, lockfiles | which paths are never walked. **Additive** — see below |
+
+### `exclude` is the one additive key
+
+Every other key is a preference a config is entitled to overrule. This one is
+hygiene. A config naming a generated-output directory means "also skip this",
+never "and walk `node_modules`" — and forgetting to restate the defaults is both
+silent and expensive: a worktree scan then walks every dependency ever installed.
+Your patterns are appended to the defaults and de-duplicated by source.
 
 ### `services`
 
@@ -87,6 +96,14 @@ and failing that to `fallbackLayer` — and says which of those happened. The
 share that ended up there is printed after every scan; if it is large, the
 defaults are not carrying your layout and this is the key to fix.
 
+### `serviceOf(path)` — the function form
+
+The service analogue of `classify` below. Return a service id for a path, and it
+wins over the `services` array's root matching. It is trusted as written,
+including its misses — an existing config's payload must not move underneath it.
+An id it returns but never declares is **added** to `services` and marked
+`synthesized`, rather than its files being dropped.
+
 ### `classify(path)` — the older shape
 
 A config may supply a function instead of `layerRules`:
@@ -96,9 +113,13 @@ classify: (p) => (/\/routes\//.test(p) ? "route" : "other"),
 ```
 
 It keeps working and wins over rules. It returns a layer id, or `"other"` for
-no match. The cost is provenance: a function can only report *that* the config
-decided, never *which* rule matched, so INSPECT is less useful. Prefer
-`layerRules` in new configs.
+no match.
+
+Two costs. Provenance: a function can only report *that* the config decided,
+never *which* rule matched, so INSPECT is less useful. And its no-match layer is
+**`tooling`**, not the `fallbackLayer` default of `unsorted` — that is what this
+shape has always meant, and changing it would move existing payloads. Set
+`fallbackLayer` to say otherwise. Prefer `layerRules` in new configs.
 
 ## Endpoints
 
@@ -141,6 +162,8 @@ edge kind does not drop the other eleven.
 | `ink` `bg` | string | text and ground |
 | `accent` | string | the **state** channel's one colour — selection, hover, flow membership. Identity writes to fill, state writes to stroke and badge, so turning identity colour off cannot turn the selection off |
 | `plate` `edge` | string | the two greys every plate, outline, label halo and watermark is mixed from at an alpha. A named token per opacity would be thirteen tokens per palette |
+| `face` | string | the block face in `mono`, where identity fill is off; the two vertical faces are shaded from it |
+| `packetLabel` | string | text on a packet |
 | `layerFallback` | string | a layer with no `color` |
 | `font` | string | a literal font stack — canvas cannot read `var(--mono)` |
 | `edgeStyle` `packetColor` `coverTint` | object | per edge kind / packet kind / coverage state |
