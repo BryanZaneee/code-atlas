@@ -2,8 +2,8 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5 and 3 complete; Phase 1 holds one gate a human has to
-measure. Phase 4 (endpoint extraction) is next · 4 of 12 phases complete
+**Status:** Phases 0, 2, 2.5, 3 and 4 complete; Phase 1 holds one gate a human has to
+measure, and Phase 7 has its server but not its panel · 5 of 12 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -12,10 +12,10 @@ measure. Phase 4 (endpoint extraction) is next · 4 of 12 phases complete
 | 2 | Config, detection, graceful degradation | 3, 4 | ● done |
 | 2.5 | Visual system: palette, selection, chrome | — | ● done |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
-| 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
+| 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
 | 5 | Findings engine | — | ○ |
 | 6 | Path derivation + calibration | 8 | ○ |
-| 7 | `atlas serve` + code viewer | 8, 9 | ○ |
+| 7 | `atlas serve` + code viewer | 8, 9 | ◐ server done, viewer half open |
 | 8 | Request composer UI | 9 | ○ |
 | 9 | Live proxy mode | — | ○ |
 | 10 | Open-source packaging | — | ○ |
@@ -218,15 +218,30 @@ are visible on every single interaction.*
 
 ## Phase 4 — Endpoint extraction v2
 
-- [ ] Rule schema as data; **never match a non-literal path**; count and report skips
-- [ ] Symbol → file mount resolution, run to a **fixpoint** (Shuttrr's mounts are two levels deep)
-- [ ] File-based routing: `(groups)` stripped, `[param]` → `:param`, `route.ts` vs `page.tsx`
-- [ ] Path normalization so `:id` and `{id}` collapse to one logical node
-- [ ] Route line numbers
-- [ ] **Gate:** Shuttrr yields `POST /api/photos/upload`, `GET /api/photos/gallery`, `GET /health`, ≥12 `/api/ai/*` via the two-level mount, `/sign-in`, `/auth/callback`
-- [ ] **Gate:** `(auth)` / `(dashboard)` absent from every path; zero endpoints from `web/app/(dashboard)/studio/components/*`
-- [ ] **Gate:** ≥8 skipped non-literal registrations reported, naming `presets.ts`
-- [ ] **Gate:** TaxVault's 18 endpoints unchanged; every curated flow still validates
+- [x] Rule schema as data; **never match a non-literal path**; count and report skips
+      — two shapes are counted: a call whose path is not a literal, and a literal
+      path handed to a helper inside a file mounted as a router, where the method
+      lives in code this tool does not follow. The skip list rides on the returned
+      array as a non-index property, so `JSON.stringify` keeps it out of the payload
+- [x] Symbol → file mount resolution, run to a **fixpoint** — a test harness
+      mounting a router at `/` is excluded, or every route is reported at a second
+      path nobody can call; `app.use("/*", handler)` is middleware, not a mount
+- [x] File-based routing: `(groups)` stripped, `[param]` → `:param`, `route.ts` vs `page.tsx`
+      — a `route.ts` emits one endpoint per exported HTTP method, at that export's
+      own line; a component file inside a route directory is not a route
+- [x] Path normalization so `:id` and `{id}` collapse to one logical node —
+      **in the identity key only**. Rewriting the displayed path broke
+      `validateFlows()`'s match against curated flow steps and silently dropped
+      5 edges (467 → 462); the count gate did not catch it, the golden did
+- [x] Route line numbers — additive, so no schema bump
+- [x] **Gate:** Shuttrr yields `POST /api/photos/upload`, `GET /api/photos/gallery`, `GET /health`, ≥12 `/api/ai/*` via the two-level mount, `/sign-in`, `/auth/callback`
+  - 24 → 52 with the mount chain → 71 with file-based routing; `/api/ai/*` = 23
+- [x] **Gate:** `(auth)` / `(dashboard)` absent from every path; zero endpoints from `web/app/(dashboard)/studio/components/*`
+- [x] **Gate:** ≥8 skipped non-literal registrations reported, naming `presets.ts`
+  - 9: eight in `presets.ts`, one in the `_shared.ts` helper that registers them
+- [x] **Gate:** TaxVault's 18 endpoints unchanged; every curated flow still validates
+  - 18 endpoints, 467 edges, 350/0/319 imports; the only warning is the
+    pre-existing service reconciliation one, and no flow warns
 
 ## Phase 5 — Findings engine
 

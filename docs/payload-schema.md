@@ -144,13 +144,30 @@ kinds. Self-edges are dropped.
 | --- | --- | --- | --- |
 | `id` | string | stable | `"METHOD /path"`, suffixed ` · service` only on a genuine collision |
 | `method` | string | stable | uppercase |
-| `path` | string | stable | literal, mount prefix applied |
+| `path` | string | stable | **literal**, mount prefix applied — see below |
 | `service` | string | stable | service id |
 | `definedIn` | string | stable | the file declaring it |
+| `line` | number | stable | 1-based line the route is declared on; what jump-to-line opens |
+
+**`path` is the source's own text, never rewritten.** `:id` and `{id}` are the
+same logical param in two frameworks' syntax and collapse onto one node, but
+that collapse happens in the identity key — the path you are shown is the one
+the file actually declares. Rewriting it would silently break a curated flow
+that references an endpoint by its literal id.
+
+**A mount prefix is discovered, not assumed.** Where a config rule declares a
+`mount`, that wins. Otherwise the prefix comes from following
+`app.route(prefix, router)` registrations across files to a fixpoint, because a
+path assembled from three files appears in none of them.
 
 **A non-literal route path is never emitted.** A phantom endpoint is worse than
 a missing one, so a registration the extractor cannot read literally is skipped
-and counted rather than guessed at. Phase 4 reports those counts.
+and counted rather than guessed at. Two shapes are counted: a call whose path is
+not a string literal, and a literal path handed to a helper inside a file that
+is mounted as a router, where the method lives in code this tool does not
+follow. `atlas scan` prints them grouped by file. The list is **not** part of
+the payload — it rides on the returned array as a non-index property, which
+`JSON.stringify` ignores.
 
 ## `flows`
 
