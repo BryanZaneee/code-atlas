@@ -68,6 +68,30 @@ const ADDED_GROUP = ["code", "parentId"];
  * under comparison. It is deliberately narrow: it names one bug and undoes one
  * bug.
  */
+/**
+ * Phase 3, the same shape of thing: one bug named, one bug undone.
+ *
+ * The prototype extracted imports from raw source, so a line of English prose
+ * inside a module docstring that happens to begin `import <word>:` was read as
+ * an import — this repository has exactly one, and it has been reporting a
+ * package named after a stdlib module that the file never imports. The Phase 3
+ * adapters blank comments and string bodies before matching, which removes it.
+ *
+ * Undoing it means re-adding a package to whichever node lost one, found by
+ * comparison rather than named: the golden is the record of what the prototype
+ * said, so a hardcoded path here would just be the same claim written twice.
+ */
+function undoDocstringImportFix(p, expected) {
+  const was = new Map(JSON.parse(expected).nodes.map((n) => [n.id, n.externals]));
+  for (const n of p.nodes) {
+    const before = was.get(n.id);
+    if (!before || before.length === n.externals.length) continue;
+    const missing = before.filter((e) => !n.externals.includes(e));
+    n.externals = [...n.externals, ...missing].sort();
+    p.meta.packageCount = new Set(p.nodes.flatMap((x) => x.externals)).size;
+  }
+}
+
 function undoJsonLangFix(p) {
   const json = p.nodes.filter((n) => n.lang === "json");
   for (const n of json) n.lang = "md";
@@ -102,6 +126,7 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   for (const f of stripped.flows) for (const st of f.steps) for (const k of ADDED_STEP) delete st[k];
 
   const expected = readFileSync(path.join(GOLDEN_DIR, "taxvault.prototype.json"), "utf8");
+  undoDocstringImportFix(stripped, expected);
   const actual = serialize(stripped);
   assert.equal(actual, expected, `the scanner's output drifted\n${firstDiff(expected, actual)}`);
 });

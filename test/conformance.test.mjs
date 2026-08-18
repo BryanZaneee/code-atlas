@@ -1,10 +1,14 @@
 /**
- * The Phase 3 gate for the TypeScript adapter: exact resolution, not counts.
+ * The Phase 3 gate for the adapters: exact resolution, not counts.
  *
- * fixtures/hostile-ts/ deliberately exercises what kills a regex resolver —
- * barrel chains, `export * from`, aliased re-exports, circular imports, a
- * per-tsconfig `@/` alias next to a sibling with none at all, extensionless
- * imports, side-effect imports, `require()`, dynamic `import()`, and `.tsx`.
+ * fixtures/hostile-ts/ and fixtures/hostile-py/ deliberately exercise what
+ * kills a regex resolver — barrel chains, `export * from`, aliased re-exports,
+ * circular imports, a per-tsconfig `@/` alias next to a sibling with none at
+ * all, extensionless imports, side-effect imports, `require()`, dynamic
+ * `import()`, `.tsx`; and on the Python side relative-dot imports at one, two
+ * and three dots, bare `from . import x`, an `__init__.py` re-export barrel,
+ * and prose inside a docstring that reads exactly like an import.
+ *
  * A table of every import in the fixture and its expected outcome is the only
  * way a silent regression — a pattern that used to match and quietly stops —
  * gets caught, which a passing/failing count cannot do.
@@ -15,12 +19,20 @@ import path from "node:path";
 import { collect } from "../src/scan/walk.mjs";
 import { DEFAULT_KEEP, DEFAULT_EXCLUDE } from "../src/config/defaults.mjs";
 import ts from "../src/adapters/ts.mjs";
+import py from "../src/adapters/py.mjs";
 import { FIXTURE_DIR } from "./helpers.mjs";
 
-const dir = path.join(FIXTURE_DIR, "hostile-ts");
-const { all, paths, fileSet, src } = collect(dir, { keep: DEFAULT_KEEP, exclude: DEFAULT_EXCLUDE });
-const ctx = { config: {}, paths, fileSet, src, dir, all, warn: () => {}, progress: () => {} };
-ctx.ts = ts.prepare(ctx);
+/** A fixture scanned the way the pipeline scans one, with the adapter prepared. */
+function fixture(name, adapter) {
+  const dir = path.join(FIXTURE_DIR, name);
+  const { all, paths, fileSet, src } = collect(dir, { keep: DEFAULT_KEEP, exclude: DEFAULT_EXCLUDE });
+  const ctx = { config: {}, paths, fileSet, src, dir, all, warn: () => {}, progress: () => {} };
+  ctx[adapter.id] = adapter.prepare(ctx);
+  return ctx;
+}
+
+const ctx = fixture("hostile-ts", ts);
+const { paths, src } = ctx;
 
 /**
  * One row per import in the fixture, in source order. `spec` is read back out
@@ -94,28 +106,101 @@ test("every file in fixtures/hostile-ts/ is covered by the expectation table", (
   assert.deepEqual(missing, [], "a fixture file with no row in EXPECT — add one or it isn't being conformance-checked");
 });
 
-for (const [file, expected] of Object.entries(EXPECT)) {
-  test(`${file}: extracts exactly the imports it should`, () => {
-    const extracted = ts.extractImports(src.get(file));
-    // Extracted specs first, independent of resolution: this is what proves
-    // the comment and the template literal in app/entry.ts — both containing
-    // text that looks like an import — were blanked rather than matched.
-    assert.deepEqual(
-      extracted.map((e) => e.spec).sort(),
-      expected.map((e) => e.spec).sort(),
-      "extracted specifiers do not match the expected set",
-    );
-    for (const exp of expected) {
-      const got = extracted.find((e) => e.spec === exp.spec);
-      assert.equal(got.kind, exp.kind, `${file} ${exp.spec}: wrong kind`);
-      if (exp.line !== undefined) assert.equal(got.line, exp.line, `${file} ${exp.spec}: wrong line`);
-    }
-  });
+/**
+ * The same two assertions for either adapter. Extraction is checked as a set
+ * before resolution is checked at all: that is what proves the comment, the
+ * template literal and the docstring — each containing text that reads exactly
+ * like an import — were blanked rather than matched. `symbols` comes back out
+ * of extraction rather than being restated here, because it is what the
+ * pipeline actually hands `resolve`.
+ */
+function conform(adapter, adapterCtx, EXPECT) {
+  for (const [file, expected] of Object.entries(EXPECT)) {
+    test(`${file}: extracts exactly the imports it should`, () => {
+      const extracted = adapter.extractImports(adapterCtx.src.get(file), file, adapterCtx);
+      assert.deepEqual(
+        extracted.map((e) => e.spec).sort(),
+        expected.map((e) => e.spec).sort(),
+        "extracted specifiers do not match the expected set",
+      );
+      for (const exp of expected) {
+        const got = extracted.find((e) => e.spec === exp.spec);
+        assert.equal(got.kind, exp.kind, `${file} ${exp.spec}: wrong kind`);
+        if (exp.line !== undefined) assert.equal(got.line, exp.line, `${file} ${exp.spec}: wrong line`);
+      }
+    });
 
-  test(`${file}: resolves every import exactly as expected`, () => {
-    for (const exp of expected) {
-      const r = ts.resolve(file, exp.spec, ctx);
-      assert.deepEqual(r, exp.resolved, `${file} -> "${exp.spec}"`);
-    }
-  });
+    test(`${file}: resolves every import exactly as expected`, () => {
+      const extracted = adapter.extractImports(adapterCtx.src.get(file), file, adapterCtx);
+      for (const exp of expected) {
+        const got = extracted.find((e) => e.spec === exp.spec);
+        const r = adapter.resolve(file, exp.spec, adapterCtx, got?.symbols);
+        assert.deepEqual(r, exp.resolved, `${file} -> "${exp.spec}"`);
+      }
+    });
+  }
 }
+
+conform(ts, ctx, EXPECT);
+
+// ---------------------------------------------------------------- Python
+
+const pyCtx = fixture("hostile-py", py);
+
+/**
+ * `sys.path` here is inferred, not configured: `src/` is a root because the
+ * packages under it stop having `__init__.py` at that level, and the repo root
+ * is one because a pyproject.toml sits there. Nothing in this fixture carries
+ * an atlas config, which is the path a stranger's repository takes.
+ */
+const EXPECT_PY = {
+  "src/pkg/__init__.py": [
+    { spec: ".engine", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/engine.py"] } },
+    { spec: ".lib.util", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/lib/util.py"] } },
+  ],
+  "src/pkg/engine.py": [
+    { spec: ".lib.util", kind: "static", line: 7, resolved: { kind: "internal", ids: ["src/pkg/lib/util.py"] } },
+    // Bare `from . import x`: the symbol is the module, so this must land on
+    // registry.py and not collapse onto the package's own __init__.py.
+    { spec: ".", kind: "static", line: 8, resolved: { kind: "internal", ids: ["src/pkg/registry.py"] } },
+    { spec: ".missing_module", kind: "static", line: 9, resolved: { kind: "unresolved", ids: [".missing_module"] } },
+  ],
+  // Circular with engine.py, and neither may drop out of the graph for it.
+  "src/pkg/registry.py": [
+    { spec: ".engine", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/engine.py"] } },
+  ],
+  "src/pkg/constants.py": [],
+  "src/pkg/lib/__init__.py": [],
+  "src/pkg/lib/util.py": [
+    { spec: "re", kind: "static", resolved: { kind: "external", ids: ["re"] } },
+    { spec: "..constants", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/constants.py"] } },
+  ],
+  "src/pkg/sub/__init__.py": [],
+  "src/pkg/sub/deep.py": [
+    // Three dots, then back down into the package — and through the barrel,
+    // so it names the module that defines Engine rather than the barrel.
+    { spec: "...pkg", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/engine.py"] } },
+    { spec: "..constants", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/constants.py"] } },
+    { spec: ".sibling", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/sub/sibling.py"] } },
+  ],
+  "src/pkg/sub/sibling.py": [],
+  "tools/report.py": [
+    { spec: "json", kind: "static", resolved: { kind: "external", ids: ["json"] } },
+    { spec: "pkg.engine", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/engine.py"] } },
+    { spec: "pkg", kind: "static", resolved: { kind: "internal", ids: ["src/pkg/lib/util.py"] } },
+  ],
+};
+
+test("every file in fixtures/hostile-py/ is covered by the expectation table", () => {
+  const covered = new Set(Object.keys(EXPECT_PY));
+  const missing = pyCtx.paths.filter((p) => !covered.has(p));
+  assert.deepEqual(missing, [], "a fixture file with no row in EXPECT_PY — add one or it isn't being conformance-checked");
+});
+
+test("sys.path roots are inferred from the layout, not from config", () => {
+  // Deliberately not "every directory": if any were a root, a local module
+  // named after a package would capture an import that could never mean it.
+  assert.deepEqual(pyCtx.py.roots, ["src", ""]);
+});
+
+conform(py, pyCtx, EXPECT_PY);

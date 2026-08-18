@@ -42,7 +42,7 @@ second code path. Return `["one/file.ts"]` for the ordinary case.
 
 | kind | means | `ids` holds |
 | --- | --- | --- |
-| `internal` | these repo files, definitely | the resolved paths, deduped and **sorted** |
+| `internal` | these repo files, definitely | the resolved paths, deduped, in a **deterministic** order — sorted, unless the source order is itself meaningful |
 | `external` | a third-party package | the package name, not the full specifier |
 | `unresolved` | *I could not place this* | the best diagnostic string you have |
 

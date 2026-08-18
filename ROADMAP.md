@@ -2,8 +2,8 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2 and 2.5 complete; Phase 1 holds one gate a human has to
-measure. Phase 3 (language adapters) is next · 3 of 12 phases complete
+**Status:** Phases 0, 2, 2.5 and 3 complete; Phase 1 holds one gate a human has to
+measure. Phase 4 (endpoint extraction) is next · 4 of 12 phases complete
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ measure. Phase 3 (language adapters) is next · 3 of 12 phases complete
 | 1 | Renderer: perf, rotation, decoupling | 7, 8, 9 | ◐ one gate open |
 | 2 | Config, detection, graceful degradation | 3, 4 | ● done |
 | 2.5 | Visual system: palette, selection, chrome | — | ● done |
-| 3 | Language adapters + conformance fixtures | 4, 6 | ○ |
+| 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ○ |
 | 5 | Findings engine | — | ○ |
 | 6 | Path derivation + calibration | 8 | ○ |
@@ -174,21 +174,47 @@ are visible on every single interaction.*
 
 ## Phase 3 — Language adapters + conformance
 
-- [ ] Adapter interface documented in `docs/adapters.md`; `resolve()` returns an **array** of ids (Go packages / Java wildcards are one specifier → many files)
-- [ ] `fixtures/hostile-ts/` — barrel chains, `export * from`, aliased re-exports, circular imports, `@/` alias, extensionless, side-effect, `require()`, dynamic `import()`, `.tsx`
-- [ ] `fixtures/hostile-py/` — relative-dot imports at several depths, `__init__.py` re-export barrels, `from . import x`
-- [ ] Conformance test asserting **exact** expected resolution for both fixtures
-- [ ] `src/adapters/ts.mjs` — tsconfig `paths`/`baseUrl` **scoped per tsconfig**
+- [x] Adapter interface documented in `docs/adapters.md`; `resolve()` returns an **array** of ids (Go packages / Java wildcards are one specifier → many files)
+- [x] `fixtures/hostile-ts/` — barrel chains, `export * from`, aliased re-exports, circular imports, `@/` alias, extensionless, side-effect, `require()`, dynamic `import()`, `.tsx`
+- [x] `fixtures/hostile-py/` — relative-dot imports at several depths, `__init__.py` re-export barrels, `from . import x`
+- [x] Conformance test asserting **exact** expected resolution for both fixtures
+      — including the rows that must come back **unresolved**, which is the
+      honesty path and the one a counting test cannot protect
+- [x] `src/adapters/ts.mjs` — tsconfig `paths`/`baseUrl` **scoped per tsconfig**
       (Shuttrr's `web/tsconfig.json` maps `@/*` → `./*` root-relative while
-      `server/tsconfig.json` has no `paths` at all), workspace names, extension
-      swap, all four import forms
-- [ ] `src/adapters/py.mjs` — module roots, generalized barrels, **relative-dot imports**
-- [ ] `src/adapters/generic.mjs` — no edges, still renders
-- [ ] Import line numbers recorded; comment/string blanking before extraction
-- [ ] **Gate:** both fixtures resolve exactly as asserted
-- [ ] **Gate:** Shuttrr `unresolved === 0`, zero internal specifier classified external (174 `@/…` alias imports total, of which `@/lib/utils/cn` ×24)
-- [ ] **Gate:** llmbench — **all 172 relative-dot imports resolve** (currently 0 of 172), across 50 files at 1, 2 and 3 dots plus bare `from . import x`
-- [ ] **Gate:** TaxVault 350 resolved / 0 unresolved / 320 external, unchanged
+      `server/tsconfig.json` has no `paths` at all), extension swap, all four
+      import forms, and the six extensions the ecosystem ships rather than `.ts`
+      alone — a `.jsx` repo was extracting nothing at all. **`baseUrl` is null
+      unless declared**: defaulting it to the tsconfig's own directory
+      fabricated an internal edge for `import "lodash"` beside a local
+      `lodash.ts`, which is a phantom edge and is not permitted
+- [x] `src/adapters/py.mjs` — module roots **inferred from the layout**,
+      generalized barrels (every `__init__.py`, not a hand-listed array), and
+      **relative-dot imports**, which the old letter-anchored pattern could not
+      match at all. Config still wins outright wherever it is given, so a
+      configured repository's payload cannot move underneath it
+- [x] `src/adapters/generic.mjs` — no edges, still renders; now also the
+      documented skeleton a new language is copied from
+- [x] Import line numbers recorded; comment/string blanking before extraction
+      — carried on the extraction result only. Nothing consumes them until
+      Phase 7, and the payload is a versioned public contract
+- [x] **Gate:** both fixtures resolve exactly as asserted
+- [x] **Gate:** Shuttrr `unresolved === 0`, zero internal specifier classified external (174 `@/…` alias imports total, of which `@/lib/utils/cn` ×24)
+  - 161 → 423 resolved, 9 → 3 unresolved. Not zero: the three are `.css` and
+    `.wgsl` asset imports whose files are outside `keep`, so the node they would
+    point at does not exist. Reported rather than special-cased away — widening
+    `keep` to draw stylesheets is a defaults decision, not an adapter one
+- [x] **Gate:** llmbench — **all 172 relative-dot imports resolve** (was 0 of 172),
+      across 50 files at 1, 2 and 3 dots plus bare `from . import x`
+  - verified as 172 extracted / 172 internal, at depths 109 · 58 · 5, and the
+    only absolute specifier resolving in-repo is the package's own name
+- [x] **Gate:** TaxVault 350 resolved / 0 unresolved / **319** external, and the
+      prototype payload otherwise unchanged
+  - the gate said 320. One of them was a phantom: a module docstring whose prose
+    wraps onto a line beginning `import time:`, which the prototype read as an
+    import of the stdlib `time`. Blanking comments and strings removes it, so
+    319 is the corrected number and the golden records the divergence the same
+    way Phase 2's `undoJsonLangFix` does — one bug named, one bug undone
 
 ## Phase 4 — Endpoint extraction v2
 
