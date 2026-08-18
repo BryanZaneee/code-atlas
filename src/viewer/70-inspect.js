@@ -46,6 +46,10 @@ function renderInspect() {
     const dl = el("dl", "kv");
     const add = (k, v) => { dl.append(el("dt", null, k), el("dd", null, v)); };
     add("KIND", st.kind);
+    // A derived hop carries how it was justified. The canvas already says it in
+    // weight and dash; spelling it out is what turns "that line looks thinner"
+    // into a fact you can quote.
+    if (st.certainty) add("CERTAINTY", CERTAINTY_LABEL[st.certainty] ?? st.certainty);
     add("FROM", byId.get(st.from)?.name ?? st.from);
     add("TO", byId.get(st.to)?.name ?? st.to);
     b.append(dl);

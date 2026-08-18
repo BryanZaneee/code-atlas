@@ -309,9 +309,9 @@ reference screenshots the user supplied, plus four things they named directly.*
 *Calibration is a script and it runs before any composer UI exists. One endpoint is an anecdote.*
 
 - [x] `src/model/derive.mjs` — mount-chain seed, handler-slice BFS seed, non-decreasing rank, neutral `io` terminals, response leg
-- [x] Per-hop certainty: `wired` / `imported` / `inferred` — computed and shipped;
-      **the viewer does not read it yet**, so an inferred hop and a proven one draw
-      identically. See the open items below
+- [x] Per-hop certainty: `wired` / `imported` / `inferred` — computed, shipped,
+      and drawn. Weight and dash carry it; colour stays with the step's kind, so a
+      proven hop and an admitted guess no longer read the same
 - [x] Derived at scan time; steps stored as integer node indices
 - [x] `test/calibrate.mjs` — diff derived vs curated across **all 9 flows**
       (moved out of `tools/`: it imports `test/helpers.mjs` and the regression test
@@ -382,13 +382,6 @@ reference screenshots the user supplied, plus four things they named directly.*
 Raised by the quality sweep, verified against the code, and deliberately not
 fixed in it. None is a crash; each is something the map currently claims or
 omits without saying so.
-
-**The viewer ignores `certainty`.** `derive.mjs` computes `wired`/`imported`/
-`inferred` per hop and the payload ships it, but nothing in `src/viewer/` reads
-it — dashes come from edge *kind*, not from certainty. The blurb on every derived
-flow says "Dotted hops are gaps the import graph could not justify", which
-describes something the renderer does not do. Either draw it or change the copy;
-the copy is one line.
 
 **The derived badge hides on a narrow window.** `style.css` drops `#ovRight` under
 1024px, and that is where `DERIVED · NOT VERIFIED` is written — so the caveat

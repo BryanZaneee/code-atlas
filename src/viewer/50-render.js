@@ -325,6 +325,44 @@ function drawArc(x, arc, style, alpha) {
   x.restore();
 }
 
+/**
+ * How sure the tool is that a hop happens, in line weight and dash.
+ *
+ * derive.mjs grades every hop of a derived path `wired` (a mount registration
+ * the scan actually read), `imported` (a real import edge runs the same way) or
+ * `inferred` (a gap — nothing in the graph justifies it). All three used to
+ * draw identically while the flow blurb promised dotted for the gaps, so a
+ * guess read exactly like a proof. That is the one thing the honesty contract
+ * forbids.
+ *
+ * Weight and dash carry it, never colour: colour is already spoken for by the
+ * step's kind (request vs response vs io), and the palette lives in the payload
+ * theme, not here. Certainty is a second channel over the top of it — thick and
+ * solid for proven, hairline and dotted for admitted guesswork — so the two
+ * readings survive together.
+ *
+ * A curated flow step has no certainty and is returned its table style
+ * untouched.
+ */
+const CERTAINTY_STYLE = {
+  wired:    { wMul: 1.55, aMul: 1,    dash: null },
+  imported: { wMul: 1,    aMul: 0.85, dash: null },
+  inferred: { wMul: 0.7,  aMul: 0.55, dash: [2, 5] },
+};
+
+/** The same three grades in words, for the panel that has room for them. */
+const CERTAINTY_LABEL = {
+  wired: "wired — mount read from source",
+  imported: "imported — an import edge runs this way",
+  inferred: "inferred — nothing justifies this hop",
+};
+
+function stepStyle(step) {
+  const base = EDGE_STYLE[step.kind] ?? EDGE_STYLE.request;
+  const c = CERTAINTY_STYLE[step.certainty];
+  return c ? { ...base, w: base.w * c.wMul, dash: c.dash, aMul: c.aMul } : base;
+}
+
 function drawDiamond(x, p, r, fill) {
   x.beginPath();
   x.moveTo(p.x, p.y - r); x.lineTo(p.x + r, p.y); x.lineTo(p.x, p.y + r); x.lineTo(p.x - r, p.y);
@@ -484,7 +522,8 @@ function draw() {
   for (const r of runners) {
     r.steps.forEach((s, i) => {
       const cur = i === r.i;
-      drawArc(ctx, s.arc, EDGE_STYLE[s.kind] ?? EDGE_STYLE.request, cur ? 0.85 : 0.16);
+      const st = stepStyle(s);
+      drawArc(ctx, s.arc, st, (cur ? 0.85 : 0.16) * (st.aMul ?? 1));
     });
   }
 

@@ -19,8 +19,18 @@ import { DEFAULT_THEME, buildViews } from "../src/model/chrome.mjs";
 
 const MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "50-render.js"];
 
-/** Just enough canvas to count what the renderer asks for. */
+/**
+ * Just enough canvas to count what the renderer asks for.
+ *
+ * It also keeps the three properties that decide how a line READS — width,
+ * alpha and dash — through save/restore, and records them for every curved
+ * stroke. Flow hops are the only curves the renderer draws, so `counts.arcs`
+ * is exactly the set of hop strokes, with the styling that was in force.
+ */
 function fakeContext(counts) {
+  const state = { lineWidth: 1, globalAlpha: 1, dash: null };
+  const stack = [];
+  let curved = false;
   const noop = () => {};
   return new Proxy(
     {
@@ -31,11 +41,22 @@ function fakeContext(counts) {
       drawImage: () => counts.drawImage++,
       fillRect: noop,
       clearRect: noop,
-      save: noop, restore: noop, beginPath: noop, closePath: noop,
-      moveTo: noop, lineTo: noop, quadraticCurveTo: noop, arc: noop,
-      fill: noop, stroke: noop, fillText: noop, strokeText: noop, setLineDash: noop,
+      save: () => stack.push({ ...state }),
+      restore: () => Object.assign(state, stack.pop() ?? state),
+      beginPath: () => { curved = false; },
+      closePath: noop,
+      moveTo: noop, lineTo: noop, arc: noop,
+      quadraticCurveTo: () => { curved = true; },
+      fill: noop, fillText: noop, strokeText: noop,
+      setLineDash: (d) => { state.dash = d?.length ? d : null; },
+      stroke: () => {
+        if (curved) counts.arcs.push({ w: state.lineWidth, alpha: state.globalAlpha, dash: state.dash });
+      },
     },
-    { get: (t, k) => (k in t ? t[k] : undefined), set: () => true },
+    {
+      get: (t, k) => (k in t ? t[k] : undefined),
+      set: (t, k, v) => { if (k in state) state[k] = v; return true; },
+    },
   );
 }
 
@@ -51,7 +72,7 @@ function fakeElement(counts) {
 }
 
 function runRenderer(atlas) {
-  const counts = { drawStatic: 0, drawImage: 0 };
+  const counts = { drawStatic: 0, drawImage: 0, arcs: [] };
   const source =
     MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     `
@@ -60,7 +81,7 @@ function runRenderer(atlas) {
     resize();
     const _drawStatic = drawStatic;
     globalThis.scope = {
-      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, LAYOUT, counts: __counts,
+      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, LAYOUT, stepStyle, counts: __counts,
       wrap: () => { drawStatic = function () { __counts.drawStatic++; return _drawStatic.apply(this, arguments); }; },
     };
     `;
@@ -243,4 +264,56 @@ test("a large payload still renders one static pass per frame at most", () => {
   const after = scope.counts.drawStatic;
   for (let i = 0; i < 30; i++) { scope.S.panX += 11; scope.draw(); }
   assert.equal(scope.counts.drawStatic, after);
+});
+
+/**
+ * A derived path grades every hop `wired`, `imported` or `inferred`, the flow
+ * blurb promises that the gaps are dotted, and for a while the renderer drew
+ * all three identically — a guess and a proof, same line. This is the test that
+ * keeps the honesty contract's second channel on the canvas.
+ */
+function derivedPayload() {
+  const p = payload(40);
+  const id = (i) => p.nodes[i].id;
+  const flow = {
+    id: "derived:x", label: "GET /x", view: "derived", derived: true,
+    steps: [
+      { from: id(0), to: id(1), kind: "request", certainty: "wired", inferred: false },
+      { from: id(1), to: id(2), kind: "request", certainty: "imported", inferred: false },
+      { from: id(2), to: id(3), kind: "request", certainty: "inferred", inferred: true },
+    ],
+  };
+  p.derivedFlows = [flow];
+  p.views = buildViews({}, [], [flow]);
+  return p;
+}
+
+test("a derived hop draws how sure it is, not only what kind it is", () => {
+  const scope = runRenderer(derivedPayload());
+  const base = scope.EDGE_STYLE.request;
+  const graded = (certainty) => scope.stepStyle({ kind: "request", certainty });
+  const wired = graded("wired"), imported = graded("imported"), inferred = graded("inferred");
+
+  assert.ok(inferred.dash?.length, "the blurb promises dotted for a gap the graph cannot justify");
+  assert.equal(wired.dash, null, "a mount the scan read is not a guess");
+  assert.equal(imported.dash, null);
+  assert.ok(wired.w > imported.w && imported.w > inferred.w, "weight must fall with certainty");
+  assert.ok(wired.aMul > imported.aMul && imported.aMul > inferred.aMul, "and so must opacity");
+  assert.equal(wired.c, base.c, "colour still belongs to the step's kind, not its certainty");
+
+  // A curated step has no certainty: it must come back with its table style
+  // untouched, or fixing derived paths would have restyled every other flow.
+  assert.deepEqual(scope.stepStyle({ kind: "request" }), base);
+  assert.deepEqual(scope.stepStyle({ kind: "sql" }), scope.EDGE_STYLE.sql);
+
+  // And the renderer has to actually ask. Reading it off the canvas is the half
+  // that fails if someone drops the call and keeps the table.
+  scope.S.view = "derived";
+  scope.relayout();
+  scope.counts.arcs.length = 0;
+  scope.draw();
+  assert.equal(scope.counts.arcs.length, 3, "one stroke per hop of the path");
+  assert.equal(scope.counts.arcs.filter((a) => a.dash).length, 1, "exactly the inferred hop is dotted");
+  const drawn = new Set(scope.counts.arcs.map((a) => `${a.w}|${a.alpha}|${a.dash}`));
+  assert.equal(drawn.size, 3, "three certainties must not collapse into one line");
 });
