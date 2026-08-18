@@ -11,6 +11,11 @@
     --accent:#2563eb; --warn:#c2410c;
     --hover:#eef1f3; --note-ink:#26292b; --sample-bg:#f7f8f9;
     --swatch-edge:#00000038;
+    /* The source reader. One family for syntax, so a colour here can never
+       drift from a colour there — same rule as the rest of this file. */
+    --src-bg:#fbfcfc; --src-gutter:#9aa1a7; --src-hit:#eaf0ff; --src-hit-edge:#2563eb;
+    --src-key:#8250df; --src-str:#0a7b53; --src-com:#7b838a; --src-num:#b45309;
+    --src-fn:#2563eb; --src-punct:#697076;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
     /* Two registers. Mono for chrome, codes, paths and stats; a sans for panel
        prose. All-mono reads as terminal output. System stack, never a fetch. */
@@ -25,6 +30,9 @@
     --accent:#5b8dff; --warn:#f97316;
     --hover:#1e2325; --note-ink:#d5d8da; --sample-bg:#161a1c;
     --swatch-edge:#ffffff45;
+    --src-bg:#121517; --src-gutter:#767d82; --src-hit:#1a2434; --src-hit-edge:#5b8dff;
+    --src-key:#c9a9ff; --src-str:#6fd7a4; --src-com:#7f878d; --src-num:#f0a868;
+    --src-fn:#7fa9ff; --src-punct:#98a0a6;
   }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; overflow:hidden; }
@@ -62,7 +70,14 @@
   button:disabled { opacity:.35; cursor:default; }
 
   /* ── layout ────────────────────────────────────────────── */
-  #main { display:flex; flex:1 1 auto; min-height:0; }
+  /* The reader's width lives here, not on #source, because the map overlays
+     have to move out from under it — a var they can all read is the only way
+     the DERIVED caveat stays visible while a file is open. */
+  #main {
+    display:flex; flex:1 1 auto; min-height:0; position:relative;
+    --src-w:min(760px,55vw); --src-shift:0px;
+  }
+  #main.reading { --src-shift:var(--src-w); }
   aside {
     background:var(--panel); flex:0 0 auto; overflow-y:auto; overflow-x:hidden;
     display:flex; flex-direction:column;
@@ -179,11 +194,82 @@
   .tag.act { cursor:pointer; border-color:var(--accent); color:var(--accent); }
   .tag.act:hover { background:var(--accent); color:var(--bg); }
 
+  /* ── inspect tabs ──────────────────────────────────────── */
+  /* Two words, full width, no icons: the panel has exactly two states and the
+     tab strip is the only place that says which one you are in. */
+  #inspect .tabs { display:flex; border-bottom:1px solid var(--border); flex:0 0 auto; }
+  #inspect .tab {
+    flex:1 1 0; border:0; border-right:1px solid var(--border); border-radius:0;
+    background:var(--panel); color:var(--dim); padding:7px 0;
+  }
+  #inspect .tab:last-child { border-right:0; }
+  #inspect .tab.on { background:var(--ink); color:var(--bg); }
+  /* No server, no source. The tab still opens — it explains itself rather than
+     going missing, which would leave the reader wondering what they lost. */
+  #inspect .tab.off { color:var(--faint); }
+  #inspect .tab.off.on { background:var(--panel-2); color:var(--dim); }
+
+  /* ── source reader ─────────────────────────────────────── */
+  #source {
+    position:absolute; top:0; right:0; bottom:0; width:var(--src-w); min-width:360px;
+    background:var(--panel); border-left:1px solid var(--border);
+    display:flex; flex-direction:column; z-index:6;
+  }
+  #source[hidden] { display:none; }
+  #srcGrip { position:absolute; left:-3px; top:0; bottom:0; width:7px; cursor:col-resize; z-index:1; }
+  #srcHead {
+    display:flex; align-items:center; gap:10px; justify-content:space-between;
+    padding:6px 10px; border-bottom:1px solid var(--border); flex:0 0 auto;
+  }
+  #srcHead .who { min-width:0; display:flex; align-items:baseline; gap:8px; }
+  #srcPath { font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #srcWhere { font-size:9px; letter-spacing:.12em; color:var(--dim); flex:0 0 auto; }
+  #srcBody { flex:1 1 auto; min-height:0; display:flex; background:var(--src-bg); }
+  .srcMsg { padding:12px 13px; max-width:52ch; }
+  .srcMsgTitle { font-family:var(--sans); font-size:13px; margin-bottom:5px; }
+  .srcMsgTitle.warn { color:var(--warn); }
+
+  /* The gutter is sticky rather than a second column: one row per line means a
+     long line scrolls sideways under a line number that stays put. */
+  .srcCode {
+    flex:1 1 auto; min-width:0; overflow:auto; font-family:var(--mono);
+    font-size:11px; line-height:1.5; padding:6px 0;
+  }
+  .srcCode .ln { display:flex; width:max-content; min-width:100%; }
+  .srcCode .ln .g {
+    position:sticky; left:0; flex:0 0 auto; padding:0 9px 0 10px; text-align:right;
+    color:var(--src-gutter); background:var(--src-bg); user-select:none; white-space:pre;
+  }
+  .srcCode .ln .c { white-space:pre; padding-right:14px; }
+  .srcCode .ln.hit { background:var(--src-hit); }
+  .srcCode .ln.hit .g { background:var(--src-hit); box-shadow:inset 2px 0 0 var(--src-hit-edge); }
+
+  .t-keyword, .t-boolean, .t-constant, .t-builtin, .t-tag, .t-atrule, .t-decorator, .t-important { color:var(--src-key); }
+  .t-string, .t-char, .t-regex, .t-regex-source, .t-regex-delimiter, .t-regex-flags,
+  .t-attr-value, .t-template-string, .t-triple-quoted-string, .t-string-property, .t-url { color:var(--src-str); }
+  .t-comment, .t-prolog, .t-doctype, .t-cdata { color:var(--src-com); font-style:italic; }
+  .t-number { color:var(--src-num); }
+  .t-function, .t-class-name, .t-maybe-class-name, .t-known-class-name,
+  .t-attr-name, .t-property, .t-selector { color:var(--src-fn); }
+  .t-operator, .t-punctuation { color:var(--src-punct); }
+
+  /* A jump is a link inside a row that is itself clickable, so it has to read as
+     a separate target — a chip, not underlined text. */
+  button.srcJump {
+    margin-top:7px; text-transform:none; letter-spacing:.02em; font-size:9.5px;
+    color:var(--accent); border-color:var(--accent); background:var(--bg);
+  }
+  button.srcJump:hover { background:var(--accent); color:var(--bg); }
+  .row button.srcJump { margin:0 0 0 auto; padding:1px 5px; flex:0 0 auto; }
+
   /* ── overlays ──────────────────────────────────────────── */
   .ov { position:absolute; pointer-events:none; font-size:9px; letter-spacing:.14em; color:var(--dim); }
   #ovTop { top:9px; left:13px; }
   #ovTop b { display:block; font-size:11px; letter-spacing:.1em; color:var(--ink); }
-  #ovRight { top:9px; right:13px; text-align:right; }
+  /* Shifted, never hidden. The DERIVED caveat is the one thing on this canvas
+     that a reader must not be able to lose track of, and opening a file is not
+     a reason to stop admitting that a path was modelled. */
+  #ovRight { top:9px; right:calc(13px + var(--src-shift,0px)); text-align:right; }
   /* The one overlay allowed to shout: it is the difference between a path that
      was observed and one this tool inferred. It is also its own element rather
      than a class on the status line, because the status line is droppable at
@@ -194,7 +280,7 @@
   /* The caption is the only overlay that says WHERE in a flow you are, so it
      sits under the eye's resting point rather than in a corner. */
   #caption {
-    bottom:34px; left:50%; transform:translateX(-50%); max-width:80%;
+    bottom:34px; left:calc(50% - var(--src-shift,0px) / 2); transform:translateX(-50%); max-width:80%;
     background:var(--panel); border:1px solid var(--border); color:var(--ink);
     padding:4px 10px; letter-spacing:.08em; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; opacity:0; transition:opacity .2s;
@@ -212,7 +298,7 @@
      cursor, so reading it costs no commitment and no eye chase. */
   #tip {
     position:absolute; pointer-events:none; background:var(--ink); color:var(--bg);
-    bottom:8px; left:50%; transform:translateX(-50%); max-width:70%;
+    bottom:8px; left:calc(50% - var(--src-shift,0px) / 2); transform:translateX(-50%); max-width:70%;
     padding:3px 9px; font-size:9.5px; border-radius:1px; opacity:0; transition:opacity .1s;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; z-index:5;
   }
@@ -224,7 +310,7 @@
      failure the honesty contract exists to prevent, and a window being narrow
      is not a reason to stop admitting it. */
   @media (max-width:1024px) { #ovHint, #ovStatus { display:none; } }
-  @media (max-width:900px)  { #inspect { display:none; } #sidebar { width:180px; } }
+  @media (max-width:900px)  { #inspect { display:none; } #sidebar { width:180px; } #main { --src-w:100%; } }
 
   ::-webkit-scrollbar { width:9px; height:9px; }
   ::-webkit-scrollbar-thumb { background:var(--border); }

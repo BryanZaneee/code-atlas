@@ -36,8 +36,14 @@ window.addEventListener("keydown", (e) => {
   else if (k === "arrowright") stepBy(1);
   else if (k === "arrowleft") stepBy(-1);
   else if (k === "escape") {
-    S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
-    renderList(); renderInspect(); renderCaption();
+    // The reader is on top of everything else, so it is what Escape means while
+    // it is open. Clearing the selection underneath it would throw away the
+    // thing you opened the file to look at.
+    if (SRC.open) closeSource();
+    else {
+      S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
+      renderList(); renderInspect(); renderCaption();
+    }
   } else return;
   e.preventDefault();
 });

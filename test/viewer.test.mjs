@@ -77,12 +77,30 @@ function topLevelNames(text) {
   return names;
 }
 
+/**
+ * Minified vendored code defeats the walker above, and does not need it.
+ *
+ * A regex literal carries unbalanced brackets — `/[({]/` is three opens and no
+ * close — so the depth counter loses its place partway through a minified file
+ * and starts reading object keys as declarators. Minification also puts every
+ * top-level declaration at the start of its own line, which is precisely the
+ * case the naive one-declarator regex gets right. Vendored files are therefore
+ * read with the simple rule and still contribute their names, so a viewer
+ * module that re-declares one of them still fails here.
+ */
+const VENDORED = /^\/\*[^\n]*\bvendored:/;
+
+function declaredNames(text) {
+  if (!VENDORED.test(text)) return topLevelNames(text);
+  return [...text.matchAll(/^(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
+}
+
 test("no top-level name is declared twice across viewer modules", () => {
   const owner = new Map();
   const clashes = [];
   for (const f of viewerFiles()) {
     const text = readFileSync(path.join(VIEWER_DIR, f), "utf8");
-    for (const name of topLevelNames(text)) {
+    for (const name of declaredNames(text)) {
       if (owner.has(name)) clashes.push(`${name}: ${owner.get(name)} and ${f}`);
       else owner.set(name, f);
     }

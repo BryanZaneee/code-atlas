@@ -59,6 +59,13 @@ function renderInspect() {
       const pre = el("pre", "sample", JSON.stringify(st.sample, null, 2));
       b.append(pre);
     }
+    // The hop's justifying import, when there is one. An inferred hop crossed a
+    // gap in the import graph and has no line to open — so it is offered no
+    // button, rather than one that lands somewhere plausible.
+    const justifies = srcHopImport(st);
+    const hop = justifies && srcJump("⤷ IMPORT IN", justifies.path, justifies.line);
+    if (hop) b.append(hop);
+
     const back = el("button", null, "← CLEAR PACKET");
     back.style.marginTop = "9px";
     back.onclick = () => { S.pinnedPacket = null; renderInspect(); };
@@ -124,6 +131,15 @@ function renderInspect() {
   if (n.subject) add("COVERS", byId.get(n.subject)?.name ?? n.subject);
   b.append(dl);
 
+  // Read the thing itself. An endpoint opens the file at the line that declares
+  // the route; a file opens at its top; a test offers the file it covers.
+  const ep = n.kind === "endpoint" ? srcEndpoint(n.id) : null;
+  for (const jump of [
+    ep ? srcJump("⤷ ROUTE IN", ep.definedIn, ep.line) : null,
+    n.kind === "file" ? srcJump("⤷ READ", n.id, 0) : null,
+    n.subject ? srcJump("⤷ COVERS", n.subject, 0) : null,
+  ]) if (jump) b.append(jump);
+
   if (n.note) b.append(el("div", "note", n.note));
   if (n.coverage) {
     const txt = {
@@ -166,6 +182,10 @@ function renderInspect() {
       const t = byId.get(e[key]);
       const r = el("div", "row mini");
       r.append(el("span", "nm", t?.name ?? e[key]), el("span", "sub", e.kind));
+      // The import statement lives in the edge's `from` file, whichever
+      // direction this list is reading the edge from.
+      const jump = srcJump(null, e.line ? e.from : null, e.line);
+      if (jump) r.append(jump);
       r.onclick = () => { S.selected = e[key]; S.pinnedPacket = null; renderInspect(); };
       b.append(r);
       if (e.note) b.append(el("div", "note warn", e.note));

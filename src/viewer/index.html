@@ -78,7 +78,27 @@
       <div class="ov" id="caption"></div>
     </main>
 
-    <aside id="inspect"><div class="sec" id="insBody"></div></aside>
+    <aside id="inspect">
+      <div class="tabs">
+        <button id="tabInfo" class="tab on">INFO</button>
+        <button id="tabSource" class="tab">SOURCE</button>
+      </div>
+      <div class="sec" id="insBody"></div>
+    </aside>
+
+    <!-- The source reader. Docked over the map rather than beside it: code needs
+         the width, and the map carries on rendering behind it. -->
+    <section id="source" hidden>
+      <div id="srcGrip" title="drag to resize"></div>
+      <header id="srcHead">
+        <div class="who">
+          <span id="srcPath">—</span>
+          <span id="srcWhere"></span>
+        </div>
+        <button id="srcClose" title="back to the INFO tab (Esc)">← INFO</button>
+      </header>
+      <div id="srcBody"></div>
+    </section>
   </div>
 
   <footer id="legend"></footer>

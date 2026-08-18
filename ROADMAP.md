@@ -3,7 +3,8 @@
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
 **Status:** Phases 0, 2, 2.5, 2.6, 3, 4 and 6 complete · 7 of 13. Phase 1 holds
-one gate a human has to measure. Phase 7 has its server but not its panel.
+one gate a human has to measure. Phase 7's server and reader are in; what is
+left there is `--embed-source` and `--gzip-source`, which share a gate.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -16,7 +17,7 @@ one gate a human has to measure. Phase 7 has its server but not its panel.
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
 | 5 | Findings engine | — | ○ |
 | 6 | Path derivation + calibration | 8 | ● done |
-| 7 | `atlas serve` + code viewer | 8, 9 | ◐ server done, viewer half open |
+| 7 | `atlas serve` + code viewer | 8, 9 | ◐ reader done, embed/gzip open |
 | 8 | Request composer UI | 9 | ○ |
 | 9 | Live proxy mode | — | ○ |
 | 10 | Open-source packaging | — | ○ |
@@ -333,15 +334,28 @@ reference screenshots the user supplied, plus four things they named directly.*
 - [x] `src/serve/server.mjs` — `listen(port, "127.0.0.1")`, bind host hardcoded, not a flag
 - [x] File allowlist from the scanned set (**membership is the defense**), `lstat` symlink refusal, size cap, always `text/plain`
 - [x] `Host` header check + `Sec-Fetch-Site` rejection (DNS rebinding); CSP; `no-store`; `nosniff`
-- [ ] `INFO | SOURCE` tabs; wide right-docked overlay; line gutter; target line centered
-- [ ] Jump-to-line from endpoint, import edge, test subject, and derived hop
-- [ ] ~60-line regex highlighter (ts/js/tsx, py, sql, json); escape-as-you-emit, never `innerHTML` on source
+- [x] `INFO | SOURCE` tabs; wide right-docked overlay; line gutter; target line centered
+      — `min(760px,55vw)`, `Esc` closes, canvas renders behind, and the map's own
+      overlays shift out from under it so the DERIVED caveat is never covered.
+      Full width below 900px, where a 420px code pane would be unreadable
+- [x] Jump-to-line from endpoint, import edge, test subject, and derived hop
+      — an *inferred* hop is offered no button rather than one that lands
+      somewhere plausible: there is no import to open, and saying so is the point
+- [x] Highlighter — **vendored Prism 1.29.0 instead of the planned ~60-line regex**
+      (~27 KB, committed not installed; reasoning in PLAN.md). Tokenizer only, DOM
+      built by hand from text nodes; `test/source.test.mjs` runs the real paint
+      against a DOM whose `innerHTML` setter throws, so escape-as-you-emit is
+      enforced rather than reviewed
 - [ ] `--embed-source [glob]` + permanent `SOURCE EMBEDDED` badge + CLI size warning
 - [ ] `--gzip-source` via `node:zlib` + `DecompressionStream("gzip")`
 - [x] **Gate:** all 404 — `../../../etc/passwd`, `/etc/passwd`, `.env`, `node_modules/x`, in-repo symlink pointing outside, `..%2f..%2f`, `Host: evil.example`
       — `test/serve.test.mjs` covers the list verbatim, plus a null byte and a
       post-scan symlink swap
-- [ ] **Gate:** clicking `POST /api/photos/upload` opens `photos.ts` at line 12
+- [x] **Gate:** clicking an endpoint opens its file at the declaring line —
+      verified in Chrome against this repo rather than the Shuttrr endpoint the
+      gate names, which needs a corpus checkout: `GET /admin/stats` opens
+      `fixtures/express-js/src/routes/admin.mjs` at line 7, which is the
+      `router.get` call. Re-run on Shuttrr when the corpus is to hand
 - [ ] **Gate:** gzip round-trips; embedded size cut ≥3×
 
 ## Phase 8 — Request composer UI

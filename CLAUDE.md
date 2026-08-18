@@ -4,16 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phases 0, 2, 2.5, 2.6, 3, 4 and 6 are complete. Phase 7 has its server;
-Phase 5 (findings) has not started.**
+**Phases 0, 2, 2.5, 2.6, 3, 4 and 6 are complete. Phase 7 has its server and
+its reader; Phase 5 (findings) has not started.**
 
 `build`, `scan`, `init` and `serve` all work on any repository, with or without a
 config. `findings` is the one remaining stub and names the phase it lands in
 (`bin/atlas.mjs`). Derivation (`src/model/derive.mjs`) and its calibration
 harness (`test/calibrate.mjs`, `npm run calibrate`) are in, and the numbers
-they produce are published in the README rather than left in a commit message. What Phase 7 still
-lacks is the viewer half — the INFO/SOURCE panel, jump-to-line and the
-highlighter; the server, its allowlist and `/api/source` are done and tested.
+they produce are published in the README rather than left in a commit message.
+Phase 7's server and its reader are both in — allowlisted `/api/source`,
+INFO/SOURCE tabs, jump-to-line and highlighting; what is left there is
+`--embed-source` and `--gzip-source`, which share a gate.
 
 Phase 1 is done bar one gate — 60 fps sustained drag — which needs a human with
 the window in front, because `requestAnimationFrame` is suspended in a
@@ -54,11 +55,16 @@ to change, it says so.
 
 - **Dependencies are a decision to make together, not a rule to obey.** Use one
   where it genuinely earns its place — **discuss it first**, before it is added.
-  There are none today, and the defaults that keep it that way are worth keeping
-  by inertia rather than by law: `.mjs` ESM, no bundler, no transpile step, and
-  `node:test` for the suite. The costs to weigh out loud are the
-  single-self-contained-file promise (which is what makes vendoring ~600 KB
+  There is no npm dependency today, and the defaults that keep it that way are
+  worth keeping by inertia rather than by law: `.mjs` ESM, no bundler, no
+  transpile step, and `node:test` for the suite. The costs to weigh out loud are
+  the single-self-contained-file promise (which is what makes vendoring ~600 KB
   real) and install friction for a tool people run against someone else's repo.
+  **Vendoring is the third option**, and Phase 7 took it: Prism ships as
+  `src/viewer/05-prism.js`, committed rather than installed, which buys a real
+  highlighter without an install step or a bundler. A vendored file is still a
+  dependency — it is tested like anything else in `src/`, and its version and
+  licence belong in its header.
   The one hard part: never add a dependency to make one target repo work.
 - **Read-only on the target repo.** `git archive <ref>` into a temp dir, or a plain
   fs walk. Never switch branches, never mutate a working tree. `atlas init` is the
