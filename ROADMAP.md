@@ -2,9 +2,14 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 complete · 8 of 13. Phase 1
+**Status:** Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 complete · 8 of 16. Phase 1
 holds one gate a human has to measure. Phase 7's server and reader are in; what
 is left there is `--embed-source` and `--gzip-source`, which share a gate.
+
+Phases 10.5, 11 and 12 are broken into branch-sized tickets — see
+**[The ticket ledger](#the-ticket-ledger)**. Work is tracked as GitHub issues;
+the local ids (`W1`, `T4`, `E2`) are what dependencies and commit bodies
+reference, and stay stable regardless of issue numbering.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -21,6 +26,9 @@ is left there is `--embed-source` and `--gzip-source`, which share a gate.
 | 8 | Request composer UI | 9 | ○ |
 | 9 | Live proxy mode | — | ○ |
 | 10 | Open-source packaging | — | ○ |
+| 10.5 | Trunk workflow, PR conventions, CONTRIBUTING | 11, 12 | ◐ |
+| 11 | Full TypeScript migration | 12 | ○ |
+| 12 | In-place editing under `serve --allow-write` | — | ○ |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
 
@@ -419,6 +427,132 @@ reference screenshots the user supplied, plus four things they named directly.*
 - [ ] `docs/adapters.md` — "add a language in 30 lines", against a real fixture
 - [ ] `docs/config.md`
 - [ ] **Gate:** a reader who has never seen the repo goes from `git clone` to a rendered atlas of their own project using only the README, on a repo with no config
+
+---
+
+## The ticket ledger
+
+Phases 10.5, 11 and 12 are branch-sized tickets rather than checkbox lists,
+because they are big enough that "a phase is several commits" is not specific
+enough guidance. Each row is one branch, one pull request, one issue.
+
+- **Local id** (`W1`, `T4`, `E2`) is stable and is what the `depends` column and
+  commit bodies reference. Issue numbers are assigned at filing.
+- **Branch**: `<type>/<issue#>-<slug>`, types `feature` · `fix` · `chore` ·
+  `docs` · `test` — see [CONTRIBUTING.md](./CONTRIBUTING.md).
+- A ticket closes with its own acceptance criteria met and this table's status
+  updated in the same pull request.
+
+Legend: ○ not started · ◐ in progress · ● done
+
+### Epic W — Phase 10.5, trunk workflow
+
+| id | # | type | slug | what | depends | status |
+| --- | --- | --- | --- | --- | --- | --- |
+| W1 | — | chore | `branch-topology` | `develop` cut from `master`, set as GitHub default; both protected — PR required, `test (24)` required, no direct push, no force push | — | ● |
+| W2 | 1 | docs | `pr-template` | `.github/pull_request_template.md` | W1 | ◐ |
+| W3 | 3 | docs | `contributing-posture` | `CONTRIBUTING.md`, `docs/posture-checklist.md`, this ledger | — | ◐ |
+| W4 | 4 | docs | `adr-scaffold` | `docs/adr/0001` + `template.md`, linked from README | — | ◐ |
+| W5 | 5 | chore | `ci-branches` | Workflow `branches: [master, develop]` — drops the never-existent `main` | W1 | ○ |
+
+W1 needed no branch: it changes GitHub settings, not files. Its acceptance is
+recorded here because a protection rule is not visible in a diff — verified by
+`git push origin master` being refused by the protected-branch hook.
+
+### Epic T — Phase 11, full TypeScript
+
+The rule that decides every file: **Node code runs as TypeScript; browser code
+compiles, because browsers cannot strip types.** `process.features.typescript`
+is `"strip"` on Node ≥ 22.18, so `src/`, `bin/` and `test/` run as `.ts` with no
+build step. `src/viewer/` is the exception — it is concatenated into a `<script>`
+for a browser, so `tsc` emits `build/viewer/*.js` and `assemble()` reads there.
+
+There is no public `module.stripTypeScript` to strip in-process, and using one
+would be wrong anyway: it would make `typescript` a **runtime** dependency of a
+tool people point at someone else's repository.
+
+| id | # | type | slug | what | depends | status |
+| --- | --- | --- | --- | --- | --- | --- |
+| T0 | — | chore | `ts-toolchain` | `tsconfig.json` + `tsconfig.viewer.json`, `typescript` devDep, scripts, `engines>=24`, `.gitignore`, CI matrix → `["24"]`. **No renames.** ADR-0002 | W1–W5 | ○ |
+| T1 | — | feature | `ts-config` | `src/config/` (4 files, 453 ln) → produces the `Config` type everything downstream imports | T0 | ○ |
+| T2 | — | feature | `ts-adapters` | `src/adapters/` (4 files) + `docs/adapters.md`. **Highest value:** the adapter interface stops being a doc comment | T1 | ○ |
+| T3 | — | feature | `ts-scan` | `src/scan/` (2 files) → `FileSet`, `Acquisition` | T1 | ○ |
+| T4 | — | feature | `ts-model-core` | `graph`, `classify`, `tests`, `metrics`, `chrome` (710 ln) + the payload types mirroring `docs/payload-schema.md` | T2, T3 | ○ |
+| T5 | — | feature | `ts-model-analysis` | `endpoints`, `mounts`, `derive`, `findings` (1,066 ln) | T4 | ○ |
+| T6 | — | feature | `ts-pipeline` | `src/build/`, `src/cli/`, `src/serve/`, `bin/atlas.ts` | T5 | ○ |
+| T7 | — | test | `ts-suite` | 22 test files → `.ts`. Confirm `generic.test` still globs `src/` — it filters by extension | T6 | ○ |
+| T8 | — | chore | `viewer-outdir` | `assemble` gains `VIEWER_JS_DIR` → `build/viewer/`; throws on an empty bundle. **Viewer still `.js`** | T6 | ○ |
+| T9 | — | feature | `ts-viewer-core` | `00-theme`, `10-state`, `15-helpers`, `20-select`, `30-layout`, `40-packets`, `60-pick`, `85-camera`, `90-boot` | T8 | ○ |
+| T10 | — | feature | `ts-viewer-render` | `50-render` — 599 ln of canvas math, its own pull request | T9 | ○ |
+| T11 | — | feature | `ts-viewer-panels` | `70-inspect`, `72-source`, `75-findings`, `80-sidebar`, `88-interact` (1,235 ln) | T9 | ○ |
+
+`05-prism.js` stays `.js` — vendored, excluded from `checkJs`, carried through
+the emit by `allowJs`.
+
+**Epic gate.**
+
+- [ ] `npm run typecheck` clean under `strict`, zero `any` in `src/` and `bin/`;
+      `@ts-expect-error` only with a comment naming what it defers
+- [ ] `atlas build --repo fixtures/mini-monorepo --json` **byte-identical** to
+      pre-migration output except `meta.generatedAt`. **A golden that moves
+      during this epic is a bug, not a rebaseline**
+- [ ] `npm test` green, and `generic.test.mjs` proven still to be reading `src/`
+- [ ] Clean clone: `npm install && npm run build && node bin/atlas.ts build --repo .`
+- [ ] `erasableSyntaxOnly` on, so nothing needing a compiler can enter `src/` unnoticed
+
+### Epic E — Phase 12, in-place editing
+
+Narrow by construction. Editing lives in `serve` alone: `build` emits a
+shareable HTML artifact, and a shareable artifact that can write to a filesystem
+is not a thing to ship. Reverses PLAN.md's read-only constraint and part of its
+scope guard, with an ADR and a Decisions-reversed entry.
+
+| id | # | type | slug | what | depends | status |
+| --- | --- | --- | --- | --- | --- | --- |
+| E1 | — | chore | `vendor-codemirror` | Vendor `src/viewer/06-codemirror.js` (~350 KB IIFE) with version, MIT licence and the exact build command in its header — the Prism precedent | T8 | ○ |
+| E2 | — | feature | `write-endpoint` | `POST /api/source` + `--allow-write` + `baseHash` 409 + atomic rename + one stderr line per write + POST traversal suite. ADR-0003 | T6 | ○ |
+| E3 | — | feature | `rescan-on-save` | Re-run `scan()` after a write, return the fresh payload, viewer swaps `ATLAS` holding camera, selection and view | E2 | ○ |
+| E4 | — | feature | `source-edit-mode` | `72-source` edit mode: CodeMirror, `Cmd-S`, dirty mark, 409 resolution UI, capability-gated affordance | E1, E2, T11 | ○ |
+
+**E2 is gated three ways, and the third is free.** `--allow-write` at the
+process level; `resolveAllowed()` reused **verbatim** for membership — do not
+write a second path check; and allowlist membership means the file was already
+scanned, so **the write path cannot create a file.** That falls out for nothing
+and it is the honest boundary: you can edit what the map shows, and the map
+shows only what it read.
+
+**Epic gate.**
+
+- [ ] Without `--allow-write`, `POST /api/source` 403s naming the flag, and the
+      viewer offers no edit affordance
+- [ ] With it, the full Phase 7 traversal list 404s on **POST** as well as GET —
+      `../../../etc/passwd`, `/etc/passwd`, `.env`, `node_modules/x`, in-repo
+      symlink pointing outside, `..%2f..%2f`, `Host: evil.example`, a null byte,
+      a post-scan symlink swap
+- [ ] A path on disk but excluded by `keep`/`exclude` 404s; creating a file is impossible
+- [ ] Stale `baseHash` → 409, and the file on disk is unchanged
+- [ ] Edit, save, and the block's height changes without a page reload — LOC is
+      observed, so the map moves
+- [ ] `build` output greps clean for the write endpoint
+- [ ] A dirty buffer never redraws the map: the atlas draws what it read from disk
+
+### Epic B — already-known work, ticketed
+
+The *Open findings* below and two unmet gates, filed rather than left as prose.
+None blocks the epics above. **B3 should wait for T2**, which makes it far
+cheaper.
+
+| id | # | type | slug | what | status |
+| --- | --- | --- | --- | --- | --- |
+| B1 | — | test | `fps-gate` | Measure 60 fps sustained drag with the window in front — the last Phase 1 gate. Human, not automatable: `requestAnimationFrame` is suspended in a backgrounded tab | ○ |
+| B2 | — | fix | `curated-hop-badge` | Modelled hops inside *curated* flows carry no canvas badge, though `meta.derivedCount` counts them | ○ |
+| B3 | — | chore | `adapter-seam` | Four language-specific breaches in `src/model/`. **Fix is to widen the adapter contract, not to add branches** | ○ |
+| B4 | — | fix | `mount-require` | Mount resolution does not follow `require()`, so a CommonJS router reports at its declared path rather than the one it is served at | ○ |
+| B5 | — | fix | `endpoint-provenance` | Endpoint and datastore nodes carry no provenance; `add()` discards which rule matched and where the prefix came from | ○ |
+| B6 | — | chore | `gzip-ratio-gate` | Re-open with a measured number, or retire it. Currently 2.31× against a ≥3× bar taken from an estimate that omitted base64 | ○ |
+
+`refactor` is not an allowed branch type, so B3 files as `chore`.
+
 
 ---
 
