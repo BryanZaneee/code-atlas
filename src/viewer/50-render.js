@@ -341,13 +341,20 @@ function drawArc(x, arc, style, alpha) {
  * solid for proven, hairline and dotted for admitted guesswork — so the two
  * readings survive together.
  *
+ * Opacity only trims, and is deliberately the weakest of the three. A step that
+ * is not the current one already draws at 0.16, and much below that it stops
+ * being drawn at all against a dark ground. An invisible hop reads as a path
+ * that does not have that hop — which makes the map look SURER than it is, the
+ * honesty contract failing backwards. A guess has to stay legible enough to be
+ * doubted.
+ *
  * A curated flow step has no certainty and is returned its table style
  * untouched.
  */
 const CERTAINTY_STYLE = {
   wired:    { wMul: 1.55, aMul: 1,    dash: null },
-  imported: { wMul: 1,    aMul: 0.85, dash: null },
-  inferred: { wMul: 0.7,  aMul: 0.55, dash: [2, 5] },
+  imported: { wMul: 1,    aMul: 0.94, dash: null },
+  inferred: { wMul: 0.7,  aMul: 0.86, dash: [2, 5] },
 };
 
 /** The same three grades in words, for the panel that has room for them. */

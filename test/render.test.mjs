@@ -299,6 +299,12 @@ test("a derived hop draws how sure it is, not only what kind it is", () => {
   assert.equal(imported.dash, null);
   assert.ok(wired.w > imported.w && imported.w > inferred.w, "weight must fall with certainty");
   assert.ok(wired.aMul > imported.aMul && imported.aMul > inferred.aMul, "and so must opacity");
+  // ...but only so far. A hop that is not the current one already draws at 0.16,
+  // and a guess faded under about 0.1 stops being visible against the dark
+  // ground — at which point the path reads as not having that hop at all, and
+  // the map looks surer than it is. Dash and weight say "inferred"; opacity is
+  // not allowed to say "absent".
+  assert.ok(inferred.aMul * 0.16 > 0.1, `an inferred hop must stay legible, got ${inferred.aMul * 0.16}`);
   assert.equal(wired.c, base.c, "colour still belongs to the step's kind, not its certainty");
 
   // A curated step has no certainty: it must come back with its table style
