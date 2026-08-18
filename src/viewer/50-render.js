@@ -42,7 +42,7 @@ function cacheKey() {
   // clicking a block re-rasterise the entire city and made a hover state
   // unaffordable at any frame rate. They are drawn in the live pass instead.
   return [
-    S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, LAYOUT.nodes.length,
+    S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, S.isolate, LAYOUT.nodes.length,
     o.docs, o.tests, o.contract, o.labels,
   ].join("|");
 }
@@ -60,9 +60,9 @@ const same = (p) => p;
 /** One block, in whatever space `map` puts it — world for the raster, screen for the overlay. */
 function drawBlock(x, n, map, lw) {
   const base = colorOf(n);
-  quad(x, n.faceLeft.map(map),  shade(base, -0.42), alpha(THEME.edge, .28), lw);
-  quad(x, n.faceRight.map(map), shade(base, -0.22), alpha(THEME.edge, .28), lw);
-  quad(x, n.faceTop.map(map),   base, alpha(THEME.edge, .38), lw);
+  quad(x, n.faceLeft.map(map),  shade(base, -0.42), alpha(THEME.edge, .45), lw);
+  quad(x, n.faceRight.map(map), shade(base, -0.22), alpha(THEME.edge, .45), lw);
+  quad(x, n.faceTop.map(map),   base, alpha(THEME.edge, .58), lw);
 }
 
 function dimOf(n) {
@@ -130,7 +130,11 @@ function drawGrid(x, ext, px) {
   x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
 
   x.save();
-  x.strokeStyle = alpha(THEME.plate, .22);
+  // Faint on purpose: the grid is the ground, and it must never compete with
+  // the blocks standing on it. The order that has to hold, lightest first, is
+  // grid << plate < block fill < block stroke — on the old cream ground .22
+  // read as texture, on white it read as a second set of edges.
+  x.strokeStyle = alpha(THEME.plate, .11);
   x.lineWidth = px(1);
   x.beginPath();
   for (let g = x0; g <= x1; g += SPACING) {
@@ -521,7 +525,8 @@ function frame(now) {
   last = now;
   // Eased, not cut: the transition is what says the map changed rather than
   // reloaded. Nothing else in the frame depends on it, so it never invalidates.
-  const target = isFlowView(S.view) && LAYOUT.steps.size ? 0.82 : 0;
+  // Nothing to veil when the map holds only the flow already.
+  const target = isFlowView(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
   veil += (target - veil) * Math.min(1, dt * 7);
   if (S.running || S.stepBudget > 0) advance(dt);
   draw();

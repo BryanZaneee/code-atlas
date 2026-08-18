@@ -72,8 +72,12 @@ function renderList() {
       wrap.append(h);
     }
     const r = el("div", "row" + (S.focusDistrict === d.id ? " sel" : ""));
-    const sw = el("span", "sw"); sw.style.background = layerById.get(d.layer)?.color ?? THEME.layerFallback;
-    r.append(sw, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.members.length));
+    // The district's two-character code, tinted with its layer's identity
+    // colour. In `mono` the tint drops out and the code still names it — which
+    // is the point of shipping a code at all rather than relying on the swatch.
+    const cd = el("span", "cd", d.code ?? "");
+    if (S.colorMode === "identity") cd.style.borderColor = layerById.get(d.layer)?.color ?? THEME.layerFallback;
+    r.append(cd, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.members.length));
     r.onclick = () => {
       S.focusDistrict = S.focusDistrict === d.id ? null : d.id;
       S.selected = null; S.pinnedPacket = null;

@@ -2,22 +2,29 @@
      two definitions eventually has two values. The dark block below overrides
      the same names, so no rule anywhere has to know which theme is on. */
   :root {
-    --bg:#f4f4f2; --panel:#eaeae7; --panel-2:#e0e0dc; --border:#c9c9c4;
-    --ink:#1c1e1f; --dim:#6b6e70; --faint:#8d9092;
-    --accent:#2f6df0; --warn:#c2410c;
-    --hover:#d8d8d3; --note-ink:#26292b; --sample-bg:#e7e7e3;
-    --swatch-edge:#00000059;
+    /* White, not cream. The chrome and the map share one ground, and the panels
+       are separated from it by a hairline rather than by a fill — density comes
+       from the type, which is what keeps a dense instrument from reading as a
+       heavy one. */
+    --bg:#ffffff; --panel:#ffffff; --panel-2:#f4f6f7; --border:#e3e6e8;
+    --ink:#16181a; --dim:#697076; --faint:#9aa1a7;
+    --accent:#2563eb; --warn:#c2410c;
+    --hover:#eef1f3; --note-ink:#26292b; --sample-bg:#f7f8f9;
+    --swatch-edge:#00000038;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
     /* Two registers. Mono for chrome, codes, paths and stats; a sans for panel
        prose. All-mono reads as terminal output. System stack, never a fetch. */
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
+  /* Dark is derived, not copied: the reference design has a moon control but
+     every shot of it is light, so this is ours. Same rule as light — panel and
+     ground share a value and the hairline does the separating. */
   :root[data-theme="dark"] {
-    --bg:#111314; --panel:#1a1d1f; --panel-2:#232729; --border:#33383b;
-    --ink:#e6e8ea; --dim:#9aa0a4; --faint:#7b8185;
+    --bg:#0e1011; --panel:#0e1011; --panel-2:#191d1f; --border:#282d30;
+    --ink:#e8eaec; --dim:#98a0a6; --faint:#767d82;
     --accent:#5b8dff; --warn:#f97316;
-    --hover:#2c3134; --note-ink:#d5d8da; --sample-bg:#1e2224;
-    --swatch-edge:#ffffff4d;
+    --hover:#1e2325; --note-ink:#d5d8da; --sample-bg:#161a1c;
+    --swatch-edge:#ffffff45;
   }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; overflow:hidden; }
@@ -36,16 +43,19 @@
   .brand .k { font-size:9px; letter-spacing:.14em; color:var(--dim); }
   .brand .v { font-size:13px; font-weight:600; letter-spacing:.02em; }
   .brand .r { font-size:9px; color:var(--dim); }
-  .stats { display:flex; flex:1 1 auto; overflow:hidden; }
-  .stat { padding:6px 11px; border-right:1px solid var(--border); white-space:nowrap; }
-  .stat .k { font-size:9px; letter-spacing:.14em; color:var(--dim); }
-  .stat .v { font-size:14px; font-weight:600; }
-  .controls { display:flex; align-items:center; gap:5px; padding:0 10px; }
+  .stats { display:flex; flex:1 1 auto; min-width:0; overflow-x:auto; scrollbar-width:none; }
+  .stats::-webkit-scrollbar { display:none; }
+  .stat { padding:6px 12px; border-right:1px solid var(--border); white-space:nowrap; }
+  .stat .k { font-size:8.5px; letter-spacing:.14em; color:var(--dim); }
+  .stat .v { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
+  /* Never wraps and never shrinks: a control that reflows mid-session moves the
+     button you were about to press. The stats strip absorbs the squeeze. */
+  .controls { display:flex; align-items:center; gap:4px; padding:0 10px; flex:0 0 auto; white-space:nowrap; }
 
   button, select {
     font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
     background:var(--panel-2); color:var(--ink); border:1px solid var(--border);
-    padding:5px 9px; cursor:pointer; border-radius:1px;
+    padding:5px 9px; cursor:pointer; border-radius:2px; white-space:nowrap;
   }
   button:hover, select:hover { background:var(--hover); }
   button.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
@@ -84,8 +94,17 @@
   .row.sel { background:var(--ink); color:var(--bg); }
   .row.sel .num, .row.sel .sub { color:var(--bg); opacity:.7; }
   .row .sw { width:8px; height:8px; flex:0 0 auto; border:1px solid var(--swatch-edge); }
+  /* The district's own two-character name, which the payload already carries.
+     A code you can say out loud beats a colour you have to match against a
+     legend, and it survives `mono` — where the swatch has nothing to say. */
+  .row .cd {
+    flex:0 0 auto; width:20px; text-align:center; padding:1px 0;
+    font-size:8.5px; letter-spacing:.06em; color:var(--dim);
+    border:1px solid var(--border); background:var(--bg);
+  }
+  .row.sel .cd { border-color:var(--bg); color:var(--bg); background:transparent; }
   .row .nm { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .row .num { color:var(--dim); font-size:9.5px; flex:0 0 auto; }
+  .row .num { color:var(--dim); font-size:9.5px; flex:0 0 auto; font-variant-numeric:tabular-nums; }
   .row .sub { color:var(--dim); font-size:9px; }
   .row.mini { padding:2px 4px; font-size:10px; }
   /* The selected node travels this flow — the TRAVELLED BY index, read back. */

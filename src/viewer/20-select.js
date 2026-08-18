@@ -31,6 +31,16 @@ function visibleSet() {
   const keep = new Set();
   const onPath = isFlowView(S.view) ? pathSteps() : null;
 
+  // ISOLATED: only the flow, re-packed by relayout() into its own districts.
+  // This is deliberately a different LAYOUT and not a filter — the blocks move,
+  // which is the whole point. Dimming keeps a node where it was and answers
+  // "where does this sit"; isolating answers "what is this path", and a reader
+  // wants one question at a time.
+  if (onPath && S.isolate) {
+    for (const n of ATLAS.nodes) if (onPath.has(n.id)) keep.add(n);
+    return [...keep];
+  }
+
   for (const n of ATLAS.nodes) {
     // A flow's own endpoints and datastores are always on the map, whatever the
     // sidebar filters say — they are the thing being traced.

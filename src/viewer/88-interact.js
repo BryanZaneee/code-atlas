@@ -106,6 +106,9 @@ cv.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 function syncControls() {
+  // Only a flow view has something to isolate. Disabled rather than hidden, so
+  // the strip does not reflow when you change view.
+  $("#bIsolate").disabled = !isFlowView(S.view);
   $("#bPause").classList.toggle("on", S.running);
   $("#bPause").textContent = S.running ? "▮▮ PAUSE" : "▶ RESUME";
   const deg = Math.round(S.yaw * 180 / Math.PI) % 360;
@@ -117,9 +120,20 @@ $("#bSpeed").onchange = (e) => { S.speed = parseFloat(e.target.value); };
 $("#bRotL").onclick = () => rotateTo(S.yaw - YAW_STEP);
 $("#bRotR").onclick = () => rotateTo(S.yaw + YAW_STEP);
 $("#bReset").onclick = () => { S.focusDistrict = null; rotateTo(YAW0); renderList(); fitView(); };
+$("#bIsolate").onclick = () => {
+  S.isolate = !S.isolate;
+  $("#bIsolate").textContent = S.isolate ? "◎ ISOLATED" : "◍ IN CONTEXT";
+  $("#bIsolate").classList.toggle("on", S.isolate);
+  // Same cost as switching flows, and for the same reason: the node set
+  // changes, so the world has to be re-packed and re-rasterised once.
+  relayout(); renderList(); fitView();
+};
 $("#bColor").onclick = () => {
   S.colorMode = S.colorMode === "mono" ? "identity" : "mono";
   $("#bColor").textContent = S.colorMode === "mono" ? "▣ COLOUR" : "▦ MONO";
+  // The sidebar carries identity colour too, on the district codes, so it has
+  // to follow the map rather than keep a tint the map just dropped.
+  renderList();
   staticDirty = true;
 };
 $("#bTheme").onclick = () => {
@@ -147,6 +161,7 @@ function setView(v) {
   renderViews();
   relayout();
   renderList(); renderInspect(); renderLegend(); renderStats(); renderCaption();
+  syncControls();
   const def = viewById.get(v);
   $("#sideHint").textContent = def?.hint ?? "";
   $("#ovTop").querySelector("b").textContent = def?.title ?? def?.label ?? "";

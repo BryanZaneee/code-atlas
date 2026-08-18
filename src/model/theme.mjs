@@ -10,20 +10,24 @@
  * Config may override any branch of this; `atlas init` will emit it.
  */
 export const DEFAULT_THEME = {
-  ink: "#1c1e1f",
-  bg: "#f4f4f2",
+  ink: "#16181a",
+  // White, not cream. The map and the chrome stand on one ground, and a
+  // line-art drawing reads cleanest over the brightest one available.
+  bg: "#ffffff",
   // A literal stack: canvas ignores var(--mono).
   font: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
   layerFallback: "#8a8a8a",
   // The state channel's one colour. Identity writes to fill; state writes to
   // stroke, ring and badge, so turning identity colour off cannot also turn the
   // selection off. See PLAN.md, "The visual system".
-  accent: "#2f6df0",
+  accent: "#2563eb",
   // The two greys every plate, outline, label halo and watermark is mixed from,
   // at an alpha. A named token per opacity is thirteen tokens per palette, and
   // that is how the old palette ended up hardcoded across the renderer.
-  plate: "#6d7378",
-  edge: "#14171a",
+  // Cooled and lightened against the white ground: on cream a warm grey reads
+  // as paper, on white it reads as dirt.
+  plate: "#78828a",
+  edge: "#11151a",
   // The block face in `mono`, where identity fill is off and the stroke
   // carries the whole form. The two vertical faces are shaded down from it.
   face: "#ffffff",
@@ -64,14 +68,14 @@ export const DEFAULT_THEME = {
    * dimmer map, it is no map.
    */
   dark: {
-    ink: "#e6e8ea",
-    bg: "#111314",
+    ink: "#e8eaec",
+    bg: "#0e1011",
     layerFallback: "#7b7f83",
     accent: "#5b8dff",
-    plate: "#9aa2a8",
-    edge: "#e2e6ea",
-    face: "#3a4045",
-    packetLabel: "#e6e8ea",
+    plate: "#98a2a9",
+    edge: "#e4e8ec",
+    face: "#333a3f",
+    packetLabel: "#e8eaec",
   },
 
   /**
