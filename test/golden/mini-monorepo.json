@@ -627,35 +627,40 @@
       "method": "GET",
       "path": "/api/users",
       "service": "api",
-      "definedIn": "services/api/src/routes/users.ts"
+      "definedIn": "services/api/src/routes/users.ts",
+      "line": 6
     },
     {
       "id": "GET /api/users/:id",
       "method": "GET",
       "path": "/api/users/:id",
       "service": "api",
-      "definedIn": "services/api/src/routes/users.ts"
+      "definedIn": "services/api/src/routes/users.ts",
+      "line": 7
     },
     {
       "id": "POST /api/users",
       "method": "POST",
       "path": "/api/users",
       "service": "api",
-      "definedIn": "services/api/src/routes/users.ts"
+      "definedIn": "services/api/src/routes/users.ts",
+      "line": 8
     },
     {
       "id": "GET /health",
       "method": "GET",
       "path": "/health",
       "service": "worker",
-      "definedIn": "services/worker/app/main.py"
+      "definedIn": "services/worker/app/main.py",
+      "line": 8
     },
     {
       "id": "POST /jobs",
       "method": "POST",
       "path": "/jobs",
       "service": "worker",
-      "definedIn": "services/worker/app/main.py"
+      "definedIn": "services/worker/app/main.py",
+      "line": 13
     }
   ],
   "flows": [],

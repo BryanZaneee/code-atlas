@@ -117,8 +117,11 @@ export const DEFAULT_EXCLUDE = [
 /**
  * Endpoint rules, as data. These match the common literal registration forms and
  * nothing else — a non-literal path is skipped and counted, never guessed at,
- * because a phantom endpoint is worse than a missing one. Phase 4 replaces the
- * single-pass mount with symbol -> file resolution run to a fixpoint.
+ * because a phantom endpoint is worse than a missing one. The prefix a rule
+ * doesn't declare a `mount` for comes from `resolveMounts`'s fixpoint
+ * (src/model/mounts.mjs); a call a rule's receiver/method shape recognises but
+ * whose path isn't a literal is counted too, not silently dropped — both live
+ * in src/model/endpoints.mjs.
  */
 // No `mount`: the prefix is discovered from the repository's own mount chain.
 // A rule that states one is a claim by a config, and that always wins — see
