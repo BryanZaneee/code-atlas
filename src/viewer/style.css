@@ -185,8 +185,11 @@
   #ovTop b { display:block; font-size:11px; letter-spacing:.1em; color:var(--ink); }
   #ovRight { top:9px; right:13px; text-align:right; }
   /* The one overlay allowed to shout: it is the difference between a path that
-     was observed and one this tool inferred. */
-  #ovRight.warn { color:var(--warn); font-weight:600; }
+     was observed and one this tool inferred. It is also its own element rather
+     than a class on the status line, because the status line is droppable at
+     narrow widths and the caveat is not — see the media queries below. */
+  #ovWarn { display:block; color:var(--warn); font-weight:600; white-space:nowrap; }
+  #ovWarn:empty { display:none; }
   #ovHint { bottom:9px; left:13px; white-space:nowrap; }
   /* The caption is the only overlay that says WHERE in a flow you are, so it
      sits under the eye's resting point rather than in a corner. */
@@ -216,7 +219,11 @@
   /* The panels are fixed-width; below these widths they would starve the canvas
      and the corner overlays would collide. */
   @media (max-width:1280px) { #sidebar { width:200px; } #inspect { width:258px; } }
-  @media (max-width:1024px) { #ovHint, #ovRight { display:none; } }
+  /* Yaw and play state are conveniences and can go. The DERIVED caveat cannot:
+     a modelled path that keeps animating with nothing saying so is the exact
+     failure the honesty contract exists to prevent, and a window being narrow
+     is not a reason to stop admitting it. */
+  @media (max-width:1024px) { #ovHint, #ovStatus { display:none; } }
   @media (max-width:900px)  { #inspect { display:none; } #sidebar { width:180px; } }
 
   ::-webkit-scrollbar { width:9px; height:9px; }

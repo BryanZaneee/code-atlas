@@ -117,9 +117,10 @@ function syncControls() {
   // map, so the map is where "this was inferred, not observed" has to appear.
   const f = flowById.get(S.activeFlow);
   const modelled = f?.derived || (S.activeFlow === "__all__" && viewById.get(S.view)?.derived);
-  const badge = modelled ? "DERIVED · NOT VERIFIED · " : "";
-  $("#ovRight").textContent = `${badge}${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
-  $("#ovRight").classList.toggle("warn", !!modelled);
+  // Two elements, not one string: the status half is dropped on a narrow
+  // window, the caveat half never is.
+  $("#ovWarn").textContent = modelled ? "DERIVED · NOT VERIFIED" : "";
+  $("#ovStatus").textContent = `${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
 }
 $("#bPause").onclick = () => { S.running = !S.running; syncControls(); };
 $("#bStep").onclick = () => { S.stepBudget = 1; S.running = false; syncControls(); };

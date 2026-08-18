@@ -383,10 +383,6 @@ Raised by the quality sweep, verified against the code, and deliberately not
 fixed in it. None is a crash; each is something the map currently claims or
 omits without saying so.
 
-**The derived badge hides on a narrow window.** `style.css` drops `#ovRight` under
-1024px, and that is where `DERIVED · NOT VERIFIED` is written — so the caveat
-disappears while the derived path keeps animating.
-
 **Modelled hops inside curated flows carry no badge.** `build.mjs` counts them
 (`meta.derivedCount`) and its own comment says curation and derivation alike
 model an ordering imports cannot express — but only tool-derived flows raise the
