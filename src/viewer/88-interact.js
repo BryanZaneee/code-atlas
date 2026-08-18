@@ -112,7 +112,14 @@ function syncControls() {
   $("#bPause").classList.toggle("on", S.running);
   $("#bPause").textContent = S.running ? "▮▮ PAUSE" : "▶ RESUME";
   const deg = Math.round(S.yaw * 180 / Math.PI) % 360;
-  $("#ovRight").textContent = `${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
+  // A derived path says so ON THE CANVAS. PLAN.md is explicit that a caveat
+  // living only in a side panel is not a caveat: the thing being watched is the
+  // map, so the map is where "this was inferred, not observed" has to appear.
+  const f = flowById.get(S.activeFlow);
+  const modelled = f?.derived || (S.activeFlow === "__all__" && viewById.get(S.view)?.derived);
+  const badge = modelled ? "DERIVED · NOT VERIFIED · " : "";
+  $("#ovRight").textContent = `${badge}${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
+  $("#ovRight").classList.toggle("warn", !!modelled);
 }
 $("#bPause").onclick = () => { S.running = !S.running; syncControls(); };
 $("#bStep").onclick = () => { S.stepBudget = 1; S.running = false; syncControls(); };

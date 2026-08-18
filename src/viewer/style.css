@@ -185,6 +185,9 @@
   #ovTop { top:9px; left:13px; }
   #ovTop b { display:block; font-size:11px; letter-spacing:.1em; color:var(--ink); }
   #ovRight { top:9px; right:13px; text-align:right; }
+  /* The one overlay allowed to shout: it is the difference between a path that
+     was observed and one this tool inferred. */
+  #ovRight.warn { color:var(--warn); font-weight:600; }
   #ovHint { bottom:9px; left:13px; white-space:nowrap; }
   /* The caption is the only overlay that says WHERE in a flow you are, so it
      sits under the eye's resting point rather than in a corner. */

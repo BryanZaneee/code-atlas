@@ -55,6 +55,38 @@ function indexFlows(nodes, flows) {
   }
 }
 
+
+/**
+ * One playable path per endpoint, from what `derive.mjs` inferred.
+ *
+ * Steps arrive as integer node indices; flows are addressed by node id, so this
+ * is the translation and nothing more. `certainty` rides along so the renderer
+ * can draw an inferred hop differently from one an import justifies — the whole
+ * point of deriving is undone if the two look the same.
+ */
+function derivedFlows(endpoints, nodes) {
+  const out = [];
+  for (const e of endpoints) {
+    const steps = e.derivedPath?.steps ?? [];
+    if (steps.length < 2) continue;
+    out.push({
+      id: `derived:${e.id}`,
+      label: e.id,
+      view: "derived",
+      derived: true,
+      blurb: "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
+      steps: steps.map((s) => ({
+        from: nodes[s.from]?.id,
+        to: nodes[s.to]?.id,
+        kind: s.kind,
+        certainty: s.certainty,
+        inferred: s.inferred,
+      })).filter((s) => s.from && s.to),
+    });
+  }
+  return out;
+}
+
 export function scan({
   repo,
   ref,
@@ -133,6 +165,8 @@ export function scan({
       0,
     );
 
+    const derived = derivedFlows(endpoints, nodes);
+
     const payload = {
       meta: {
         schemaVersion: SCHEMA_VERSION,
@@ -162,12 +196,19 @@ export function scan({
       // Total by payload: whatever placed a node, its service is in this list.
       services: reconcileServices(config.services, nodes, warn),
       layers: config.layers,
-      views: buildViews(config, config.flows ?? []),
+      views: buildViews(config, config.flows ?? [], derived),
       theme: buildTheme(config),
       nodes,
       edges,
       endpoints,
       flows: config.flows ?? [],
+      // Derived paths, as flows the viewer can play — but in their OWN array.
+      // Curated data is somebody's assertion about their system; a derived path
+      // is this tool's inference from imports. They render alike and they are
+      // NOT alike, so the payload keeps them apart and the UI says which it is
+      // showing. Merging them here would also silently rewrite the meaning of
+      // every existing `flows` consumer.
+      derivedFlows: derived,
       groups,
     };
 

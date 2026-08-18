@@ -109,6 +109,14 @@
       "kind": "structure"
     },
     {
+      "title": "REQUEST PATH",
+      "hint": "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
+      "id": "derived",
+      "label": "DERIVED PATHS",
+      "kind": "flow",
+      "derived": true
+    },
+    {
       "title": "TEST COVERAGE",
       "hint": "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
       "id": "tests",
@@ -873,6 +881,242 @@
     }
   ],
   "flows": [],
+  "derivedFlows": [
+    {
+      "id": "derived:GET /api/users",
+      "label": "GET /api/users",
+      "view": "derived",
+      "derived": true,
+      "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
+      "steps": [
+        {
+          "from": "GET /api/users",
+          "to": "services/api/src/server.ts",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/server.ts",
+          "to": "services/api/src/routes/users.ts",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/routes/users.ts",
+          "to": "services/api/src/services/user-service.ts",
+          "kind": "request",
+          "certainty": "imported",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/services/user-service.ts",
+          "to": "services/api/src/repository/user-repo.ts",
+          "kind": "request",
+          "certainty": "imported",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/repository/user-repo.ts",
+          "to": "services/api/src/services/user-service.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        },
+        {
+          "from": "services/api/src/services/user-service.ts",
+          "to": "services/api/src/routes/users.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        },
+        {
+          "from": "services/api/src/routes/users.ts",
+          "to": "services/api/src/server.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        }
+      ]
+    },
+    {
+      "id": "derived:GET /api/users/:id",
+      "label": "GET /api/users/:id",
+      "view": "derived",
+      "derived": true,
+      "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
+      "steps": [
+        {
+          "from": "GET /api/users/:id",
+          "to": "services/api/src/server.ts",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/server.ts",
+          "to": "services/api/src/routes/users.ts",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/routes/users.ts",
+          "to": "services/api/src/services/user-service.ts",
+          "kind": "request",
+          "certainty": "imported",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/services/user-service.ts",
+          "to": "services/api/src/repository/user-repo.ts",
+          "kind": "request",
+          "certainty": "imported",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/repository/user-repo.ts",
+          "to": "services/api/src/services/user-service.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        },
+        {
+          "from": "services/api/src/services/user-service.ts",
+          "to": "services/api/src/routes/users.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        },
+        {
+          "from": "services/api/src/routes/users.ts",
+          "to": "services/api/src/server.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        }
+      ]
+    },
+    {
+      "id": "derived:POST /api/users",
+      "label": "POST /api/users",
+      "view": "derived",
+      "derived": true,
+      "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
+      "steps": [
+        {
+          "from": "POST /api/users",
+          "to": "services/api/src/server.ts",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/server.ts",
+          "to": "services/api/src/routes/users.ts",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/routes/users.ts",
+          "to": "services/api/src/services/user-service.ts",
+          "kind": "request",
+          "certainty": "imported",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/services/user-service.ts",
+          "to": "services/api/src/repository/user-repo.ts",
+          "kind": "request",
+          "certainty": "imported",
+          "inferred": false
+        },
+        {
+          "from": "services/api/src/repository/user-repo.ts",
+          "to": "services/api/src/services/user-service.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        },
+        {
+          "from": "services/api/src/services/user-service.ts",
+          "to": "services/api/src/routes/users.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        },
+        {
+          "from": "services/api/src/routes/users.ts",
+          "to": "services/api/src/server.ts",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        }
+      ]
+    },
+    {
+      "id": "derived:GET /health",
+      "label": "GET /health",
+      "view": "derived",
+      "derived": true,
+      "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
+      "steps": [
+        {
+          "from": "GET /health",
+          "to": "services/worker/app/main.py",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/worker/app/main.py",
+          "to": "GET /health",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        }
+      ]
+    },
+    {
+      "id": "derived:POST /jobs",
+      "label": "POST /jobs",
+      "view": "derived",
+      "derived": true,
+      "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
+      "steps": [
+        {
+          "from": "POST /jobs",
+          "to": "services/worker/app/main.py",
+          "kind": "request",
+          "certainty": "wired",
+          "inferred": false
+        },
+        {
+          "from": "services/worker/app/main.py",
+          "to": "services/worker/app/services/job_service.py",
+          "kind": "request",
+          "certainty": "imported",
+          "inferred": false
+        },
+        {
+          "from": "services/worker/app/services/job_service.py",
+          "to": "services/worker/app/main.py",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        },
+        {
+          "from": "services/worker/app/main.py",
+          "to": "POST /jobs",
+          "kind": "response",
+          "certainty": "inferred",
+          "inferred": true
+        }
+      ]
+    }
+  ],
   "groups": [
     {
       "id": "docs/docs",

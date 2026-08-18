@@ -25,7 +25,7 @@ const DEFAULT_HINTS = {
 
 const DEFAULT_TITLES = { structure: "THE CODEBASE", flow: "REQUEST PATH", tests: "TEST COVERAGE" };
 
-export function buildViews(config, flows = []) {
+export function buildViews(config, flows = [], derived = []) {
   const flowViews = [...new Set(flows.map((f) => f.view).filter(Boolean))];
 
   const base = [
@@ -38,6 +38,10 @@ export function buildViews(config, flows = []) {
       // flows do not, does not. Derived, not declared.
       showPhase: flows.some((f) => f.view === id && f.phase),
     })),
+    // Derived paths get their own view rather than joining a curated one:
+    // a reader has to be able to tell, from the strip alone, whether what they
+    // are about to watch was asserted by a person or inferred by this tool.
+    ...(derived.length ? [{ id: "derived", label: "DERIVED PATHS", kind: "flow", derived: true }] : []),
     { id: "tests", label: "TESTS", kind: "tests" },
   ];
 
@@ -46,8 +50,12 @@ export function buildViews(config, flows = []) {
   // Config, when present, decides the order and the copy; the derived entry
   // still supplies kind and showPhase so a config cannot get those wrong.
   if (config.views) {
-    const derived = new Map(base.map((v) => [v.id, v]));
-    return config.views.map((v) => withDefaults({ ...derived.get(v.id), ...v }));
+    const byId = new Map(base.map((v) => [v.id, v]));
+    const named = config.views.map((v) => withDefaults({ ...byId.get(v.id), ...v }));
+    // A config that predates derivation should not lose the view because it
+    // did not know to list it.
+    const extra = base.filter((v) => v.derived && !config.views.some((c) => c.id === v.id));
+    return [...named, ...extra.map(withDefaults)];
   }
   return base.map(withDefaults);
 }

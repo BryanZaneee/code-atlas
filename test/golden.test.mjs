@@ -35,7 +35,10 @@ test("mini-monorepo payload matches its golden", async () => {
  * only ever grows with a deliberate, reviewed entry; anything else moving is a
  * regression in what the scanner reports.
  */
-const ADDED_TOP = ["views", "theme"];                          // phase 1
+const ADDED_TOP = ["views", "theme",
+  // phase 6: derived paths, kept in their own array so curated data keeps its
+  // exact prototype shape and nothing conflates the two.
+  "derivedFlows"];
 const ADDED_META = ["schemaVersion", "acquisition", "suiteCount",
   // phase 2.5: the map's own coverage, so the chrome can state it permanently.
   "unsortedCount", "unresolvedCount", "derivedCount"];
@@ -165,7 +168,15 @@ test("meta carries the fields later phases added", async (t) => {
   const flowIds = new Set(payload.flows.map((f) => f.id));
   assert.ok(travelled.length > 0 && travelled.length < payload.nodes.length);
   assert.ok(travelled.every((n) => n.travelledBy.every((id) => flowIds.has(id))));
-  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests"]);
+  // Phase 6 appends a DERIVED PATHS view to a config that predates derivation,
+  // rather than letting the config lose it by not knowing to list it. On this
+  // target that means curated and derived paths sit in the same strip, which is
+  // the only way to compare what a person asserted against what was inferred.
+  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived"]);
+  assert.equal(payload.views.find((v) => v.id === "derived").derived, true);
+  assert.ok(payload.derivedFlows.length > 0, "endpoints exist, so derived paths should too");
+  // Curated data keeps its exact shape: derivation never writes into `flows`.
+  assert.ok(payload.flows.every((f) => !f.derived));
   assert.equal(payload.views.find((v) => v.id === "engagement").showPhase, true);
   assert.equal(payload.views.find((v) => v.id === "api").showPhase, false);
 });

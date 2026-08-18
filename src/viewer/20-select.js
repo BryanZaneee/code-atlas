@@ -1,5 +1,5 @@
 /* ════════════════════ which nodes / edges each view shows ════════════════════ */
-function flowsForView(v) { return ATLAS.flows.filter(f => f.view === v); }
+function flowsForView(v) { return ALL_FLOWS.filter(f => f.view === v); }
 
 function activeFlows() {
   const fs = flowsForView(S.view);

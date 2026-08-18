@@ -35,7 +35,7 @@ function renderList() {
     const all = el("button", "row flow" + (S.activeFlow === "__all__" ? " sel" : ""));
     all.append(el("span", "mk", "▶"), el("span", "nm", "all paths"),
       el("span", "num", fs.reduce((a, f) => a + f.steps.length, 0) + " steps"));
-    all.onclick = () => { S.activeFlow = "__all__"; relayout(); renderList(); fitView(); renderCaption(); };
+    all.onclick = () => { S.activeFlow = "__all__"; relayout(); renderList(); fitView(); renderCaption(); syncControls(); };
     wrap.append(all);
     for (const f of fs) {
       // A real <button>: it acts like one, so it should be one — focusable,
@@ -43,7 +43,7 @@ function renderList() {
       const r = el("button", "row flow" + (S.activeFlow === f.id ? " sel" : ""));
       r.dataset.flow = f.id;
       r.append(el("span", "mk", "▶"), el("span", "nm", f.label), el("span", "num", f.steps.length));
-      r.onclick = () => { S.activeFlow = f.id; S.pinnedPacket = null; relayout(); renderList(); fitView(); renderInspect(); renderCaption(); };
+      r.onclick = () => { S.activeFlow = f.id; S.pinnedPacket = null; relayout(); renderList(); fitView(); renderInspect(); renderCaption(); syncControls(); };
       wrap.append(r);
       if (S.activeFlow === f.id && f.blurb) wrap.append(el("div", "hint", f.blurb));
     }
