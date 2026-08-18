@@ -285,6 +285,17 @@ export function diagnose(payload, diagnostics, out) {
     if (ranked.length > 20) out(`  +${ranked.length - 20} more`);
   }
 
+  // "No endpoints here" and "this tool cannot read this language" are the same
+  // empty result from the outside, and only one of them is a fact about the
+  // repository. Reported by language rather than per file: one missing adapter
+  // is otherwise a hundred identical lines that hide the cause.
+  const unscanned = payload.endpoints.unscanned ?? [];
+  if (unscanned.length) {
+    const total = unscanned.reduce((a, [, n]) => a + n, 0);
+    out(`atlas: files no endpoint rule could be run over (no adapter for the language)=${total}`);
+    for (const [lang, n] of unscanned) out(`  ${String(n).padStart(4)} ${lang}`);
+  }
+
   for (const [title, key, order] of [
     ["layers", "layer", payload.layers.map((l) => l.id)],
     ["services", "service", payload.services.map((s) => s.id)],

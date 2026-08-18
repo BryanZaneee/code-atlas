@@ -31,6 +31,12 @@
  * logical param in two frameworks' syntax, and collapse to one).
  */
 import { resolveMounts } from "./mounts.mjs";
+import { adapterFor } from "../adapters/index.mjs";
+import { langOf } from "../scan/graph.mjs";
+
+// Prose and data. A `.md` or `.json` file having no endpoints is not a gap in
+// what this tool can read, so it is not worth reporting as one.
+const NOT_CODE = new Set(["md", "json", "sql"]);
 
 /** `/api/ai` + `/cleanup` -> `/api/ai/cleanup`, without doubling the slash. */
 const joinPath = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
@@ -97,6 +103,7 @@ export function extractEndpoints(ctx) {
   const seen = new Set();          // service|method|path — dedupe within a service
   const routeCount = new Map();    // method|path -> how many services declare it
   const skips = [];                // { file, line, reason } — never guessed, always counted
+  const unscanned = new Map();     // lang -> kept files no adapter claims, so no rule ran
 
   // file|line already spent on a real endpoint, so a route-object skip on the
   // same line is not double-reported alongside it.
@@ -124,7 +131,24 @@ export function extractEndpoints(ctx) {
   };
 
   for (const p of ctx.paths) {
-    if (!/\.(ts|py)$/.test(p) || layerOf(p).layer === "test") continue;
+    if (layerOf(p).layer === "test") continue;
+    // Which files a registration rule may be run over is an ADAPTER question,
+    // not a hardcoded extension list: an adapter claiming a language is this
+    // tool saying it can read that language as code. This used to be
+    // `/\.(ts|py)$/`, which silently excluded every `.js`/`.jsx`/`.mjs` file
+    // even though the ts adapter already owns them and the default rules match
+    // `router.get("/x")` in plain JavaScript exactly as they do in TypeScript —
+    // so an Express-in-JavaScript repo reported zero endpoints, zero derived
+    // paths, and nothing in `atlas scan` to say why.
+    //
+    // A file with no adapter is still counted below rather than dropped in
+    // silence, because "we do not read this language" and "this language has
+    // no routes" look identical from the outside and only one of them is a
+    // fact about the repository.
+    if (!adapterFor(p)) {
+      if (!NOT_CODE.has(langOf(p))) unscanned.set(langOf(p), (unscanned.get(langOf(p)) ?? 0) + 1);
+      continue;
+    }
     const text = ctx.src.get(p);
     const { service } = serviceOf(p);
 
@@ -193,5 +217,9 @@ export function extractEndpoints(ctx) {
   }
 
   endpoints.skips = skips;
+  // Languages this tool keeps and counts but has no adapter for, so no
+  // registration rule was ever run over them. Rides along the same way `skips`
+  // does, and for the same reason: it is a fact about coverage, not payload.
+  endpoints.unscanned = [...unscanned].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   return endpoints;
 }
