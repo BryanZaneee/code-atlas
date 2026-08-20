@@ -290,6 +290,31 @@ What does not change is the constraint underneath it: **never `innerHTML` on raw
 
 **Static mode.** Default shows *"Source is not embedded. Run `atlas serve`, or rebuild with --embed-source."* `--embed-source [glob]` opts in, and the consequence is stated plainly: **the shareable HTML then contains your entire codebase.** `--gzip-source` stores it as a base64 gzip blob inflated with `DecompressionStream("gzip")` — both `node:zlib` and `DecompressionStream` are built in, so it stays zero-dep, and source text compresses ~3-4×, but the blob has to survive JSON as base64, which multiplies it back by 4/3 — so the figure that lands in the FILE is 2.31× on this repository (696,953 B → 301,282 B, against 3.10× for raw gzip with no wrapping), not the ~4× an earlier draft of this line claimed from Shuttrr's ~950 KB → ~240 KB. That estimate quoted the gzip size and forgot the encoding. Compress the whole file map as ONE stream, never per file: independent streams share no dictionary, and source files in one repo resemble each other enormously. Costs `view-source` legibility and an async boot step, so it's a flag, not the default. A permanent `SOURCE EMBEDDED` footer badge and a CLI size warning either way.
 
+### Layout density, and arranging by hand
+
+Spacing was three constants in the viewer — pitch 1.5, gutters 2 and 2.5 — and
+the gutters held most of the air, so a district was mostly the space around it.
+They ship as named presets in the payload now, for the same reason colour does:
+the viewer *uses* presentation tables and must not be the place they are defined,
+or the tool ends up knowing one repository's idea of roomy.
+
+**The pitch is clamped, not validated.** A block's footprint is one cell, so a
+pitch at or below 1 lets footprints overlap, and then painter's order and hit
+testing disagree — the map draws one block and answers with another. A sparse
+atlas is a preference; that is a bug, so a config asking for it is corrected.
+
+**Alt-drag moves a district, in whole cells.** The district is the unit because
+it is the unit the map is built out of: pulling one file loose from its service
+and layer would assert something about the code that is not true. Whole cells
+because the lattice is what keeps the depth sort exact through a drag. A drop
+onto an occupied district is refused — two districts on the same cells is two
+blocks on one lattice point, which the depth sort has no answer for.
+
+Offsets are viewer state and never payload: two runs of the same input have to
+serialize identically or every golden stops meaning anything. They are in memory
+only, so **persisted layouts stays deferred** below rather than being crossed in
+passing; `R` is the way back to the computed map.
+
 ### Progress reporting
 
 A 500k-line first scan is indistinguishable from a hang. Not a job queue — just streamed stderr progress: `walk 1,240 files · parse 890/1,240 · resolve · endpoints · derive`, throttled to ~10/s, suppressed when not a TTY (so `--json` stays clean). Under `serve`, the same phases stream to the browser over the initial fetch so the first paint isn't a blank page.

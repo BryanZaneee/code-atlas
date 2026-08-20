@@ -2,9 +2,10 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 complete · 8 of 13. Phase 1
-holds one gate a human has to measure. Phase 7's server and reader are in; what
-is left there is `--embed-source` and `--gzip-source`, which share a gate.
+**Status:** Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6 and 7 complete · 10 of 14.
+Phase 1 holds one gate a human has to measure, and Phase 7 holds one ratio that
+was deferred with a measured number rather than met. Phases 8, 9 and 10 are the
+work left; live mode is deliberately last.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -13,16 +14,23 @@ is left there is `--embed-source` and `--gzip-source`, which share a gate.
 | 2 | Config, detection, graceful degradation | 3, 4 | ● done |
 | 2.5 | Visual system: palette, selection, chrome | — | ● done |
 | 2.6 | Visual pass against a reference design | — | ● done |
+| 2.7 | Layout density, draggable districts, one vocabulary | — | ● done |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
 | 5 | Findings engine | — | ● done |
 | 6 | Path derivation + calibration | 8 | ● done |
-| 7 | `atlas serve` + code viewer | 8, 9 | ◐ built; one ratio deferred |
+| 7 | `atlas serve` + code viewer | 8, 9 | ● done, one ratio deferred |
 | 8 | Request composer UI | 9 | ○ |
 | 9 | Live proxy mode | — | ○ |
 | 10 | Open-source packaging | — | ○ |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
+
+**Build order, which is not the numbering:** 8, then 10, then 9. Live mode is
+last by choice — the modelled path is accurate enough to work against, so real
+HTTP is analysis rather than the thing the tool is for, and it is the only phase
+that opens a socket to somebody's running app. Packaging before it means the
+README describes a tool that is finished for everyone who never turns live on.
 
 ---
 
@@ -220,6 +228,57 @@ reference screenshots the user supplied, plus four things they named directly.*
 - [x] **Gate:** the empty fixture renders no heading with an empty body, in both
       themes and both colour modes
 
+## Phase 2.7 — Layout density, draggable districts, one vocabulary
+
+*Inserted like 2.5 and 2.6, and for the same reason: the numbering stays put.
+Two complaints and one debt. The map read too sparse and could not be
+rearranged; and the same thing had two names in four places, which is fine while
+one person holds it all and not fine in a README written for strangers.*
+
+- [x] **One word per thing.** The payload's `groups` became `districts` and
+      `meta.schemaVersion` went to 2 — the one breaking rename on the list, and
+      cheap only while nothing external reads the payload. `LAYOUT.districts[]`
+      holds `blocks`, not `members`, which meant node ids on one side and node
+      objects on the other. `S.layout` and `S.grid` became `S.packing` and
+      `S.ground`: layout meant three things and grid meant three others. *box*
+      and *building* are retired in favour of *block*. The glossary is in
+      `CLAUDE.md` and `docs/payload-schema.md`, including the thing readers get
+      wrong first — **folders are not drawn**
+- [x] **One district id.** The payload said `service/layer`, the viewer said
+      `service|layer`, and a line in the middle translated. Two keyspaces for one
+      identity, and it had already cost something: the sidebar's district code
+      chip looked one up in the other and had been silently blank. `districtId()`
+      builds it, in one place
+- [x] Density presets shipped in the payload the way colour already is —
+      `compact` / `normal` / `roomy`, config-overridable under `theme.density`,
+      with a sidebar control. `roomy` is what every atlas was drawn at before, so
+      nothing was taken away
+- [x] **Gate:** every preset's pitch clears the depth-sort floor, and a config
+      asking for less is clamped rather than obeyed. Pinned from both sides in
+      `test/layout.test.mjs`: the invariant is that a block's footprint is one
+      cell, and below it occlusion and hit testing stop agreeing
+- [x] **Gate:** compact draws a strictly smaller map than normal, and normal than
+      roomy — measured on the bbox, which is what a reader actually sees. On this
+      repository the default went from 3325×1390 to 2485×1034, 44% less area,
+      with compact at 61% less
+- [x] Alt-drag moves a district — blocks, plate and code tab together. Whole
+      cells, so the lattice survives the drag; a drop onto an occupied district
+      is refused and drawn in the error colour rather than silently springing
+      back. Offsets live in viewer state and never in the payload, and in memory
+      only — `PLAN.md`'s "persisted layouts" deferral stands, and `R` is the way
+      back
+- [x] **Gate:** a drag moves exactly its own district and nothing else, by a whole
+      number of cells; the plate follows its blocks; `R` restores the computed
+      layout byte for byte
+- [x] **Gate:** a committed drag re-rasterises exactly once, a refused or
+      zero-cell one not at all, and 120 pans afterwards still cost nothing. The
+      cache keys on node count, which a drag never changes, so a layout epoch
+      joins the key — and writing this test is what found the zero-cell drop
+      re-rasterising the city to draw the same picture
+- [x] **Gate:** a district is picked by the polygon the renderer filled for it,
+      and the hit box follows the drag — the same rule `pickNode` is held to,
+      because a map you can click on and be lied to by is worse than a static one
+
 ## Phase 3 — Language adapters + conformance
 
 - [x] Adapter interface documented in `docs/adapters.md`; `resolve()` returns an **array** of ids (Go packages / Java wildcards are one specifier → many files)
@@ -406,11 +465,21 @@ reference screenshots the user supplied, plus four things they named directly.*
 
 ## Phase 9 — Live proxy mode
 
+*Built last. Real end-to-end latency with repeat statistics — `n`, min, median,
+p95 — because one send is an anecdote. Per-hop timings stay unbuilt: the tool
+never observes a request crossing an internal hop, so any number there would be
+invented. MOCK is the default and the mode is always named on screen.*
+
+
 - [ ] `src/serve/proxy.mjs` — accepts `{method, path, headers, body}` only; **no host, no URL**
 - [ ] Origin assertion; `--allow-live` required at the process level; loopback/private target restriction
 - [ ] Method + header allowlists; timeout; 256 KB cap; `redirect:"manual"`; rate bucket; one stderr line per request
 - [ ] `--auth-env` keeps the token out of the browser; `sessionStorage` fallback with explicit clear
 - [ ] Status ring + latency **on the endpoint node only**; halt-on-non-2xx at hop 1; persistent real-vs-modeled banner
+- [ ] MOCK / LIVE toggle, MOCK by default; LIVE offered only when the page is
+      served *and* `--allow-live` was passed, disabled with the reason otherwise
+- [ ] Repeat statistics per endpoint — `n`, min, median, p95 over the samples
+      taken this session
 - [ ] **No per-hop timings, ever**
 - [ ] `[ COPY AS cURL ]`
 - [ ] **Gate:** real 200 + latency from a running Shuttrr; 401 halts at hop 1 and says so
