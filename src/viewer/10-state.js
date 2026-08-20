@@ -26,6 +26,20 @@ const S = {
   openServices: new Set(),
   opts: { docs:false, tests:false, contract:true, ambient:true, labels:true },
   hover: null,
+  // Where a reader has dragged a district to, in whole cells, keyed by district
+  // id. Whole cells because a block's footprint is one cell: an offset off the
+  // lattice would let footprints overlap and break the depth sort, so the drag
+  // snaps rather than trusting the mouse.
+  //
+  // ponytail: in memory, so a reload returns the computed layout. sessionStorage
+  // if arrangements should outlive a refresh — PLAN.md defers persisted layouts,
+  // so that is a decision to take rather than a line to add here.
+  districtOffsets: new Map(),
+  // The district under an alt-drag, and how far it has been pulled so far. Live
+  // overlay state: nothing is committed until the mouse comes up, so a drag in
+  // progress costs a ghost rectangle rather than a relayout per mouse move.
+  dragDistrict: null,
+  dragCells: { dx: 0, dy: 0 },
 };
 
 const byId = new Map(ATLAS.nodes.map(n => [n.id, n]));

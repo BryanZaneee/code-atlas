@@ -1,5 +1,12 @@
 /* ════════════════════ layout ════════════════════ */
 let LAYOUT = { nodes: [], districts: [], servicePlates: [], bbox: null };
+// Bumped whenever a drag commits. The raster cache keys on what the static
+// layer LOOKS like, and node count alone cannot see a district that moved
+// without changing size — so the epoch is what tells it something did.
+let layoutEpoch = 0;
+
+/** How far a reader has pulled a district, in cells. Absent means unmoved. */
+const districtOffset = (id) => S.districtOffsets.get(id) ?? { dx: 0, dy: 0 };
 
 function relayout() {
   setDensity(S.density);
@@ -42,9 +49,10 @@ function relayout() {
     if (!(L in ox) || !(Sv in oy)) continue;
     const c = cols(blocks.length);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const off = districtOffset(k);
     blocks.forEach((n, i) => {
-      n.gx = ox[L] + (i % c) * SPACING;
-      n.gy = oy[Sv] + Math.floor(i / c) * SPACING;
+      n.gx = ox[L] + (i % c) * SPACING + off.dx * SPACING;
+      n.gy = oy[Sv] + Math.floor(i / c) * SPACING + off.dy * SPACING;
       n.h = heightOf(n);
       x0 = Math.min(x0, n.gx); y0 = Math.min(y0, n.gy);
       x1 = Math.max(x1, n.gx); y1 = Math.max(y1, n.gy);
@@ -182,3 +190,60 @@ function reproject() {
   staticDirty = true;
 }
 
+
+/**
+ * The rectangle a district would occupy if it were pulled to `off`.
+ *
+ * `d`'s own rect already carries its current offset, since relayout() applied
+ * it, so this is the delta from there rather than from the computed position.
+ */
+function districtRectAt(d, off) {
+  const cur = districtOffset(d.id);
+  const sx = (off.dx - cur.dx) * SPACING, sy = (off.dy - cur.dy) * SPACING;
+  return { x0: d.x0 + sx, y0: d.y0 + sy, x1: d.x1 + sx, y1: d.y1 + sy };
+}
+
+/**
+ * Would this drop land on top of a neighbour?
+ *
+ * Districts are allowed to be rearranged, not to be stacked: two districts on
+ * the same cells put two blocks on one lattice point, and the depth sort has no
+ * answer for that. A refused drop springs back, which is a smaller thing to
+ * explain than a map that quietly draws one block over another.
+ */
+function districtWouldOverlap(id, off) {
+  const me = LAYOUT.districts.find((x) => x.id === id);
+  if (!me) return false;
+  const r = districtRectAt(me, off);
+  return LAYOUT.districts.some((o) => o.id !== id && r.x0 < o.x1 && o.x0 < r.x1 && r.y0 < o.y1 && o.y0 < r.y1);
+}
+
+/**
+ * Commit a drag. Returns false, and moves nothing, if the drop overlaps.
+ *
+ * buildPackets() is not optional: a packet's arc is frozen from its endpoints'
+ * projected tops when the packet is built, so a district that moves without it
+ * leaves every flow arc pointing at where the district used to be.
+ */
+function moveDistrict(id, cells) {
+  const cur = districtOffset(id);
+  const next = { dx: cur.dx + cells.dx, dy: cur.dy + cells.dy };
+  // A drag that ended where it started is a click with a wobble in it. Bumping
+  // the epoch for it would re-rasterise the whole city to draw the same picture.
+  if (next.dx === cur.dx && next.dy === cur.dy) return true;
+  if (districtWouldOverlap(id, next)) return false;
+  if (next.dx === 0 && next.dy === 0) S.districtOffsets.delete(id);
+  else S.districtOffsets.set(id, next);
+  layoutEpoch++;
+  relayout();
+  return true;
+}
+
+/** Back to the computed layout. Nothing to redraw if nothing had been moved. */
+function resetDistrictOffsets() {
+  if (!S.districtOffsets.size) return false;
+  S.districtOffsets.clear();
+  layoutEpoch++;
+  relayout();
+  return true;
+}

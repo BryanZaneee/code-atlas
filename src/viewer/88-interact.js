@@ -1,5 +1,9 @@
 /* ════════════════════ interaction ════════════════════ */
 let dragging = false, rotating = false, lastX = 0, lastY = 0, moved = 0;
+// Where an alt-drag started, so the cell delta is measured from the grab point
+// rather than accumulated per mouse move — accumulating would drift by a cell
+// every time the rounding fell either side of a half.
+let dragStartX = 0, dragStartY = 0;
 
 /**
  * Rotating re-projects; it does not re-lay-out. Nothing moves in world space,
@@ -31,7 +35,9 @@ window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   if (k === "q") rotateTo(S.yaw - YAW_STEP);
   else if (k === "e") rotateTo(S.yaw + YAW_STEP);
-  else if (k === "r") { rotateTo(YAW0); fitView(); }
+  // R is "put it back": the camera, and any districts that have been dragged
+  // out of the computed layout. One key, one obvious way home.
+  else if (k === "r") { const moved = resetDistrictOffsets(); rotateTo(YAW0); fitView(); if (moved) { renderList(); renderInspect(); } }
   else if (k === " ") { S.running = !S.running; syncControls(); }
   else if (k === "arrowright") stepBy(1);
   else if (k === "arrowleft") stepBy(-1);
@@ -56,15 +62,47 @@ window.addEventListener("keydown", (e) => {
 cv.addEventListener("mousedown", (e) => {
   dragging = true; rotating = e.shiftKey; moved = 0;
   lastX = e.clientX; lastY = e.clientY; cv.classList.add("drag");
+  // Alt grabs a district, the way shift grabs the camera. A modifier rather
+  // than a plain drag because the plates cover most of the map: claiming them
+  // for arranging would leave nowhere left to pan from.
+  S.dragDistrict = null;
+  S.dragCells = { dx: 0, dy: 0 };
+  if (e.altKey && !e.shiftKey) {
+    const r = cv.getBoundingClientRect();
+    const d = pickDistrict(e.clientX - r.left, e.clientY - r.top);
+    if (d) { S.dragDistrict = d.id; dragStartX = e.clientX; dragStartY = e.clientY; }
+  }
 });
-window.addEventListener("mouseup", () => { dragging = false; rotating = false; cv.classList.remove("drag"); });
+window.addEventListener("mouseup", () => {
+  if (S.dragDistrict) {
+    const { dx, dy } = S.dragCells;
+    if (dx || dy) {
+      // A refused drop leaves the district where it was. The ghost has already
+      // said why in the error colour, so this is the end of it and not a
+      // silent no-op.
+      if (moveDistrict(S.dragDistrict, { dx, dy })) { renderList(); renderInspect(); }
+    }
+    S.dragDistrict = null;
+    S.dragCells = { dx: 0, dy: 0 };
+  }
+  dragging = false; rotating = false; cv.classList.remove("drag");
+});
 window.addEventListener("mousemove", (e) => {
   if (dragging) {
     S.hover = null;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     moved += Math.abs(dx) + Math.abs(dy);
     lastX = e.clientX; lastY = e.clientY;
-    if (rotating) rotateTo(S.yaw + dx * 0.006);
+    if (S.dragDistrict) {
+      // Screen delta back to ground cells, snapped. Blocks stay on the lattice
+      // that way, which is what lets a district be rearranged without the
+      // depth sort losing its guarantee that a footprint fits its own cell.
+      // Pan and the canvas offset both cancel out of a difference, so only
+      // zoom has to be undone before the projection is.
+      const g = unproject((e.clientX - dragStartX) / S.zoom, (e.clientY - dragStartY) / S.zoom);
+      S.dragCells = { dx: Math.round(g.gx / SPACING), dy: Math.round(g.gy / SPACING) };
+    }
+    else if (rotating) rotateTo(S.yaw + dx * 0.006);
     else { S.panX += dx; S.panY += dy; }   // pan is a blit offset, not a re-render
     return;
   }
@@ -138,7 +176,7 @@ $("#bStep").onclick = () => { S.stepBudget = 1; S.running = false; syncControls(
 $("#bSpeed").onchange = (e) => { S.speed = parseFloat(e.target.value); };
 $("#bRotL").onclick = () => rotateTo(S.yaw - YAW_STEP);
 $("#bRotR").onclick = () => rotateTo(S.yaw + YAW_STEP);
-$("#bReset").onclick = () => { S.focusDistrict = null; rotateTo(YAW0); renderList(); fitView(); };
+$("#bReset").onclick = () => { S.focusDistrict = null; resetDistrictOffsets(); rotateTo(YAW0); renderList(); fitView(); };
 $("#bIsolate").onclick = () => {
   S.isolate = !S.isolate;
   $("#bIsolate").textContent = S.isolate ? "◎ ISOLATED" : "◍ IN CONTEXT";

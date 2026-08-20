@@ -81,7 +81,7 @@ function runRenderer(atlas) {
     resize();
     const _drawStatic = drawStatic;
     globalThis.scope = {
-      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, LAYOUT, stepStyle, counts: __counts,
+      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, get LAYOUT() { return LAYOUT; }, stepStyle, counts: __counts, moveDistrict, resetDistrictOffsets,
       wrap: () => { drawStatic = function () { __counts.drawStatic++; return _drawStatic.apply(this, arguments); }; },
     };
     `;
@@ -112,7 +112,7 @@ function payload(n) {
     from: nodes[i % n].id, to: nodes[(i * 7 + 1) % n].id, kind: "import", cross: false,
   }));
   return {
-    meta: { schemaVersion: 1, repo: "synthetic", suiteCount: 0 },
+    meta: { schemaVersion: 2, repo: "synthetic", suiteCount: 0 },
     services, layers, nodes, edges, endpoints: [], flows: [], districts: [],
     views: buildViews({}, []), theme: DEFAULT_THEME,
   };
@@ -322,4 +322,51 @@ test("a derived hop draws how sure it is, not only what kind it is", () => {
   assert.equal(scope.counts.arcs.filter((a) => a.dash).length, 1, "exactly the inferred hop is dotted");
   const drawn = new Set(scope.counts.arcs.map((a) => `${a.w}|${a.alpha}|${a.dash}`));
   assert.equal(drawn.size, 3, "three certainties must not collapse into one line");
+});
+
+/**
+ * Moving a district must re-render exactly once, and must re-render at all.
+ *
+ * The cache key encodes node COUNT, which a drag never changes — so without the
+ * layout epoch in the key a district could move and the raster would happily
+ * keep serving the picture from before it did. The other half matters just as
+ * much: a drag is not allowed to cost more than one rasterisation, or arranging
+ * the map becomes the one interaction that stutters.
+ */
+test("a committed drag re-renders the static layer exactly once", () => {
+  const scope = runRenderer(payload(600));
+  scope.draw();
+  const before = scope.counts.drawStatic;
+
+  assert.equal(scope.moveDistrict(scope.LAYOUT.districts[0].id, { dx: 40, dy: 30 }), true);
+  scope.draw();
+
+  assert.equal(scope.counts.drawStatic, before + 1, "a drag re-rendered more than once, or not at all");
+});
+
+test("panning after a drag is still free", () => {
+  const scope = runRenderer(payload(600));
+  scope.draw();
+  scope.moveDistrict(scope.LAYOUT.districts[0].id, { dx: 40, dy: 30 });
+  scope.draw();
+  const after = scope.counts.drawStatic;
+
+  for (let i = 0; i < 120; i++) { scope.S.panX += 7; scope.S.panY -= 3; scope.draw(); }
+  assert.equal(scope.counts.drawStatic, after, "the drag left the cache invalidating on every pan");
+});
+
+/** A drop that moves nothing must not cost a rasterisation either. */
+test("a drop that changes nothing does not re-render", () => {
+  const scope = runRenderer(payload(600));
+  scope.draw();
+  const [a, b] = scope.LAYOUT.districts;
+  // A drop of zero cells is the simplest thing that is guaranteed to change
+  // nothing; the overlap case is pinned in layout.test.mjs, where the pitch is
+  // in scope and the refusal can be asserted on its own terms.
+  const before = scope.counts.drawStatic;
+
+  assert.equal(scope.moveDistrict(a.id, { dx: 0, dy: 0 }), true);
+  assert.equal(scope.LAYOUT.districts[0].x0, a.x0, "a zero-cell drop moved something");
+  scope.draw();
+  assert.equal(scope.counts.drawStatic, before, "a drop that moved nothing still re-rasterised the city");
 });

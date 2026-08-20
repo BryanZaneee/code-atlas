@@ -43,7 +43,7 @@ function cacheKey() {
   // unaffordable at any frame rate. They are drawn in the live pass instead.
   return [
     S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, S.isolate,
-    S.shape, S.packing, S.density, S.ground, LAYOUT.nodes.length,
+    S.shape, S.packing, S.density, S.ground, LAYOUT.nodes.length, layoutEpoch,
     o.docs, o.tests, o.contract, o.labels,
   ].join("|");
 }
@@ -377,6 +377,40 @@ function drawDiamond(x, p, r, fill) {
 }
 
 /**
+ * Where an alt-drag would drop the district, drawn in the LIVE pass.
+ *
+ * Same reason selection and hover live here: a drag changes on every mouse
+ * move, and baking it into the world cache would re-rasterise the city per
+ * frame. A refused drop is drawn in the error colour rather than just springing
+ * back, so "nothing happened" is never the whole of the feedback.
+ */
+function drawDragGhost() {
+  const d = S.dragDistrict && LAYOUT.districts.find((x) => x.id === S.dragDistrict);
+  if (!d) return;
+  const { dx, dy } = S.dragCells;
+  if (!dx && !dy) return;
+  const off = districtOffset(d.id);
+  const next = { dx: off.dx + dx, dy: off.dy + dy };
+  const r = districtRectAt(d, next);
+  const blocked = districtWouldOverlap(d.id, next);
+  const c = blocked ? THEME.findingSeverity.error : THEME.accent;
+  ctx.save();
+  ctx.setLineDash([6, 5]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = alpha(c, .9);
+  ctx.fillStyle = alpha(c, blocked ? .1 : .07);
+  ctx.beginPath();
+  const pts = [[r.x0, r.y0], [r.x1, r.y0], [r.x1, r.y1], [r.x0, r.y1]]
+    .map(([gx, gy]) => toScreen(project(gx, gy, 0)));
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
  * Convex hull of a point set, monotone chain.
  *
  * A block in axonometric projection silhouettes to a hexagon whose vertices are
@@ -525,6 +559,7 @@ function draw() {
   // Before the overlay, after the city: a finding veils the map, and the
   // selection ring has to stay legible on top of the veil.
   drawFindings();
+  drawDragGhost();
   drawOverlay();
   livePackets = [];
 

@@ -55,6 +55,20 @@ function setYaw(yaw) {
 const project = (gx, gy, h) => ({ x: gx * A.x + gy * B.x, y: gx * A.y + gy * B.y - h });
 
 /**
+ * `project` inverted, on the ground plane.
+ *
+ * The projection is a 2x2 matrix built from the yaw basis, so undoing it is
+ * that matrix inverted — no search, no approximation, and correct at every
+ * angle for the same reason `project` is. Height has no inverse: a screen point
+ * names a ground cell only once you have decided it is on the ground, which is
+ * exactly what a drag along the floor has decided.
+ */
+function unproject(x, y) {
+  const det = A.x * B.y - B.x * A.y;
+  return { gx: (x * B.y - y * B.x) / det, gy: (y * A.x - x * A.y) / det };
+}
+
+/**
  * Painter's-algorithm key: the screen depth of a cell's ground footprint.
  * Every box is the same 1x1 size, so the nearest-corner offset is a constant
  * and drops out of the comparison — leaving the projected origin. At 45° this
