@@ -2,7 +2,7 @@
  * The scan pipeline.
  *
  * acquire ref -> walk + filter -> per-file import extraction (adapter) ->
- * resolve -> classify -> endpoints -> tests -> nodes/edges/groups -> coverage ->
+ * resolve -> classify -> endpoints -> tests -> nodes/edges/districts -> coverage ->
  * validate curated flows -> one JSON payload.
  *
  * The payload is a public contract: meta.schemaVersion versions it, and
@@ -13,7 +13,7 @@
 import path from "node:path";
 import { acquire } from "../scan/source.mjs";
 import { collect } from "../scan/walk.mjs";
-import { extractImports, buildNodes, buildEdges, buildGroups } from "../model/graph.mjs";
+import { extractImports, buildNodes, buildEdges, buildDistricts } from "../model/graph.mjs";
 import { extractEndpoints } from "../model/endpoints.mjs";
 import { readSuites, subjectOf, FIXTURE } from "../model/tests.mjs";
 import { deriveCoverage } from "../model/metrics.mjs";
@@ -26,7 +26,7 @@ import { detectServices } from "../config/detect.mjs";
 import { reconcileServices } from "../model/classify.mjs";
 import { ADAPTERS } from "../adapters/index.mjs";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * The flow index, inverted: which flows pass through each node.
@@ -174,7 +174,7 @@ export function scan({
     deriveCoverage(nodes, edges);
     derivePaths(ctx, { nodes, edges, endpoints });
     indexFlows(nodes, config.flows ?? []);
-    const groups = buildGroups(nodes, config.layers);
+    const districts = buildDistricts(nodes, config.layers);
     // After path derivation, per CLAUDE.md's data flow: "endpoints no test
     // reaches" reads derivedPath, and everything else here reads the finished
     // graph and coverage rather than re-deriving anything.
@@ -245,7 +245,7 @@ export function scan({
       // showing. Merging them here would also silently rewrite the meaning of
       // every existing `flows` consumer.
       derivedFlows: derived,
-      groups,
+      districts,
       findings,
       // Present only when `--embed-source` asked for it: a build without the
       // flag must serialize identically to one from before this field existed,

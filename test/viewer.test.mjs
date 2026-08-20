@@ -126,7 +126,7 @@ test("assemble fills every marker", async () => {
   const html = assemble(payload);
   assert.equal(html.match(/__ATLAS_(DATA|STYLE|SCRIPT)__/g), null);
   assert.ok(html.includes("<style>"));
-  assert.ok(html.includes(`"schemaVersion":1`));
+  assert.ok(html.includes(`"schemaVersion":2`));
 });
 
 /**

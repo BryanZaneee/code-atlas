@@ -4,6 +4,12 @@ const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmt = (n) => n.toLocaleString("en-US");
 
+// A district is one service crossed with one layer, and this is its id in every
+// surface that names one: the payload publishes it, the viewer lays it out by
+// it, and `S.focusDistrict` holds it. One format, built in one place, because
+// two formats for one identity is two keyspaces that silently miss each other.
+const districtId = (service, layer) => `${service}/${layer}`;
+
 /**
  * A theme colour at an alpha. Canvas has no colour-mix, and the alternative is
  * a named token per opacity — thirteen of them, in one palette, which is how

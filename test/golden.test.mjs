@@ -57,7 +57,7 @@ const ADDED_NODE = ["layerWhy", "serviceWhy",
   "travelledBy"];
 // phase 2.5: a stable two-character district name, and the district-hierarchy
 // field PLAN.md ships ahead of the layout that consumes it.
-const ADDED_GROUP = ["code", "parentId"];
+const ADDED_DISTRICT = ["code", "parentId"];
 // phase 4: the line a route is declared on, which is what makes Phase 7's
 // jump-to-line possible. Additive — the method, path and definedIn of all 18
 // endpoints must still match the prototype exactly, and they do.
@@ -109,6 +109,25 @@ function undoDocstringImportFix(p, expected) {
   }
 }
 
+/**
+ * Phase 2.7 renamed the payload key `groups` to `districts` — the word the
+ * viewer, the docs and the UI had always used for the same thing — and bumped
+ * schemaVersion to 2 for it.
+ *
+ * The golden is not rewritten to match. It is the prototype's output, and the
+ * prototype said `groups`; editing it would make a historical record agree with
+ * a decision taken years after it. Renaming the key back on the clone, in
+ * place so the serialized order is untouched, keeps the comparison honest: one
+ * rename named, one rename undone, exactly as the two corrections below.
+ */
+function undoDistrictRename(p) {
+  for (const k of Object.keys(p)) {
+    const v = p[k];
+    delete p[k];
+    p[k === "districts" ? "groups" : k] = v;
+  }
+}
+
 function undoJsonLangFix(p) {
   const json = p.nodes.filter((n) => n.lang === "json");
   for (const n of json) n.lang = "md";
@@ -138,7 +157,8 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   for (const k of ADDED_TOP) delete stripped[k];
   for (const k of ADDED_META) delete stripped.meta[k];
   for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];
-  for (const g of stripped.groups) for (const k of ADDED_GROUP) delete g[k];
+  for (const d of stripped.districts) for (const k of ADDED_DISTRICT) delete d[k];
+  undoDistrictRename(stripped);
   for (const e of stripped.endpoints) for (const k of ADDED_ENDPOINT) delete e[k];
   for (const e of stripped.edges) for (const k of ADDED_EDGE) delete e[k];
   for (const f of stripped.flows) for (const st of f.steps) for (const k of ADDED_STEP) delete st[k];
@@ -155,7 +175,7 @@ test("meta carries the fields later phases added", async (t) => {
 
   const { payload } = await scanTaxvault(repo);
 
-  assert.equal(payload.meta.schemaVersion, 1);
+  assert.equal(payload.meta.schemaVersion, 2);
   assert.deepEqual(payload.meta.acquisition, {
     mode: "ref",
     ref: TAXVAULT_COMMIT,

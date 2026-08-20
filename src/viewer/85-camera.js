@@ -21,16 +21,16 @@ function fitBox(b, pad = 0.94, reserveLeft = 0) {
 function fitView() {
   octx.font = `600 11px ${FONT}`;
   let reserve = 0;
-  for (const p of LAYOUT.plates) reserve = Math.max(reserve, octx.measureText(p.label).width);
+  for (const p of LAYOUT.servicePlates) reserve = Math.max(reserve, octx.measureText(p.label).width);
   fitBox(LAYOUT.bbox, 0.94, reserve ? reserve + 24 : 0);
 }
 function focusOn(d) {
   // Accumulated rather than spread, for the same reason the bounding box is:
   // a district with thousands of members would otherwise blow the argument
   // limit on the way to framing itself.
-  if (!d.members.length) return;
+  if (!d.blocks.length) return;
   const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
-  for (const n of d.members) {
+  for (const n of d.blocks) {
     for (const face of n.faces ?? []) {
       for (const p of face.pts) {
         if (p.x < b.x0) b.x0 = p.x;

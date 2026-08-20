@@ -64,10 +64,10 @@ function synthetic(n, edgeCount) {
     kind: "import",
     cross: false,
   }));
-  const groups = [];
+  const districts = [];
   return {
     meta: { schemaVersion: 1, repo: "synthetic", nodeCount: n, suiteCount: 0 },
-    services, layers, nodes, edges, endpoints: [], flows: [], groups,
+    services, layers, nodes, edges, endpoints: [], flows: [], districts,
     views: buildViews({}, []),
     theme: DEFAULT_THEME,
   };

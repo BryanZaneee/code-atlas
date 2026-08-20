@@ -7,7 +7,7 @@ const S = {
   running: true, speed: 1, stepBudget: 0,
   selected: null,       // node id
   pinnedPacket: null,
-  focusDistrict: null,  // "service|layer"
+  focusDistrict: null,  // "service/layer" — the district id the payload publishes
   activeFlow: "__all__",
   // The finding whose evidence is lit on the map, by id. Overlay state, like
   // `selected` — it never enters the raster cache, so picking one costs a veil
@@ -18,8 +18,8 @@ const S = {
   // whole map is what makes it locatable. Both are wanted, so both exist.
   isolate: true,
   shape: "block",
-  layout: "grid",
-  grid: true,
+  packing: "grid",
+  ground: true,
   query: "",
   services: new Set(ATLAS.services.map(s => s.id)),
   openServices: new Set(),
@@ -37,7 +37,7 @@ const ALL_FLOWS = [...ATLAS.flows, ...(ATLAS.derivedFlows ?? [])];
 const flowById = new Map(ALL_FLOWS.map(f => [f.id, f]));
 // Districts are laid out here but named by the scanner, so the code a plate tab
 // shows is the same one the payload published and a reader can grep for.
-const codeByGroup = new Map(ATLAS.groups.map(g => [g.id, g.code]));
+const codeByDistrict = new Map(ATLAS.districts.map(d => [d.id, d.code]));
 const edgesFrom = new Map(), edgesTo = new Map();
 for (const e of ATLAS.edges) {
   if (!edgesFrom.has(e.from)) edgesFrom.set(e.from, []);

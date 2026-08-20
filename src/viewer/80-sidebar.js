@@ -82,7 +82,7 @@ function renderList() {
     // is the point of shipping a code at all rather than relying on the swatch.
     const cd = el("span", "cd", d.code ?? "");
     if (S.colorMode === "identity") cd.style.borderColor = layerById.get(d.layer)?.color ?? THEME.layerFallback;
-    r.append(cd, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.members.length));
+    r.append(cd, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.blocks.length));
     r.onclick = () => {
       S.focusDistrict = S.focusDistrict === d.id ? null : d.id;
       S.selected = null; S.pinnedPacket = null;
@@ -135,9 +135,9 @@ function renderServices() {
       .sort((a, b) => (layerById.get(a)?.rank ?? 99) - (layerById.get(b)?.rank ?? 99));
     for (const L of districts) {
       const members = files.filter((f) => f.layer === L);
-      const id = `${s.id}|${L}`;
+      const id = districtId(s.id, L);
       const r = el("div", "row mini" + (S.focusDistrict === id ? " sel" : ""));
-      const cd = el("span", "cd", codeByGroup.get(id) ?? "");
+      const cd = el("span", "cd", codeByDistrict.get(id) ?? "");
       if (S.colorMode === "identity") cd.style.borderColor = layerById.get(L)?.color ?? THEME.layerFallback;
       r.append(cd, el("span", "nm", (layerById.get(L)?.label ?? L).toLowerCase()), el("span", "num", members.length));
       r.onclick = () => {

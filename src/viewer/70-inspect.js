@@ -83,12 +83,12 @@ function renderInspect() {
     const d = LAYOUT.districts.find(x => x.id === S.focusDistrict);
     if (d) {
       b.append(el("div", "title", `${svcById.get(d.service)?.label ?? d.service}`));
-      b.append(el("div", "path", `${d.label.toLowerCase()} · ${d.members.length} files`));
+      b.append(el("div", "path", `${d.label.toLowerCase()} · ${d.blocks.length} files`));
       const dl = el("dl", "kv");
-      dl.append(el("dt", null, "LINES"), el("dd", null, fmt(d.members.reduce((a, n) => a + n.loc, 0))));
+      dl.append(el("dt", null, "LINES"), el("dd", null, fmt(d.blocks.reduce((a, n) => a + n.loc, 0))));
       b.append(dl);
       b.append(el("h3", null, "FILES"));
-      for (const n of d.members.slice().sort((a, x) => x.loc - a.loc)) {
+      for (const n of d.blocks.slice().sort((a, x) => x.loc - a.loc)) {
         const r = el("div", "row mini");
         r.append(el("span", "nm", n.name), el("span", "num", `${n.loc}L`));
         r.onclick = () => { S.selected = n.id; renderInspect(); };

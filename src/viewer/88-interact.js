@@ -156,8 +156,8 @@ for (const id of SHAPE_IDS) {
 }
 $("#vShape").value = S.shape;
 $("#vShape").onchange = (e) => { S.shape = e.target.value; reproject(); staticDirty = true; };
-$("#vLayout").onchange = (e) => { S.layout = e.target.value; relayout(); fitView(); };
-$("#vGrid").onchange = (e) => { S.grid = e.target.checked; staticDirty = true; };
+$("#vPacking").onchange = (e) => { S.packing = e.target.value; relayout(); fitView(); };
+$("#vGround").onchange = (e) => { S.ground = e.target.checked; staticDirty = true; };
 
 $("#bColor").onclick = () => {
   S.colorMode = S.colorMode === "mono" ? "identity" : "mono";

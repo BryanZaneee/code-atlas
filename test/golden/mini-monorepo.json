@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "repo": "mini-monorepo",
     "ref": "fs",
     "commit": "",
@@ -1157,7 +1157,7 @@
       ]
     }
   ],
-  "groups": [
+  "districts": [
     {
       "id": "docs/docs",
       "service": "docs",

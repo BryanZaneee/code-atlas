@@ -142,6 +142,31 @@ exact strings, which constrained the design without making the map any more
 honest. What is not open is shipping a modelled path that reads as an observed
 one, or drawing a number we do not have.
 
+## Vocabulary
+
+One word per thing, because the map, the payload, the panels and the README all
+have to agree. The axes are **service down, layer across**.
+
+| term | what it is |
+| --- | --- |
+| **block** | one source file, drawn as an extruded solid; height is file length |
+| **prism** | one extrusion inside a block's shape — five shapes are built from prisms |
+| **district** | one service crossed with one layer. `districts[]` in the payload, `LAYOUT.districts` in the viewer, id `service/layer` everywhere — built by `districtId()` in `15-helpers.js` and never assembled by hand |
+| **service** | a row of the map, with a service plate under it |
+| **layer** | a column of the map, ordered by `rank` |
+| **ground plate** | the pad under a group of blocks — a **service plate** or a **district plate** |
+| **ground grid** | the isometric floor, `S.ground` |
+| **packing** | how blocks arrange *within* a district — `S.packing`, grid/wide/tall |
+| **density** | how much space sits *between* districts and services |
+
+**Folders are not drawn.** A directory decides a block's layer and service and
+then plays no further part. Do not add a directory-shaped visual unit; if files
+that sit together on disk land in different districts, that is the map doing its
+job.
+
+Retired words, so they do not come back: *group* (say district), *box* and
+*building* (say block), and `S.layout` / `S.grid` (say `S.packing` / `S.ground`).
+
 ## Architecture — the seams that matter
 
 **`src/adapters/` ↔ `src/model/` is the load-bearing boundary.** Anything that turns

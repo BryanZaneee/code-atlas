@@ -113,7 +113,7 @@ function payload(n) {
   }));
   return {
     meta: { schemaVersion: 1, repo: "synthetic", suiteCount: 0 },
-    services, layers, nodes, edges, endpoints: [], flows: [], groups: [],
+    services, layers, nodes, edges, endpoints: [], flows: [], districts: [],
     views: buildViews({}, []), theme: DEFAULT_THEME,
   };
 }

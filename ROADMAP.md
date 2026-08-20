@@ -39,7 +39,13 @@ Legend: ○ not started · ◐ in progress · ● done · [~] deliberately defer
       would otherwise be double-counted)
 - [x] Viewer split into `src/viewer/*` + concatenation in `src/build/assemble.mjs`
 - [x] TaxVault taxonomy frozen into `examples/taxvault.config.mjs`
-- [x] `meta.schemaVersion = 1`
+- [x] `meta.schemaVersion = 1` — **now 2.** Phase 2.7 renamed the payload key
+      `groups` to `districts`, the word the viewer, the docs and the UI had
+      always used for it. The taxvault golden was *not* rewritten: it is the
+      prototype's output and the prototype said `groups`, so `golden.test.mjs`
+      renames the key back on its clone before comparing, the same way it undoes
+      the json-lang and docstring-import fixes. The Phase 0 byte-identical gate
+      below therefore still passes against the original file, at schemaVersion 1
 - [x] `meta.acquisition` (`worktree` / `ref` / `fs`, + `ref`, `commit`, `dirty`)
       — the **`fs` rung landed early**: the in-repo fixtures are not git repos and
       the test suite must not require git. The rungs above it and the fallback

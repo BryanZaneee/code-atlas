@@ -1,15 +1,18 @@
 /* ════════════════════ layout ════════════════════ */
-let LAYOUT = { nodes: [], districts: [], plates: [], bbox: null };
+let LAYOUT = { nodes: [], districts: [], servicePlates: [], bbox: null };
 
 function relayout() {
   const vis = visibleSet();
+  // Keyed by the district id the payload publishes, and carrying its service
+  // and layer rather than re-splitting the id: a service id may contain the
+  // separator, so parsing the key back apart would be a silent bug.
   const plots = new Map();
   for (const n of vis) {
-    const k = `${n.service}|${n.layer}`;
-    if (!plots.has(k)) plots.set(k, []);
-    plots.get(k).push(n);
+    const k = districtId(n.service, n.layer);
+    if (!plots.has(k)) plots.set(k, { service: n.service, layer: n.layer, blocks: [] });
+    plots.get(k).blocks.push(n);
   }
-  for (const a of plots.values()) a.sort((x, y) => x.name.localeCompare(y.name));
+  for (const p of plots.values()) p.blocks.sort((x, y) => x.name.localeCompare(y.name));
 
   const layers = [...new Set(vis.map(n => n.layer))].sort((a, b) => (layerById.get(a)?.rank ?? 99) - (layerById.get(b)?.rank ?? 99));
   const svcOrder = ATLAS.services.slice().sort((a, b) => a.order - b.order).map(s => s.id);
@@ -20,34 +23,34 @@ function relayout() {
   // design, and rearranging them would be a different diagram rather than a
   // different look. What a reader gains from here is aspect: a wide district
   // reads along the layer axis, a tall one reads down the service axis.
-  const PACK = { grid: 1, wide: 1.9, tall: 0.5 }[S.layout] ?? 1;
+  const PACK = { grid: 1, wide: 1.9, tall: 0.5 }[S.packing] ?? 1;
   const cols = (n) => Math.max(1, Math.round(Math.sqrt(n) * PACK) || 1);
   const rowsOf = (n) => Math.ceil(n / cols(n));
 
   const layerW = {}, svcH = {};
-  for (const L of layers) layerW[L] = Math.max(1, ...services.map(Sv => { const a = plots.get(`${Sv}|${L}`); return a ? cols(a.length) : 0; }));
-  for (const Sv of services) svcH[Sv] = Math.max(1, ...layers.map(L => { const a = plots.get(`${Sv}|${L}`); return a ? rowsOf(a.length) : 0; }));
+  for (const L of layers) layerW[L] = Math.max(1, ...services.map(Sv => { const p = plots.get(districtId(Sv, L)); return p ? cols(p.blocks.length) : 0; }));
+  for (const Sv of services) svcH[Sv] = Math.max(1, ...layers.map(L => { const p = plots.get(districtId(Sv, L)); return p ? rowsOf(p.blocks.length) : 0; }));
 
   const ox = {}, oy = {};
   let x = 0; for (const L of layers) { ox[L] = x; x += layerW[L] * SPACING + GUT_LAYER; }
   let y = 0; for (const Sv of services) { oy[Sv] = y; y += svcH[Sv] * SPACING + GUT_SVC; }
 
   const districts = [];
-  for (const [k, arr] of plots) {
-    const [Sv, L] = k.split("|");
+  for (const [k, plot] of plots) {
+    const { service: Sv, layer: L, blocks } = plot;
     if (!(L in ox) || !(Sv in oy)) continue;
-    const c = cols(arr.length);
+    const c = cols(blocks.length);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    arr.forEach((n, i) => {
+    blocks.forEach((n, i) => {
       n.gx = ox[L] + (i % c) * SPACING;
       n.gy = oy[Sv] + Math.floor(i / c) * SPACING;
       n.h = heightOf(n);
       x0 = Math.min(x0, n.gx); y0 = Math.min(y0, n.gy);
       x1 = Math.max(x1, n.gx); y1 = Math.max(y1, n.gy);
     });
-    districts.push({ id:k, service:Sv, layer:L, members:arr,
+    districts.push({ id:k, service:Sv, layer:L, blocks,
       x0:x0 - 0.45, y0:y0 - 0.45, x1:x1 + 1.45, y1:y1 + 1.45,
-      code: codeByGroup.get(`${Sv}/${L}`) ?? "",
+      code: codeByDistrict.get(k) ?? "",
       label: layerById.get(L)?.label ?? L });
   }
 
@@ -57,7 +60,7 @@ function relayout() {
     if (!byService.has(d.service)) byService.set(d.service, []);
     byService.get(d.service).push(d);
   }
-  const plates = services.map(Sv => {
+  const servicePlates = services.map(Sv => {
     const ds = byService.get(Sv);
     if (!ds?.length) return null;
     const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
@@ -77,7 +80,7 @@ function relayout() {
   // all: a node selected from the panel may have been filtered out since, and
   // its cached faces would still be sitting on it from an earlier layout.
   LAYOUT = {
-    nodes: vis, districts, plates, bbox: null,
+    nodes: vis, districts, servicePlates, bbox: null,
     ids: new Set(vis.map(n => n.id)),
     steps: isFlowView(S.view) ? pathSteps() : new Map(),
     edges: visibleEdges(vis),
@@ -90,7 +93,7 @@ function relayout() {
 /**
  * Everything that depends on the camera angle and nothing that depends on the
  * layout. Rotating re-runs this; it does not repack districts or move a single
- * building. Hit testing needs no counterpart because it inverse-transforms to
+ * block. Hit testing needs no counterpart because it inverse-transforms to
  * world space and ray-casts these same polygons.
  */
 function reproject() {
@@ -164,7 +167,7 @@ function reproject() {
   // Without them a row whose plate reaches past its tallest block gets cropped,
   // and so does the tab hanging off that plate's corner.
   if (bbox) {
-    for (const p of LAYOUT.plates) {
+    for (const p of LAYOUT.servicePlates) {
       for (const [gx, gy] of [[p.x0, p.y0], [p.x1, p.y0], [p.x1, p.y1], [p.x0, p.y1]]) {
         const q = project(gx, gy, 0);
         if (q.x < bbox.x0) bbox.x0 = q.x;

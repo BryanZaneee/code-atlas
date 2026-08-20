@@ -209,8 +209,8 @@ function codeFor(service, layer, taken) {
   return head + String(taken.size % 10);
 }
 
-export function buildGroups(nodes, layers) {
-  const groups = [];
+export function buildDistricts(nodes, layers) {
+  const districts = [];
   const byGid = new Map();
   for (const n of nodes) {
     const gid = `${n.service}/${n.layer}`;
@@ -221,7 +221,7 @@ export function buildGroups(nodes, layers) {
       // not also break the payload contract.
       g = { id: gid, service: n.service, layer: n.layer, parentId: n.service, code: "", label: layers.find((l) => l.id === n.layer)?.label ?? n.layer, members: [] };
       byGid.set(gid, g);
-      groups.push(g);
+      districts.push(g);
     }
     g.members.push(n.id);
   }
@@ -230,9 +230,9 @@ export function buildGroups(nodes, layers) {
   // first-appearance order is deterministic for one input but moves when a file
   // is added, and a code that moves is worse than no code at all.
   const taken = new Set();
-  for (const g of [...groups].sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const g of [...districts].sort((a, b) => a.id.localeCompare(b.id))) {
     g.code = codeFor(g.service, g.layer, taken);
     taken.add(g.code);
   }
-  return groups;
+  return districts;
 }

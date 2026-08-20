@@ -3,7 +3,7 @@
 `atlas build --json` prints this. It is a public contract: other tools are
 expected to read it, so it is versioned from the first release.
 
-- **`meta.schemaVersion`** — integer, currently `1`. Bumped when a field is
+- **`meta.schemaVersion`** — integer, currently `2`. Bumped when a field is
   removed, renamed, or changes meaning. Adding a field does **not** bump it, so
   read defensively and ignore what you do not know.
 - **`meta.generatedAt` is the only field allowed to differ between two runs of
@@ -27,9 +27,28 @@ expected to read it, so it is versioned from the first release.
 | `derivedFlows` | array | experimental | flows this tool inferred. **Separate from `flows` on purpose**: a reader has to be able to tell an asserted path from an inferred one without inspecting a field |
 | `views` | array | stable | which views the strip offers, derived from the flows present |
 | `theme` | object | stable | every colour and style table the viewer draws with |
-| `groups` | array | stable | one per `service/layer` pair that has members — the districts of the map |
+| `districts` | array | stable | one per `service/layer` pair that has blocks — the cells of the map, where a service row crosses a layer column |
 | `findings` | array | experimental | structural findings over the graph — cycles, layering violations, and the rest of `src/model/findings.mjs`'s eight checks |
 | `source` | object | experimental | **present only when built with `--embed-source`** — the scanned repository's own text, baked in. See [`source`](#source) |
+
+## Vocabulary
+
+The map's two axes are **service down, layer across**, and every noun below
+names something you can point at on it.
+
+| term | what it is | drawn as |
+| --- | --- | --- |
+| **block** | one source file | an extruded solid; height is file length |
+| **district** | one service crossed with one layer | a district plate with a two-character code tab, holding its blocks |
+| **service** | a row of the map | a service plate spanning that row's districts |
+| **layer** | a column of the map, ordered by `rank` | the column axis; it has no plate of its own |
+
+**Folders are not drawn.** A directory has no visual unit. `nodes[].dir` and the
+`dirs:` matcher in layer rules are read to *decide* a block's layer and service,
+and after that the directory tree plays no part in the picture. Files that sat
+together on disk routinely land in different districts, and that is the map
+working rather than failing: it groups by the job a file does, not by where it
+was filed.
 
 ## `services`
 
@@ -43,7 +62,7 @@ The rows of the map.
 | `order` | int | row order |
 | `synthesized` | bool | present and `true` when the tool **added** this row because a node claimed a service the config never declared. Dropping those nodes instead would filter them out of the view with no checkbox to bring them back |
 
-## `groups`
+## `districts`
 
 | field | type | tier | notes |
 | --- | --- | --- | --- |

@@ -65,18 +65,18 @@ test("meta's coverage counters agree with the payload", async () => {
  */
 test("district codes are unique and survive a new file", async () => {
   const p = await payloadOf();
-  const codes = p.groups.map((g) => g.code);
+  const codes = p.districts.map((g) => g.code);
   assert.equal(new Set(codes).size, codes.length);
   assert.ok(codes.every((c) => /^[A-Z][A-Z0-9]$/.test(c)), codes.join(", "));
-  assert.ok(p.groups.every((g) => g.parentId === g.service));
+  assert.ok(p.districts.every((g) => g.parentId === g.service));
 
   // Dropping the first district's members simulates the file churn that
   // first-appearance ordering would have reshuffled the whole set on.
-  const { buildGroups } = await import("../src/model/graph.mjs");
-  const survivors = p.groups.slice(1).flatMap((g) => g.members);
+  const { buildDistricts } = await import("../src/model/graph.mjs");
+  const survivors = p.districts.slice(1).flatMap((g) => g.members);
   const kept = p.nodes.filter((n) => survivors.includes(n.id));
-  const after = new Map(buildGroups(kept, p.layers).map((g) => [g.id, g.code]));
-  for (const g of p.groups.slice(1)) assert.equal(after.get(g.id), g.code, `${g.id} was renamed`);
+  const after = new Map(buildDistricts(kept, p.layers).map((g) => [g.id, g.code]));
+  for (const g of p.districts.slice(1)) assert.equal(after.get(g.id), g.code, `${g.id} was renamed`);
 });
 
 test("travelledBy indexes the flows and is absent when empty", async () => {
@@ -155,9 +155,9 @@ test("every node's layer exists in layers", async () => {
   assert.deepEqual(orphans, []);
 });
 
-test("groups partition the node set exactly", async () => {
+test("districts partition the node set exactly", async () => {
   const p = await payloadOf();
-  const members = p.groups.flatMap((g) => g.members);
+  const members = p.districts.flatMap((g) => g.members);
   assert.equal(members.length, p.nodes.length);
   assert.deepEqual(new Set(members).size, p.nodes.length);
 });
