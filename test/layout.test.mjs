@@ -30,7 +30,7 @@ function runLayout(atlas) {
     LAYOUT_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     // declared in 50-render.js, which needs a canvas and is not loaded here
     "\nvar staticDirty = false;\nsetYaw(S.yaw);\nrelayout();\n" +
-    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES, inPoly };\n";
+    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES, inPoly, DENSITY_IDS, setDensity, SPACING_MIN, spacingNow: () => SPACING };\n";
   const ctx = vm.createContext({ ATLAS: atlas, console });
   vm.runInContext(`"use strict";\n${source}`, ctx, { timeout: 60_000 });
   return ctx.scope;
@@ -66,7 +66,7 @@ function synthetic(n, edgeCount) {
   }));
   const districts = [];
   return {
-    meta: { schemaVersion: 1, repo: "synthetic", nodeCount: n, suiteCount: 0 },
+    meta: { schemaVersion: 2, repo: "synthetic", nodeCount: n, suiteCount: 0 },
     services, layers, nodes, edges, endpoints: [], flows: [], districts,
     views: buildViews({}, []),
     theme: DEFAULT_THEME,
@@ -293,4 +293,54 @@ test("rotating does not move anything in world space", () => {
   scope.reproject();
   assert.deepEqual(scope.LAYOUT.nodes.map((n) => `${n.id}@${n.gx},${n.gy},${n.h}`).sort(), before);
   assert.deepEqual(scope.LAYOUT.districts.map((d) => `${d.id}:${d.x0},${d.y0},${d.x1},${d.y1}`).sort(), districts);
+});
+
+/**
+ * Density is a preference; the depth sort is not.
+ *
+ * A block's footprint is one cell, so a spacing at or below 1 lets footprints
+ * overlap, at which point painter's order and hit testing disagree and the map
+ * can be clicked on and lie. `setDensity` clamps rather than validates, which
+ * this pins from both directions: every shipped preset clears the floor, and a
+ * config that asks for something illegal is corrected instead of obeyed.
+ */
+test("every density preset stays above the depth-sort floor", () => {
+  const scope = runLayout(synthetic(300, 400));
+  assert.ok(scope.DENSITY_IDS.length >= 2, "a control with one option is not a control");
+  for (const id of scope.DENSITY_IDS) {
+    scope.setDensity(id);
+    assert.ok(scope.spacingNow() > 1, `${id} packs blocks at ${scope.spacingNow()}, at or under one cell`);
+    assert.ok(scope.spacingNow() >= scope.SPACING_MIN, `${id} is under the floor`);
+  }
+});
+
+test("a config asking for an illegal spacing is clamped, not obeyed", () => {
+  const atlas = synthetic(60, 40);
+  atlas.theme = { ...atlas.theme, density: { ...atlas.theme.density, presets: { ...atlas.theme.density.presets, silly: { spacing: 0.2, gutLayer: -5, gutSvc: 0 } } } };
+  const scope = runLayout(atlas);
+  scope.setDensity("silly");
+  assert.equal(scope.spacingNow(), scope.SPACING_MIN);
+});
+
+/**
+ * The point of the control: compact has to actually be smaller. Measured on the
+ * bbox rather than the constants, because that is what a reader sees.
+ */
+test("compact draws a strictly smaller map than normal, and normal than roomy", () => {
+  const area = (density) => {
+    const atlas = synthetic(300, 400);
+    atlas.theme = { ...atlas.theme, density: { ...atlas.theme.density, default: density } };
+    const { bbox } = runLayout(atlas).LAYOUT;
+    return (bbox.x1 - bbox.x0) * (bbox.y1 - bbox.y0);
+  };
+  const compact = area("compact"), normal = area("normal"), roomy = area("roomy");
+  assert.ok(compact < normal, `compact ${compact} is not under normal ${normal}`);
+  assert.ok(normal < roomy, `normal ${normal} is not under roomy ${roomy}`);
+});
+
+/** The default a fresh atlas opens at, so a retune cannot silently undo itself. */
+test("the shipped default is not the old roomy spacing", () => {
+  const scope = runLayout(synthetic(60, 40));
+  assert.equal(scope.S.density, "normal");
+  assert.ok(scope.spacingNow() < 1.5, "the default is still drawn at the pre-2.7 pitch");
 });

@@ -170,6 +170,34 @@ edge kind does not drop the other eleven.
 | `findingSeverity` | object | the ring and evidence-edge colour per finding severity (`error` `warning` `info`) in the findings view. Colour is the second channel there, never the only one — the list chips and the panel spell the severity out |
 | `legend` | object | legend rows per view kind; each row *names* a key in the tables above rather than repeating a colour, so the legend cannot drift from the map |
 | `dark` | object | the dark theme, as a **delta** over the keys above |
+| `density` | object | how much air sits between districts and services. See below |
+
+### `theme.density`
+
+The map's spacing, as named presets the sidebar offers as a control. `default`
+names the one a fresh atlas opens at.
+
+```js
+theme: {
+  density: {
+    default: "normal",
+    presets: {
+      tight: { spacing: 1.1, gutLayer: 0.4, gutSvc: 0.6 },
+    },
+  },
+}
+```
+
+`spacing` is the cell pitch, and the two gutters are the gaps between layer
+columns and service rows. The gutters are where most of the air is — start
+there. Adding a preset keeps the shipped `compact` / `normal` / `roomy`; naming
+one of those replaces it.
+
+**`spacing` is clamped above 1 and cannot be overridden below it.** A block's
+footprint is one cell, so a tighter pitch lets footprints overlap, and then the
+depth sort and hit testing disagree — the map draws one block and answers with
+another. A too-sparse atlas is a preference; that is a bug, so the viewer
+corrects the value rather than obeying it.
 
 Only the scalars — and `findingSeverity`, which is drawn over a veiled city and
 has to lighten with the ground — appear in `dark`. Everything mixed from them

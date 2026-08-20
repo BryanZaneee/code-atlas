@@ -258,6 +258,26 @@
         "info": "#79b8d0"
       }
     },
+    "density": {
+      "default": "normal",
+      "presets": {
+        "compact": {
+          "spacing": 1.15,
+          "gutLayer": 0.5,
+          "gutSvc": 0.9
+        },
+        "normal": {
+          "spacing": 1.25,
+          "gutLayer": 1,
+          "gutSvc": 1.5
+        },
+        "roomy": {
+          "spacing": 1.5,
+          "gutLayer": 2,
+          "gutSvc": 2.5
+        }
+      }
+    },
     "legend": {
       "default": [
         {

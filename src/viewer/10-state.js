@@ -19,6 +19,7 @@ const S = {
   isolate: true,
   shape: "block",
   packing: "grid",
+  density: THEME.density.default,
   ground: true,
   query: "",
   services: new Set(ATLAS.services.map(s => s.id)),

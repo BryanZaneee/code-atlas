@@ -156,6 +156,17 @@ for (const id of SHAPE_IDS) {
 }
 $("#vShape").value = S.shape;
 $("#vShape").onchange = (e) => { S.shape = e.target.value; reproject(); staticDirty = true; };
+// Density options come from the payload's table for the same reason the shapes
+// do: the viewer offers what it was given rather than a list of its own.
+for (const id of DENSITY_IDS) {
+  const o = document.createElement("option");
+  o.value = id; o.textContent = id;
+  $("#vDensity").append(o);
+}
+$("#vDensity").value = S.density;
+// A density change repacks every district, so the old camera frames the wrong
+// world — fit, the way a packing change does.
+$("#vDensity").onchange = (e) => { S.density = e.target.value; relayout(); fitView(); };
 $("#vPacking").onchange = (e) => { S.packing = e.target.value; relayout(); fitView(); };
 $("#vGround").onchange = (e) => { S.ground = e.target.checked; staticDirty = true; };
 

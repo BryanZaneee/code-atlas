@@ -2,6 +2,7 @@
 let LAYOUT = { nodes: [], districts: [], servicePlates: [], bbox: null };
 
 function relayout() {
+  setDensity(S.density);
   const vis = visibleSet();
   // Keyed by the district id the payload publishes, and carrying its service
   // and layer rather than re-splitting the id: a service id may contain the

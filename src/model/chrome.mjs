@@ -183,6 +183,25 @@ export const DEFAULT_THEME = {
    * above rather than repeating its colour, which is what stops the legend and
    * the map from disagreeing.
    */
+  // How much air sits between things. Presentation, like colour, so it ships in
+  // the payload rather than being known by the viewer — and overridable, because
+  // "too sparse" is a judgement about one repository's shape, not a fact.
+  //
+  // `spacing` is the cell pitch and the two gutters are the gaps between layer
+  // columns and service rows. The gutters are where the air actually is: at the
+  // old 1.5/2/2.5 a district was mostly gap. Only `spacing` carries an
+  // invariant — a block's footprint is one cell, so it must stay above 1 or
+  // footprints overlap and the depth sort stops being exact. The viewer clamps
+  // it; this table stays clear of the floor on purpose.
+  density: {
+    default: "normal",
+    presets: {
+      compact: { spacing: 1.15, gutLayer: 0.5, gutSvc: 0.9 },
+      normal: { spacing: 1.25, gutLayer: 1, gutSvc: 1.5 },
+      // What every atlas before Phase 2.7 was drawn at.
+      roomy: { spacing: 1.5, gutLayer: 2, gutSvc: 2.5 },
+    },
+  },
   legend: {
     default: [
       { edge: "import", label: "IMPORT" },
@@ -220,6 +239,7 @@ export function buildTheme(config) {
     coverTint: { ...DEFAULT_THEME.coverTint, ...t.coverTint },
     findingSeverity: { ...DEFAULT_THEME.findingSeverity, ...t.findingSeverity },
     dark: { ...DEFAULT_THEME.dark, ...t.dark },
+    density: { ...DEFAULT_THEME.density, ...t.density, presets: { ...DEFAULT_THEME.density.presets, ...t.density?.presets } },
     legend: { ...DEFAULT_THEME.legend, ...t.legend },
   };
 }

@@ -43,7 +43,7 @@ function cacheKey() {
   // unaffordable at any frame rate. They are drawn in the live pass instead.
   return [
     S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, S.isolate,
-    S.shape, S.packing, S.ground, LAYOUT.nodes.length,
+    S.shape, S.packing, S.density, S.ground, LAYOUT.nodes.length,
     o.docs, o.tests, o.contract, o.labels,
   ].join("|");
 }

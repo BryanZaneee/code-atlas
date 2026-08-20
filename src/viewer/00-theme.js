@@ -5,10 +5,20 @@ const K = TH / TW;                      // 0.5 — the vertical squash, held fix
 const YAW0 = Math.PI / 4;               // the classic isometric angle
 const YAW_STEP = Math.PI / 12;          // 15° per keypress
 // The iso diamond is always 2:1 no matter how the grid is arranged, so the only
-// lever on legibility is total cell count. Boxes are 1 cell; SPACING leaves the
+// lever on legibility is total cell count. Blocks are 1 cell; SPACING leaves the
 // remainder as the gap, and it must stay > 1 or footprints overlap and the
 // depth sort stops being exact.
-const SPACING = 1.5, GUT_LAYER = 2, GUT_SVC = 2.5;
+//
+// These are a density preset, not constants — `setDensity()` below writes them
+// from the payload's table, and `relayout()` calls it before it reads them.
+let SPACING = 1.5, GUT_LAYER = 2, GUT_SVC = 2.5;
+
+// The floor under any spacing a preset or a config can ask for. Below 1 a
+// block's footprint spills out of its own cell, the painter's-order depth sort
+// stops being exact, and hit testing starts disagreeing with what was drawn —
+// a map you can click on and be lied to by. Clamped rather than validated:
+// a too-tight atlas is a preference, a wrong one is a bug.
+const SPACING_MIN = 1.05;
 
 /**
  * Block shapes, as a list of prisms.
@@ -50,6 +60,17 @@ const SHAPE_IDS = Object.keys(SHAPES);
 let THEME = ATLAS.theme;
 let INK = THEME.ink, BG = THEME.bg;
 const FONT = THEME.font;
+
+const DENSITY = THEME.density;
+const DENSITY_IDS = Object.keys(DENSITY.presets);
+
+/** Write the three spacing levers from a named preset. Unknown name -> default. */
+function setDensity(name) {
+  const p = DENSITY.presets[name] ?? DENSITY.presets[DENSITY.default];
+  SPACING = Math.max(SPACING_MIN, p.spacing);
+  GUT_LAYER = Math.max(0, p.gutLayer);
+  GUT_SVC = Math.max(0, p.gutSvc);
+}
 const EDGE_STYLE = THEME.edgeStyle;
 const PACKET_COLOR = THEME.packetColor;
 const COVER_TINT = THEME.coverTint;
