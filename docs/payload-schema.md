@@ -30,6 +30,7 @@ expected to read it, so it is versioned from the first release.
 | `districts` | array | stable | one per `service/layer` pair that has blocks — the cells of the map, where a service row crosses a layer column |
 | `findings` | array | experimental | structural findings over the graph — cycles, layering violations, and the rest of `src/model/findings.mjs`'s eight checks |
 | `source` | object | experimental | **present only when built with `--embed-source`** — the scanned repository's own text, baked in. See [`source`](#source) |
+| `live` | object | experimental | **present only under `atlas serve`** — whether this page may send a real request, and the limits the proxy would apply. Never written by `atlas build`, never in `--json`. See [`live`](#live) |
 
 ## Vocabulary
 
@@ -147,6 +148,27 @@ on some kinds.
 | `note` | string | experimental | datastore nodes only |
 | `why` | string | experimental | endpoint nodes only — which registration rule matched and where its mount prefix came from, e.g. `matched endpoint rule #0 /router\.(get\|post)…/ · prefix "/api" from the mount chain` |
 | `travelledBy` | string[] | experimental | ids of the flows passing through this node. **Absent**, not empty, when no flow does |
+
+## `live`
+
+Injected by `atlas serve` into the copy of the payload it assembles into HTML.
+`scan()` never produces it, which is deliberate: the payload a build emits stays
+a pure function of the repository, so the golden files do not move and `--json`
+never learns that a server mode exists.
+
+| field | type | tier | notes |
+| --- | --- | --- | --- |
+| `offered` | bool | experimental | may this page select LIVE at all |
+| `reason` | string\|null | experimental | why not, when `offered` is false. The toggle has to be disabled *with the reason*, and only the server knows it |
+| `target` | string\|null | experimental | the origin a live request would go to, so the page can say where rather than imply anywhere |
+| `auth` | string | experimental | `env` when the server injects Authorization, `none` when the page may supply it |
+| `authEnv` | string\|null | experimental | the environment variable's **name**. Never its value — that is what lets `COPY AS cURL` print a runnable command with the token still outside the browser |
+| `methods` `headers` | string[] | experimental | the allowlists, so the composer can warn before a send rather than surface a 400 after one |
+| `maxBodyBytes` `timeoutMs` | int | experimental | the limits the proxy enforces |
+
+The token itself never appears here. `liveInfo()` builds this object from an
+explicit list of keys rather than by spreading the server's live config, so a
+field added there later cannot reach the page merely by existing.
 
 ### `coverage`
 

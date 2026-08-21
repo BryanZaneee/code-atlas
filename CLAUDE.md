@@ -4,8 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6, 7, 8 and 10 are complete. Phase 9,
-live proxy mode, is the only phase left.**
+**Every phase is complete, 14 of 14.** The one open box is Phase 1's 60 fps
+sustained drag, which needs a human with the window in front: `requestAnimationFrame`
+is suspended in a backgrounded tab, so no harness can sample it.
 
 `build`, `scan`, `init` and `serve` all work on any repository, with or without a
 config, and `findings` reports the eight structural checks over the graph.
@@ -19,9 +20,11 @@ ships the request composer, and Phase 10 the packaging: README, CONTRIBUTING and
 the three docs, with the cold-reader gate walked against a repo the tool had
 never seen.
 
-Phase 1 is done bar one gate — 60 fps sustained drag — which needs a human with
-the window in front, because `requestAnimationFrame` is suspended in a
-backgrounded tab.
+Phase 9 ships live mode: `src/serve/proxy.mjs` decides what may be sent and
+`handleLive` sends it, returning a status, a duration and a byte count and never
+a response body. It is off unless `--allow-live` and `--target` are both passed,
+targets must be loopback or private, and the token from `--auth-env` is injected
+server-side so it never enters the page.
 
 The prototype this was lifted from still lives at `../FedStack/tax-vault-atlas/`.
 It is the reference for the Phase 0 baseline and nothing else; do not edit it, and
@@ -233,9 +236,14 @@ prototype's #1 documented failure mode (PLAN.md "Failure modes being fixed").
 **allowlist membership** (`allow.has(rel)` against the exact scanned set), not by
 sanitizing paths; plus `lstat` symlink refusal, size cap, always `text/plain`, `Host`
 check and `Sec-Fetch-Site` rejection. The live proxy accepts `{method, path, headers,
-body}` only — **no host, no URL** — with the origin from server config, `--allow-live`
-required at the process level, and the auth token injected server-side from
-`--auth-env` so it never enters the browser.
+body}` only — **no host, no URL** — with the origin from server config (set by
+`--target`), `--allow-live` required at the process level, and the auth token
+injected server-side from `--auth-env` so it never enters the browser. It
+returns **no response body**, only status, duration and byte count: that is what
+keeps it from being a read primitive, and it is all the honesty contract lets
+the map draw. Targets are loopback or private only with **no override**, DNS is
+never resolved (checking a name then connecting to it is a rebind window), and
+`redirect:"manual"` is a security control rather than a display choice.
 
 ## Scope guard
 

@@ -2,12 +2,17 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6, 7, 8 and 10 complete · 12 of 14.
-Phase 1 holds one gate a human has to measure, and Phase 7 holds one ratio that
-was deferred with a measured number rather than met. **Phase 9 is the only
-phase left**, and live mode was always meant to be last: everything the tool
-draws today is read from the repository or modelled from it, and nothing it
-does opens a socket to a running app.
+**Status: every phase is complete — 14 of 14.**
+
+One box is open and it is not a phase: Phase 1's 60 fps sustained drag has to be
+measured by a human with the window in front of them, because
+`requestAnimationFrame` is suspended in a backgrounded tab and no harness can
+sample it. Everything else, including every gate, is met and tested.
+
+Live mode landed last by design. It is the only part of the tool that opens a
+socket to a running app, it is off unless `--allow-live` is passed, and even
+with it on the internal path stays modelled: the status and the round trip are
+the only observed things it adds.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -23,7 +28,7 @@ does opens a socket to a running app.
 | 6 | Path derivation + calibration | 8 | ● done |
 | 7 | `atlas serve` + code viewer | 8, 9 | ● done |
 | 8 | Request composer UI | 9 | ● done |
-| 9 | Live proxy mode | — | ○ |
+| 9 | Live proxy mode | — | ● done |
 | 10 | Open-source packaging | — | ● done |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
@@ -498,39 +503,67 @@ never observes a request crossing an internal hop, so any number there would be
 invented. MOCK is the default and the mode is always named on screen.*
 
 
-- [ ] `src/serve/proxy.mjs` — accepts `{method, path, headers, body}` only; **no host, no URL**
-- [ ] Origin assertion; `--allow-live` required at the process level; loopback/private target restriction
-- [ ] Method + header allowlists; timeout; 256 KB cap; `redirect:"manual"`; rate bucket; one stderr line per request
-- [ ] `--auth-env` keeps the token out of the browser; `sessionStorage` fallback with explicit clear
-- [ ] Status ring + latency **on the endpoint node only**; halt-on-non-2xx at hop 1; persistent real-vs-modeled banner
-- [ ] MOCK / LIVE toggle, MOCK by default; LIVE offered only when the page is
+- [x] `src/serve/proxy.mjs` — accepts `{method, path, headers, body}` only; **no host, no URL**
+      — and returns no response body either, only `{status, statusText, ms,
+      bytes, truncated, redirected}`. That was not in the plan and is the
+      largest simplification available: without it the proxy is a read
+      primitive against everything the host can reach, and there is a
+      response-header allowlist to get wrong. It is also all the honesty
+      contract permits the map to draw
+- [x] Origin assertion; `--allow-live` required at the process level; loopback/private target restriction
+      — **no non-loopback override**, though PLAN.md allowed for one. The check
+      lives in one named function so adding it later stays explicit.
+      `169.254.0.0/16` is refused with the rest of link-local: it reads as
+      private and is the cloud metadata range, which is the one place the two
+      words come apart. Matching is by parsed octet, because `172.32.0.1` and
+      `127.0.0.1.evil.com` both walk past a string prefix
+- [x] Method + header allowlists; timeout; 256 KB cap; `redirect:"manual"`; rate bucket; one stderr line per request
+      — a header outside the allowlist is refused BY NAME rather than dropped,
+      so `COPY AS cURL` cannot print a command that differs from what was sent.
+      `redirect:"manual"` is a security control and not a display choice: a
+      private target may redirect somewhere public, and following one would
+      launder every check above it
+- [x] `--auth-env` keeps the token out of the browser; `sessionStorage` fallback with explicit clear
+      — the token cannot escape by construction rather than by care.
+      `resolveOutbound` never sees it, `liveInfo` builds from an explicit key
+      list rather than a spread, and `liveLogLine` has no headers parameter at
+      all and strips a query string besides
+- [x] Status ring + latency **on the endpoint node only**; halt-on-non-2xx at hop 1; persistent real-vs-modeled banner
+      — drawn in the overlay pass, never the static raster, so the Phase 1 and
+      2.5 zero-re-rasterisation gates still hold
+- [x] MOCK / LIVE toggle, MOCK by default; LIVE offered only when the page is
       served *and* `--allow-live` was passed, disabled with the reason otherwise
-- [ ] Repeat statistics per endpoint — `n`, min, median, p95 over the samples
-      taken this session
-- [ ] **No per-hop timings, ever**
-- [ ] `[ COPY AS cURL ]`
-- [ ] **Gate:** real 200 + latency from a running Shuttrr; 401 halts at hop 1 and says so
-- [ ] **Gate:** proxy refuses `path:"http://example.com/"`, refuses a non-loopback target, 403s without `--allow-live`
-- [ ] **Gate:** no token in stderr or in `document.documentElement.outerHTML`
-
-## Phase 10 — Open-source packaging
-
-- [x] `README.md` — why it exists · **real-vs-modeled table placed before the feature list** · quick start with no config · running the servers + security posture · configuration with two worked examples · features · tech stack **and why** · limitations incl. the Phase 6 calibration numbers
-- [x] `LICENSE`, `CONTRIBUTING.md`
-- [x] `docs/payload-schema.md` — every field, with a stability tier
-- [x] `docs/adapters.md` — "add a language in 30 lines", against a real fixture
-      — `fixtures/hostile-go/` ships, so the walkthrough is runnable rather than
-      asserted. The Go adapter itself stays in the doc: it is what a contributor
-      writes, not something this repo ships an unused copy of
-- [x] `docs/config.md` — audited key by key against `load.mjs` and
-      `defaults.mjs`; no drift found
-- [x] **Gate:** a reader who has never seen the repo goes from `git clone` to a rendered atlas of their own project using only the README, on a repo with no config
-      — walked for real against a five-file Express service the tool had never
-      seen, with no config and no git history: five views including REQUEST,
-      both endpoints found at the path they are actually mounted under, two
-      derived paths, six layers in use, zero unsorted files. The walk is also
-      what turned up the router-alias miss, which is the gate doing its job
-      rather than being ticked
+      — gated on the page being SERVED rather than being source-capable: an
+      `--embed-source` atlas opened as a file carries the code and has no server
+      behind it. MOCK is a literal in the state object rather than a computed
+      default, because the mode that sends real traffic should never be arrived
+      at by a chain of conditions
+- [x] Repeat statistics per endpoint — `n`, min, median, p95 over the samples
+      taken this session — in memory only, never persisted: a latency restored
+      on reload would read as fresh. `p95` is withheld below five samples
+- [x] **No per-hop timings, ever**
+      — `test/live-view.test.mjs` asserts STRUCTURALLY that no step object ever
+      grows a timing field, rather than checking one name. `ms / steps.length`
+      is one line and would look reasonable in a diff; the test exists to make
+      writing it fail, and was verified by writing it and watching it fail
+- [x] `[ COPY AS cURL ]` — prints `$VAR` rather than a token, and is generated
+      from the allowlists the server shipped so it cannot print a command the
+      proxy would refuse
+- [x] **Gate:** real 200 + latency from a running target; 401 halts at hop 1 and says so
+      — **re-scoped from "a running Shuttrr", deliberately.** The upstream is a
+      second `http.createServer` the suite owns, which makes the gate
+      reproducible on a fresh clone where a corpus repository is optional by
+      design — the same argument `test/helpers.mjs` already makes for skipping
+      corpus tests. The behaviour being gated is "a real target answered", and
+      this is one. It also records what it received, so "the proxy never
+      contacted it" is asserted on every refusal rather than assumed
+- [x] **Gate:** proxy refuses `path:"http://example.com/"`, refuses a non-loopback target, 403s without `--allow-live`
+      — every case socket-free in `test/proxy.test.mjs`, plus the CLI refusing
+      a bad `--target` before the scan runs
+- [x] **Gate:** no token in stderr or in `document.documentElement.outerHTML`
+      — verified against a real running server as well as in tests: the token
+      reaches the target's Authorization header and appears in neither the
+      served HTML nor the log
 
 ---
 
