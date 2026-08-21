@@ -210,7 +210,7 @@ test("meta carries the fields later phases added", async (t) => {
   // known to list it. Unlike the derived view it is unconditional — a clean
   // repository has a result to show, and hiding the view would make "checked,
   // found nothing" look like "never checked".
-  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived", "findings"]);
+  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived", "request", "findings"]);
   assert.equal(payload.views.find((v) => v.id === "derived").derived, true);
   assert.equal(payload.views.find((v) => v.id === "findings").kind, "findings");
   assert.ok(payload.derivedFlows.length > 0, "endpoints exist, so derived paths should too");

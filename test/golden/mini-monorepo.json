@@ -124,6 +124,13 @@
       "kind": "tests"
     },
     {
+      "title": "COMPOSE A REQUEST",
+      "hint": "Pick an endpoint and compose a request against it. The payload is synthetic and nothing is sent — this plays the modelled path a request would take, curated first and derived otherwise, with each hop marked by whether an import backs it.",
+      "id": "request",
+      "label": "REQUEST",
+      "kind": "request"
+    },
+    {
       "title": "STRUCTURAL FINDINGS",
       "hint": "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
       "id": "findings",

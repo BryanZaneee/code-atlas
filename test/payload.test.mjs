@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { serialize, scanFixture, FIXTURE_DIR } from "./helpers.mjs";
 import { SCHEMA_VERSION } from "../src/build/build.mjs";
+import { buildViews } from "../src/model/chrome.mjs";
 
 const payloadOf = async () => (await scanFixture("mini-monorepo")).payload;
 
@@ -86,6 +87,19 @@ test("travelledBy indexes the flows and is absent when empty", async () => {
     if (!expected.length) assert.equal("travelledBy" in n, false, `${n.id} carries an empty index`);
     else assert.deepEqual(n.travelledBy, expected.sort());
   }
+});
+
+test("a payload with endpoints offers a request view", async () => {
+  const p = await payloadOf();
+  assert.ok(p.endpoints.length > 0, "fixture must have endpoints for this to mean anything");
+  const v = p.views.find((v) => v.kind === "request");
+  assert.ok(v, "an endpoint surface gets a view to compose a request against");
+  assert.equal(v.id, "request");
+});
+
+test("a repo with no endpoints gets no request view", () => {
+  const views = buildViews({}, [], [], []);
+  assert.equal(views.some((v) => v.kind === "request"), false);
 });
 
 test("node ids are unique", async () => {

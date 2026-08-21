@@ -17,6 +17,7 @@
  *   structure  every node, filtered by the sidebar toggles
  *   flow       only the nodes and edges named by this view's curated flows
  *   tests      test edges and coverage tint
+ *   request    compose a request against one endpoint and play its modelled path
  *   findings   the whole map, with one finding's evidence lit and the rest dimmed
  *
  * A flow view is created for every distinct `flows[].view`, so curation adds a
@@ -41,6 +42,8 @@ const DEFAULT_HINTS = {
     "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
   tests:
     "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+  request:
+    "Pick an endpoint and compose a request against it. The payload is synthetic and nothing is sent — this plays the modelled path a request would take, curated first and derived otherwise, with each hop marked by whether an import backs it.",
   findings:
     "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
 };
@@ -49,10 +52,11 @@ const DEFAULT_TITLES = {
   structure: "THE CODEBASE",
   flow: "REQUEST PATH",
   tests: "TEST COVERAGE",
+  request: "COMPOSE A REQUEST",
   findings: "STRUCTURAL FINDINGS",
 };
 
-export function buildViews(config, flows = [], derived = []) {
+export function buildViews(config, flows = [], derived = [], endpoints = []) {
   const flowViews = [...new Set(flows.map((f) => f.view).filter(Boolean))];
 
   const base = [
@@ -70,6 +74,10 @@ export function buildViews(config, flows = [], derived = []) {
     // are about to watch was asserted by a person or inferred by this tool.
     ...(derived.length ? [{ id: "derived", label: "DERIVED PATHS", kind: "flow", derived: true }] : []),
     { id: "tests", label: "TESTS", kind: "tests" },
+    // Conditional, like the derived entry above and unlike findings below: a
+    // repo with no HTTP surface has nothing to compose a request against, and
+    // an empty composer is not a result the way an empty findings list is.
+    ...(endpoints.length ? [{ id: "request", label: "REQUEST", kind: "request" }] : []),
     // Unconditional, unlike the derived entry above: a repository with no
     // findings has a RESULT to show, and it is one worth being able to read.
     // Dropping the view when the list is empty would make "eight checks ran and
@@ -88,7 +96,7 @@ export function buildViews(config, flows = [], derived = []) {
     // A config that predates derivation — or findings — should not lose the
     // view because it did not know to list it.
     const extra = base.filter(
-      (v) => (v.derived || v.kind === "findings") && !config.views.some((c) => c.id === v.id),
+      (v) => (v.derived || v.kind === "findings" || v.kind === "request") && !config.views.some((c) => c.id === v.id),
     );
     return [...named, ...extra.map(withDefaults)];
   }

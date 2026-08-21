@@ -232,7 +232,7 @@ export function scan({
       // Total by payload: whatever placed a node, its service is in this list.
       services: reconcileServices(config.services, nodes, warn),
       layers: config.layers,
-      views: buildViews(config, config.flows ?? [], derived),
+      views: buildViews(config, config.flows ?? [], derived, endpoints),
       theme: buildTheme(config),
       nodes,
       edges,

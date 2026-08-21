@@ -233,9 +233,9 @@ branches on `kind`, never on an id.
 
 | field | type | notes |
 | --- | --- | --- |
-| `id` | string | `structure`, `tests`, `findings`, `derived`, or one per distinct `flows[].view` |
+| `id` | string | `structure`, `tests`, `findings`, `derived`, `request`, or one per distinct `flows[].view` |
 | `label` | string | what the strip shows |
-| `kind` | string | `structure` \| `flow` \| `tests` \| `findings` — **the only thing the viewer branches on** |
+| `kind` | string | `structure` \| `flow` \| `tests` \| `request` \| `findings` — **the only thing the viewer branches on** |
 | `title` `hint` | string | heading and explanatory line; config may override |
 | `showPhase` | bool | present on a flow view whose flows carry `phase` |
 | `derived` | bool | present and `true` on the derived-paths view |
@@ -244,8 +244,10 @@ The `structure` and `tests` views are always present, and so is `findings` —
 **including when `findings` is empty**. A repository with nothing wrong with it
 has a result to report, and dropping the view would make "eight checks ran and
 matched nothing" indistinguishable from "this tool does not check". The
-derived-paths view is the one conditional entry: it appears only when there are
-derived paths to play.
+derived-paths view is one conditional entry: it appears only when there are
+derived paths to play. `request` is the other: it appears only when the repo
+has endpoints, since a repo with no HTTP surface has nothing to compose a
+request against.
 
 ## `theme`
 
