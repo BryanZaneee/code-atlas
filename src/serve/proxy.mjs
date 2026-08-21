@@ -45,6 +45,11 @@ export const MAX_RESPONSE_BYTES = 1024 * 1024;
 /** Per-request upstream timeout, enforced by `forward()`. */
 export const LIVE_TIMEOUT_MS = 10_000;
 
+/** Default token-bucket size. A live config must never end up without a rate limit. */
+export const LIVE_RATE_CAPACITY = 60;
+/** Default refill rate, in requests per second. */
+export const LIVE_RATE_PER_SEC = 10;
+
 /* ════════════════════ the loopback/private-host check ════════════════════
  *
  * No DNS resolution happens here, anywhere. Resolving at validation time and
@@ -378,7 +383,7 @@ export function resolveOutbound(live, req) {
  *
  * @returns {{take(): boolean}}
  */
-export function rateBucket({ capacity, perSec, now = Date.now }) {
+export function rateBucket({ capacity = LIVE_RATE_CAPACITY, perSec = LIVE_RATE_PER_SEC, now = Date.now } = {}) {
   let tokens = capacity;
   let last = now();
   return {

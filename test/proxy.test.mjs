@@ -255,6 +255,21 @@ test("rateBucket refills lazily from an injected clock, no timer involved", () =
   assert.equal(bucket.take(), false);
 });
 
+test("a default-constructed bucket still refuses — the shipped CLI passes no capacity", () => {
+  // Regression: `rateBucket({})` left capacity undefined, so `tokens` went NaN,
+  // `NaN < 1` was false, and every request was admitted. bin/atlas.mjs builds
+  // `makeLive()` without a bucket, so that was the shipped live-mode path.
+  const bucket = rateBucket({});
+  let admitted = 0;
+  for (let i = 0; i < 10_000; i++) if (bucket.take()) admitted++;
+  assert.ok(admitted < 10_000, `a default bucket admitted all ${admitted} takes — the rate limit is a no-op`);
+
+  const live = makeLive({ origin: "http://127.0.0.1:3000" });
+  let viaLive = 0;
+  for (let i = 0; i < 10_000; i++) if (live.bucket.take()) viaLive++;
+  assert.ok(viaLive < 10_000, "makeLive()'s default bucket admitted every request");
+});
+
 test("rateBucket never exceeds capacity even after a long idle gap", () => {
   let t = 0;
   const bucket = rateBucket({ capacity: 2, perSec: 1, now: () => t });
