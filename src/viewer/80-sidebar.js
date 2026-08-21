@@ -10,13 +10,7 @@ function renderViews() {
 
 
 
-/**
- * The same relation TRAVELLED BY shows, read from the other end: which of these
- * flows does the selected node lie on? One index, two directions.
- *
- * A class toggle rather than a re-render, so selecting a block does not rebuild
- * the list under the cursor you are about to click with.
- */
+/** Which flows the selected node lies on. A class toggle, not a re-render, so the list does not rebuild under the cursor. */
 function markFlowRows() {
   const on = new Set(byId.get(S.selected)?.travelledBy ?? []);
   for (const r of document.querySelectorAll("#list .row[data-flow]")) {
@@ -98,18 +92,7 @@ function renderList() {
   }
 }
 
-/**
- * Services, each one a disclosure holding its own districts.
- *
- * A flat checkbox list makes every service cost the same amount of vertical
- * space whether or not you are looking at it, which on a seven-service repo
- * pushes everything else off the panel. Collapsed, a service is one line and
- * its own count; open, it is the districts it actually contains — the same
- * grouping the map draws, so the panel and the map agree about what a service
- * IS. Ordered by `order`, which is the order the map lays them out in; the
- * payload's own array order is not that, and a sidebar that disagrees with the
- * picture is worse than one that says less.
- */
+/** Services as disclosures over their districts, ordered by `order` so the panel and the map agree. */
 function renderServices() {
   const w = $("#svc"); w.innerHTML = "";
   const services = ATLAS.services.slice().sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
@@ -181,11 +164,7 @@ function renderStats() {
         ["NO TEST REACHES", fmt(m.coverNone)], ["LINKS", fmt(m.edgeCount)],
       ]
     : [
-        // The tool's central caveat leads the strip rather than trailing it:
-        // hops nothing observed, files no rule recognised. The row clips what
-        // does not fit, and a clipped caveat is not a caveat — so it outranks
-        // every count beside it. It took the package count's slot, whose only
-        // real use is the per-node list INSPECT already shows.
+        // The caveat leads the strip: the row clips, and a clipped caveat is none.
         ["DERIVED · UNMAPPED", `${fmt(m.derivedCount)} · ${fmt(m.unsortedCount)}`],
         ["NODES", fmt(m.nodeCount)], ["SOURCE FILES", fmt(m.fileCount)], ["LINES", fmt(m.lineCount)],
         ["LINKS", fmt(m.edgeCount)], ["ENDPOINTS", fmt(m.endpointCount)], ["TESTS", fmt(m.testCount)],
@@ -199,10 +178,8 @@ function renderStats() {
 }
 
 function renderLegend() {
-  // Rows name a key in the theme tables rather than repeating a colour, so the
-  // legend cannot drift out of step with what is actually drawn.
-  // Keyed by view KIND, like everything else the viewer branches on, with the
-  // default as the fallback — a kind with no legend of its own gets the map's.
+  // Rows name a theme key rather than repeating a colour, so the legend cannot drift.
+  // Keyed by view kind, with the default as fallback.
   const rows = THEME.legend[viewKind(S.view)] ?? THEME.legend.default ?? [];
   const w = $("#legend"); w.innerHTML = "";
   for (const r of rows) {

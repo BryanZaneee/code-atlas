@@ -1,33 +1,4 @@
-/* ════════════════════ findings ════════════════════
- *
- * What the tool says about the code, drawn ON the code.
- *
- * `atlas findings` prints the same eight checks as a list; a list is where a
- * cycle stops being legible. Three files that import each other in a ring is a
- * shape, and the map already knows where those three files are — so the finding
- * is a highlight over the city rather than a second picture of it.
- *
- * Three rules shape everything below.
- *
- * IN PLACE. Selecting a finding veils the map and repaints the blocks and edges
- * it names at full strength. It does not re-pack the layout into an isolated
- * view the way a flow does: a flow answers "what is this path", and moving the
- * blocks is how it answers; a finding answers "where is this problem", and
- * moving the blocks would delete the answer. The rest of the city stays exactly
- * where it was, dimmed — CLAUDE.md names the blank screen as the prototype's
- * worst failure, and a highlight that empties the map is a blank screen with
- * extra steps.
- *
- * SEVERITY IN WORDS, NOT ONLY IN COLOUR. Every row carries a three-letter code,
- * every panel spells the severity out, and the legend declares that the colour
- * means the same thing. Colour is the fast channel, not the only one.
- *
- * MUTED IS SHOWN, NOT HIDDEN. The engine deliberately keeps muted findings in
- * the payload so silencing one stays a visible fact (docs/payload-schema.md,
- * "Muting never removes a finding"). This view must not undo that: a muted
- * finding is listed under its own heading, still counted, still selectable, and
- * drawn with a dashed ring that says silenced rather than absent.
- */
+/* Findings, drawn on the city: highlighted in place (moving the blocks would delete the answer to "where is this"), severity spelled out as well as coloured, and muted findings shown under their own heading rather than hidden. */
 
 const FINDINGS = ATLAS.findings ?? [];
 const findingById = new Map(FINDINGS.map((f) => [f.id, f]));
@@ -37,11 +8,7 @@ const SEV_CODE = { error: "ERR", warning: "WRN", info: "INF" };
 const SEV_WORD = { error: "ERROR", warning: "WARNING", info: "INFO" };
 const SEV_RANK = ["error", "warning", "info"];
 
-/**
- * A single implicated block must not fill the screen: the whole point of
- * highlighting in place is the place, and a frame tight enough to lose the
- * surrounding districts has thrown it away. In world units at 1:1.
- */
+/** A floor on the framed extent, in world units at 1:1, so a single block cannot fill the screen and lose the place it sits in. */
 const FIND_FRAME_MIN = 900;
 
 /** The severity colour, from the payload theme — canvas cannot read a CSS var. */
@@ -49,10 +16,7 @@ function findColor(f) {
   return THEME.findingSeverity?.[f?.severity] ?? THEME.accent;
 }
 
-/**
- * The selected finding, or null — including when the view is not the findings
- * view, so nothing else has to remember to check that.
- */
+/** The selected finding, or null, including when the view is not findings, so no caller has to check that. */
 function findSelected() {
   if (viewKind(S.view) !== "findings") return null;
   return findingById.get(S.finding) ?? null;
@@ -85,24 +49,13 @@ function findBlocks(f) {
 
 let findVeil = 0;
 
-/**
- * Eased rather than cut, for the reason the flow trace is: the transition is
- * what says the map changed rather than reloaded. Driven from `frame()`, so it
- * shares one clock with everything else that moves.
- */
+/** Eased, not cut, and driven from `frame()` so it shares one clock with everything else that moves. */
 function easeFindings(dt) {
   const target = findSelected() ? 0.84 : 0;
   findVeil += (target - findVeil) * Math.min(1, dt * 7);
 }
 
-/**
- * The veil, and what stands out of it.
- *
- * Same technique as `drawTrace`: one fillRect over the blitted city plus a
- * repaint of the few blocks that matter, rather than a second raster. The grid
- * comes back at nearly full strength so the ground survives and the highlight
- * still reads as somewhere.
- */
+/** One fillRect over the blitted city plus a repaint of the few blocks that matter, never a second raster. */
 function drawFindings() {
   if (findVeil < 0.02) return;
   const f = findSelected();
@@ -127,9 +80,7 @@ function drawFindings() {
 
   for (const n of blocks) drawBlock(ctx, n, toScreen, 1);
 
-  // Ground ring first, then silhouette: the top face is a third of a tall
-  // block and much less of a short one, so the ring is what makes a
-  // one-storey file as findable as a tower.
+  // The ground ring is what makes a one-storey file as findable as a tower.
   ctx.save();
   if (dash) ctx.setLineDash(dash);
   for (const n of blocks) {
@@ -140,8 +91,7 @@ function drawFindings() {
   }
   ctx.restore();
 
-  // The edges the finding names, with their direction. A cycle is a ring of
-  // arrows or it is just three lit blocks — direction IS the finding.
+  // Direction is the finding: without arrowheads a cycle is just three lit blocks.
   for (const e of f.evidence?.edges ?? []) {
     const a = byId.get(e.from), b = byId.get(e.to);
     if (!a?.top || !b?.top || !LAYOUT.ids.has(e.from) || !LAYOUT.ids.has(e.to)) continue;
@@ -150,8 +100,7 @@ function drawFindings() {
     findArrow(arc, col);
   }
 
-  // Names, capped. A four-file cycle reads much better labelled; a forty-file
-  // one turns to mush, and the panel lists them all anyway.
+  // Names are capped: a forty-file cycle turns to mush, and the panel lists them all anyway.
   if (blocks.length <= 12) {
     ctx.save();
     ctx.font = `600 11px ${FONT}`;
@@ -170,17 +119,7 @@ function drawFindings() {
   ctx.restore();
 }
 
-/**
- * An arc that bows SIDEWAYS rather than upward.
- *
- * `arcFor` lifts its control point straight up from the midpoint, which is
- * right for a packet route and wrong here: A→B and B→A then produce the same
- * curve, so the two hops of a two-file cycle draw exactly on top of each other
- * and the ring the finding is about reads as a single line. Bowing along the
- * perpendicular makes the reversal fall out of the geometry — flip `a` and `b`
- * and the offset flips with them — so a cycle opens into the lens that says a
- * cycle, at any camera angle, with nothing to keep in step by hand.
- */
+/** Bows sideways, not upward like `arcFor`: A→B and B→A would otherwise draw the same curve and a two-file cycle would read as one line. */
 function findArc(a, b) {
   const dx = b.x - a.x, dy = b.y - a.y;
   const dist = Math.hypot(dx, dy) || 1;
@@ -204,13 +143,7 @@ function findArrow(arc, col) {
   ctx.restore();
 }
 
-/**
- * Frame the evidence with the city still around it.
- *
- * `focusOn` exists for districts and pulls in tight, which is right when you
- * asked for one district and wrong here: the finding's claim is about where in
- * the system this sits, so the frame has to keep the neighbours in shot.
- */
+/** Frame the evidence with the city still around it; unlike `focusOn`, the claim is about where this sits, so the neighbours stay in shot. */
 function findFocus(f) {
   const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
   for (const n of findBlocks(f)) {
@@ -229,12 +162,7 @@ function findFocus(f) {
   fitBox({ x0: b.x0 - padX, x1: b.x1 + padX, y0: b.y0 - padY, y1: b.y1 + padY }, 0.8);
 }
 
-/**
- * Pick a finding, or unpick the one already lit.
- *
- * `relayout()` rather than a repaint: the evidence may name a block a sidebar
- * filter had removed, and `visibleSet()` is where that gets put back.
- */
+/** Pick a finding, or unpick the lit one. `relayout()` rather than a repaint, because a filtered-out evidence block is put back by `visibleSet()`. */
 function selectFinding(id) {
   S.finding = S.finding === id ? null : id;
   S.selected = null;
@@ -248,11 +176,7 @@ function selectFinding(id) {
 
 /* ── the list ─────────────────────────────────────────────────── */
 
-/**
- * Grouped the way `src/cli/report.mjs` groups it: by type, in the payload's own
- * order, with the muted ones under their own heading at the end. Two readings
- * of the same data should not disagree about its shape.
- */
+/** Grouped the way `src/cli/report.mjs` groups it, so two readings of the same data do not disagree about its shape. */
 function findGroups() {
   const groups = new Map();
   const muted = [];
@@ -283,10 +207,7 @@ function renderFindingList(wrap, title, count) {
   count.textContent = FINDINGS.filter((f) => !f.muted).length;
 
   if (!FINDINGS.length) {
-    // The empty state is a result, not an absence. It says which checks ran and
-    // which of them are silent for a reason other than a clean repository —
-    // "not measured" and "nothing found" are different claims, and the honesty
-    // contract is the reason this view refuses to blur them.
+    // The empty state names which checks ran: "not measured" and "nothing found" are different claims.
     wrap.append(el("div", "hint",
       "Nothing to report. All eight structural checks ran over this map and none of them matched — no cycles, no layering violations, no orphans, no oversized files."));
     wrap.append(el("div", "hint",
@@ -300,8 +221,7 @@ function renderFindingList(wrap, title, count) {
     const h = el("div", "hint grp", `${g.label.toUpperCase()} (${g.items.length})`);
     wrap.append(h);
     for (const f of g.items) {
-      // A real <button>, like the flow rows: it behaves as one, so it is one —
-      // focusable, keyboard-reachable, announced as a control.
+      // A real <button>, so it is focusable, keyboard-reachable and announced as a control.
       const r = el("button", "row fnd" + (S.finding === f.id ? " sel" : "") + (f.muted ? " mute" : ""));
       r.dataset.finding = f.id;
       // An attribute, never markup: `message` is built from repository paths.
@@ -319,14 +239,7 @@ function renderFindingList(wrap, title, count) {
 
 /* ── the panel ────────────────────────────────────────────────── */
 
-/**
- * The file a finding is about, opened at the line that matters.
- *
- * An import-shaped finding (layering, cross-service, a cycle) has a real edge
- * behind it carrying the line its import is written on, so that is what opens.
- * A file-shaped one opens the file. Nothing is invented: a finding with no
- * line to point at gets no button, exactly as an inferred hop does.
- */
+/** Opens an import-shaped finding at its edge's line and a file-shaped one at the file; a finding with no line gets no button rather than an invented one. */
 function findJump(f) {
   for (const e of f.evidence?.edges ?? []) {
     const real = (edgesFrom.get(e.from) ?? []).find((x) => x.to === e.to && x.line);
@@ -349,8 +262,7 @@ function renderFinding(b, f) {
   b.append(el("div", "eyebrow", SEV_WORD[f.severity] ?? String(f.severity).toUpperCase()));
   b.append(el("div", "title", f.type));
   b.append(el("div", "meta", `${ev.nodes.length} block${ev.nodes.length === 1 ? "" : "s"} · ${ev.edges.length} edge${ev.edges.length === 1 ? "" : "s"}`));
-  // The id is the string a config's `findings.mute` names, so it is quotable
-  // from here rather than only from the CLI.
+  // The id is the string `findings.mute` names, so it is quotable from here and not only from the CLI.
   b.append(el("div", "path", f.id));
 
   const note = el("div", "note" + (f.severity === "error" ? " warn" : ""));
@@ -371,8 +283,7 @@ function renderFinding(b, f) {
     for (const id of ev.nodes) {
       const n = byId.get(id);
       const r = el("div", "row mini");
-      // A node the current filters removed is named and marked rather than
-      // dropped: the finding is about it either way.
+      // A filtered-out node is named and marked rather than dropped: the finding is about it either way.
       r.append(el("span", "nm", n?.name ?? id), el("span", "sub", n ? n.kind : "not in this scan"));
       r.onclick = () => { S.selected = id; renderInspect(); };
       b.append(r);

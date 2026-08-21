@@ -1,24 +1,4 @@
-/* ════════════════════ request composer ════════════════════
- *
- * Compose a request against one endpoint, then watch the path it would take.
- *
- * WOULD. Nothing here sends anything. The map already knows the endpoints and
- * already derives a path through the code for each one; this view lets a reader
- * put real values into that path and play it, which is a different question
- * from "what happened" and has to keep reading like one. Three things hold that
- * line, and none of them is decoration: the button says MODELED, the composed
- * request is shown under the panel's existing PACKET PAYLOAD (SYNTHETIC)
- * heading, and the canvas badge stays up for the whole animation.
- *
- * Substituting real values into a modelled path is the single easiest way to
- * make a modelled path read as an observed one, so the honesty contract is
- * load-bearing here rather than ambient.
- *
- * DELIBERATELY UNDER-BUILT. Query and headers are one text field each, not rows
- * of key/value inputs. Rows are the first step toward saved collections and
- * environments, and PLAN.md's scope guard names "like Postman" as the thing
- * this is not. A reader who wants a request client has one already.
- */
+/* Compose a request against one endpoint and play the path it WOULD take; nothing here sends anything, and real values in a modelled path is the easiest way to make it read as observed, so the MODELED framing is load-bearing. */
 
 /** Per-repo, so two atlases open in one browser do not share a composer. */
 const REQ_STORE_KEY = `atlas:compose:${ATLAS.meta.repo}`;
@@ -32,11 +12,7 @@ function reqEndpoints() {
     a.service.localeCompare(b.service) || a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
 }
 
-/**
- * The path parameters in a route, in both syntaxes the payload can carry.
- * `docs/payload-schema.md` promises `path` is the source's own text, so `:id`
- * and `{id}` both appear depending on which framework wrote the route.
- */
+/** Route parameters in both syntaxes, since `path` is the source's own text and frameworks write `:id` or `{id}`. */
 function reqParamNames(path) {
   const names = [];
   for (const m of (path ?? "").matchAll(/:(\w+)|\{(\w+)\}/g)) names.push(m[1] ?? m[2]);
@@ -54,12 +30,7 @@ function reqHasBody(method) {
   return method !== "GET" && method !== "HEAD";
 }
 
-/**
- * The composed path, or null when a parameter is still blank.
- *
- * Null rather than a path with `:id` left in it: a half-substituted URL looks
- * like a real one, and the whole point of the readout is to say which it is.
- */
+/** The composed path, or null when a parameter is blank: a half-substituted URL looks like a real one. */
 function reqUrl() {
   const ep = REQ.endpoint;
   if (!ep) return null;
@@ -100,14 +71,7 @@ function reqHeaderPairs(text) {
   return out;
 }
 
-/**
- * Strip an authorization VALUE, keeping its name.
- *
- * Applied at every boundary the value could leave memory by: sessionStorage,
- * and the packet payload the panel renders into the DOM. The name survives on
- * purpose — a header row that vanishes on reload reads as a bug, one that comes
- * back empty reads as a decision, and only the second is true.
- */
+/** Strip an authorization value at every boundary it could leave memory by, keeping the name so an emptied row reads as a decision rather than a bug. */
 function reqRedactHeaders(text) {
   return (text ?? "").split("\n").map((line) => {
     const i = line.indexOf(":");
@@ -116,13 +80,7 @@ function reqRedactHeaders(text) {
   }).join("\n");
 }
 
-/**
- * Persist the composer, minus any authorization value.
- *
- * Wrapped because `sessionStorage` is not merely empty in a hardened browser or
- * on a `file:` page — reading the property itself throws — and an atlas that
- * cannot remember a field must still be an atlas.
- */
+/** Persist the composer minus any auth value; wrapped because reading `sessionStorage` itself throws in a hardened browser or on a `file:` page. */
 function reqSave() {
   try {
     const out = {};
@@ -147,25 +105,12 @@ function reqCuratedFlow(ep) {
   return id ? flowById.get(id) ?? null : null;
 }
 
-/**
- * The path to play: curation first, derivation second.
- *
- * A person's assertion outranks this tool's inference, which is the same order
- * `atlas build` uses when it decides which flows to ship.
- */
+/** Curation first, derivation second: a person's assertion outranks this tool's inference, as in `atlas build`. */
 function reqFlowFor(ep) {
   return reqCuratedFlow(ep) ?? flowById.get(`derived:${ep.id}`) ?? null;
 }
 
-/**
- * The import (or route registration) that justifies a hop, as data.
- *
- * Separate from the button below on purpose. Whether evidence EXISTS is a fact
- * about the repository; whether a jump can be offered also depends on there
- * being a server to read the file from. Grading a hop on the second would mark
- * every hop inferred on a page opened as a plain file, which is a different lie
- * from the one this is here to prevent.
- */
+/** Whether evidence exists is a fact about the repository; whether a jump can be offered also needs a readable file, so the two are kept apart. */
 function reqHopEvidence(step) {
   const ep = srcEndpoint(step.from);
   if (ep) return { path: ep.definedIn, line: ep.line, label: "⤷ ROUTE IN" };
@@ -179,19 +124,7 @@ function reqHopJump(step) {
   return ev ? srcJump(ev.label, ev.path, ev.line) : null;
 }
 
-/**
- * Grade one hop, and refuse to draw a solid line we cannot back.
- *
- * A curated step carries no certainty — a person asserted the ordering, not the
- * mechanism — so every hop of a curated flow would otherwise draw solid, which
- * is exactly the case the honesty contract exists for. Graded here, at clone
- * time, so no payload field changes and no golden moves.
- *
- * The second half matters more than the first: a step that grades justified but
- * has no evidence behind it is regraded `inferred` rather than drawn solid. The
- * checkbox says "every solid hop opens the import line that justifies it", and
- * this is the only reading of that where the map cannot overstate itself.
- */
+/** Grade one hop, regrading anything with no evidence behind it as `inferred`, so a solid line is never drawn for a hop that cannot be opened. */
 function reqGrade(step) {
   const graded = step.certainty
     ? { ...step }
@@ -205,13 +138,7 @@ function reqGrade(step) {
   return graded;
 }
 
-/**
- * Arm the composed request as the played path.
- *
- * The substituted request rides on the first step's `sample`, which the INFO
- * panel already renders under PACKET PAYLOAD (SYNTHETIC) — the honest framing
- * for this, already written, for a reason that now has a second use.
- */
+/** Arm the composed request; it rides on the first step's `sample`, which the panel already renders under PACKET PAYLOAD (SYNTHETIC). */
 function reqSend() {
   const ep = REQ.endpoint;
   const flow = ep && reqFlowFor(ep);
@@ -240,14 +167,7 @@ function reqSend() {
   relayout(); renderList(); fitView(); renderInspect(); renderCaption(); syncControls();
 }
 
-/**
- * The curated-flow entry this composed path would become, as pasteable source.
- *
- * Ids are repository paths and can hold anything, so every one goes through
- * JSON.stringify rather than into a template literal. Certainty is deliberately
- * not emitted: it is this tool's grading of its own inference, and a person
- * pasting a flow into a config is asserting the path, not quoting the guess.
- */
+/** The composed path as a pasteable curated flow: ids go through JSON.stringify, and certainty is omitted because pasting asserts the path rather than quoting this tool's guess. */
 function reqCurateSource() {
   const ep = REQ.endpoint;
   const flow = S.request;
@@ -365,9 +285,7 @@ function renderComposer(b) {
 
   if (!S.request) return;
 
-  // What the target actually said, kept apart from the hops below it: the
-  // status is observed, the hops are not, and the two must not read as one
-  // block of findings about the same thing.
+  // The status is observed and the hops are not, so they are kept visually apart.
   const observed = S.request.live;
   if (observed) {
     b.append(el("h3", null, "RESPONSE · OBSERVED"));
@@ -399,8 +317,7 @@ function renderComposer(b) {
   b.append(el("pre", "sample", reqCurateSource()));
   const copy = el("button", null, "COPY");
   copy.onclick = () => {
-    // Clipboard access needs a secure context, which a file:// atlas is not.
-    // The text is on screen either way, so a failure is not worth a message.
+    // Clipboard needs a secure context, which a file:// atlas is not; the text is on screen either way.
     navigator.clipboard?.writeText(reqCurateSource()).then(
       () => { copy.textContent = "COPIED"; },
       () => { copy.textContent = "SELECT THE TEXT ABOVE"; });

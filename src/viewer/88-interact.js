@@ -5,10 +5,7 @@ let dragging = false, rotating = false, lastX = 0, lastY = 0, moved = 0;
 // every time the rounding fell either side of a half.
 let dragStartX = 0, dragStartY = 0;
 
-/**
- * Rotating re-projects; it does not re-lay-out. Nothing moves in world space,
- * so districts, plates and packet routes all survive a turn unchanged.
- */
+/** Rotating re-projects but never re-lays-out: nothing moves in world space. */
 function rotateTo(yaw) {
   setYaw(((yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2));
   reproject();
@@ -94,11 +91,8 @@ window.addEventListener("mousemove", (e) => {
     moved += Math.abs(dx) + Math.abs(dy);
     lastX = e.clientX; lastY = e.clientY;
     if (S.dragDistrict) {
-      // Screen delta back to ground cells, snapped. Blocks stay on the lattice
-      // that way, which is what lets a district be rearranged without the
-      // depth sort losing its guarantee that a footprint fits its own cell.
-      // Pan and the canvas offset both cancel out of a difference, so only
-      // zoom has to be undone before the projection is.
+      // Screen delta back to ground cells, snapped so blocks stay on the lattice.
+      // Pan cancels out of a difference, so only zoom is undone before projection.
       const g = unproject((e.clientX - dragStartX) / S.zoom, (e.clientY - dragStartY) / S.zoom);
       S.dragCells = { dx: Math.round(g.gx / SPACING), dy: Math.round(g.gy / SPACING) };
     }
@@ -161,18 +155,11 @@ function syncControls() {
   $("#bPause").classList.toggle("on", S.running);
   $("#bPause").textContent = S.running ? "▮▮ PAUSE" : "▶ RESUME";
   const deg = Math.round(S.yaw * 180 / Math.PI) % 360;
-  // A derived path says so ON THE CANVAS. PLAN.md is explicit that a caveat
-  // living only in a side panel is not a caveat: the thing being watched is the
-  // map, so the map is where "this was inferred, not observed" has to appear.
-  // A curated flow is a person's assertion, but its hops are still an ordering
-  // imports cannot express — build.mjs counts them in meta.derivedCount for
-  // exactly that reason. Only tool-derived flows used to raise this badge,
-  // which let a curated flow's modelled hops read as observed. Both now say so
-  // on the canvas; the wording is what tells them apart.
+  // A modelled path says so ON THE CANVAS, curated or derived: a caveat living
+  // only in a side panel is not a caveat. The wording is what tells the two apart.
   const f = flowById.get(S.activeFlow) ?? S.request;
   const modelled = f?.derived || (S.activeFlow === "__all__" && viewById.get(S.view)?.derived);
-  // Two elements, not one string: the status half is dropped on a narrow
-  // window, the caveat half never is.
+  // Two elements: the status half drops on a narrow window, the caveat never does.
   // Live adds the only observed fact on this map, and the badge has to keep it
   // from spreading: a real status came back, and the hops drawn behind it are
   // exactly as modelled as they were a moment ago in MOCK.

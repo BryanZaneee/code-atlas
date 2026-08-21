@@ -1,28 +1,10 @@
-/**
- * Defaults — what the tool believes about a repository it has never seen.
- *
- * Everything here has to be true of code in general, not of any repository in
- * particular. `test/generic.test.mjs` catches the named strings; the rule that
- * catches the rest is the review question: would this be right on a repo I have
- * never seen? A directory called `services/` means the same thing in a Django
- * project and a Hono one. One repository's particular monorepo layout does not.
- *
- * These are the floor of the precedence chain, so every value here loses to a
- * detected one, which loses to a config file, which loses to a CLI flag.
- */
+/** What the tool believes about a repository it has never seen: true of code in general, never of one repo, and the floor of the precedence chain. */
 
-/**
- * The columns, ordered left to right by `rank`. Router -> controller -> service
- * -> repository is the layering this axis exists to make visible; the layers
- * outside that spine (test, docs, tooling) sit past it rather than inside it.
- */
+/** The columns, left to right by `rank`; layers outside the request spine sit past it rather than inside it. */
 const DEFAULT_LAYERS = [
   { id: "endpoint", label: "ENDPOINT", rank: -1, color: "#d8c98a" },
   { id: "entry", label: "ENTRY", rank: 0, color: "#c7b57a" },
-  // A client-side repo has a whole spine the backend taxonomy has no column for.
-  // Without this one, every component in a frontend project falls to the
-  // fallback and the map is one tall column of "tooling" — legible only in the
-  // sense that it did not crash.
+  // Without a UI column, every component in a frontend repo falls to the fallback.
   { id: "ui", label: "UI", rank: 1, color: "#c2a98d" },
   { id: "route", label: "ROUTE", rank: 2, color: "#b9a86a" },
   { id: "middleware", label: "MIDDLEWARE", rank: 3, color: "#b09a72" },
@@ -35,48 +17,19 @@ const DEFAULT_LAYERS = [
   { id: "util", label: "UTIL", rank: 10, color: "#8c8a76" },
   { id: "migration", label: "MIGRATION", rank: 11, color: "#6f7a5e" },
   { id: "tooling", label: "TOOLING", rank: 12, color: "#7d7a63" },
-  // Where a file goes when no rule recognised it. It has to be its own column:
-  // calling unplaceable application code "tooling" is a claim the tool cannot
-  // support, and it hides how much of the repo the rules actually understood.
+  // Its own column, because calling unplaceable code "tooling" is a claim the tool cannot support.
   { id: "unsorted", label: "UNSORTED", rank: 13, color: "#6e6a5e" },
   { id: "test", label: "TEST", rank: 14, color: "#a87e6a" },
   { id: "docs", label: "DOCS", rank: 15, color: "#5f6b52" },
 ];
 
-/**
- * The layers that sit PAST the request spine rather than on it.
- *
- * Their ranks order them in the layout — they have to go somewhere, and after
- * everything else is the honest place — but a rank is not a position on the
- * spine, and comparing one to a real layer's is a category error. `unsorted`
- * is the case that bites: it ranks above every real layer, so treating its rank
- * as meaningful makes every unclassified file's import look like it runs
- * backwards. "No rule matched" is an absence of knowledge, not a high rank.
- *
- * PLAN.md ("The visual system") puts it as: the layers outside the spine sit
- * past it rather than inside it. Anything reasoning about direction along the
- * spine — path derivation, layering findings — has to skip them, and has to
- * skip the same ones, which is why this lives here and not in either.
- */
+/** Layers past the request spine: their ranks are layout positions, not spine positions, so anything reasoning about direction skips them. */
 export const OFF_SPINE_LAYERS = new Set(["test", "docs", "tooling", "unsorted"]);
 
-/**
- * Layers a request was never meant to reach, and a test was never meant to
- * cover. Distinct from OFF_SPINE_LAYERS: `unsorted` means "no rule matched",
- * which is an absence of knowledge rather than a licence to skip the file,
- * while `migration` is genuinely off any request path.
- */
+/** Layers a request was never meant to reach; distinct from OFF_SPINE_LAYERS, which excludes `migration` and includes `unsorted`. */
 export const UNREACHED_LAYERS = new Set(["test", "docs", "tooling", "migration"]);
 
-/**
- * Layer rules, in `src/model/classify.mjs`'s shape. First match wins, so the
- * order is the whole design: a file under `services/` that is named
- * `user.test.ts` is a test, not a service, which is why every test rule comes
- * before every structural one.
- *
- * A rule matches only if EVERY primitive it declares matches, and each carries
- * a `why` that INSPECT shows verbatim.
- */
+/** Layer rules for `src/model/classify.mjs`. First match wins, so the order is the design: tests before structure. */
 const DEFAULT_LAYER_RULES = [
   { layer: "docs", exts: [".md", ".mdx", ".rst", ".txt"], why: "a documentation file extension" },
   { layer: "migration", exts: [".sql"], why: "a .sql file is schema, not code" },
@@ -113,33 +66,18 @@ const DEFAULT_LAYER_RULES = [
     ],
     why: "a conventional entrypoint filename",
   },
-  // Still last: a CLI's own `bin/` is an entry the filename list above cannot
-  // catch (`atlas.mjs` names the tool, not a convention), and it has to lose
-  // to every structural rule the same way `index.ts` under routes/ does.
+  // Still last: a CLI's `bin/` is an entry no filename convention catches, and it must lose to every structural rule.
   { layer: "entry", dirs: ["bin"], why: "the conventional CLI entrypoint directory" },
 ];
 
-/**
- * Files worth drawing. Source, schema and prose — everything else is an asset,
- * a lockfile or a build product and would only add blocks with no meaning.
- *
- * Wider than the adapters: a language with no adapter yields no import edges but
- * still renders its structure, sizes and endpoints, which is the degradation
- * PLAN.md requires rather than a gap.
- */
+/** Files worth drawing. Wider than the adapters: a language with no adapter still renders structure, sizes and endpoints. */
 export const DEFAULT_KEEP = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|rb|java|kt|php|sql|md)$/;
 
-/**
- * Never worth drawing anywhere. Dependencies, build output, virtualenvs and
- * lockfiles: none of them is code this repository wrote.
- */
+/** Never worth drawing: dependencies, build output, virtualenvs and lockfiles are not code this repository wrote. */
 export const DEFAULT_EXCLUDE = [
   /(^|\/)node_modules\//,
   /(^|\/)\.git\//,
-  // Anchored to the repo root: a real build product lives at the top, and a
-  // deeper `src/build/` is application code that happens to share the name —
-  // this tool's own `src/build/` is exactly that case. `public|static` stay
-  // unanchored: framework asset directories are genuinely nested.
+  // Anchored to the root: a deeper `src/build/` is application code sharing the name.
   /^(dist|build|out|coverage)\//,
   /(^|\/)(public|static)\//,
   /(^|\/)\.(next|nuxt|turbo|svelte-kit|venv|tox|mypy_cache|pytest_cache|ruff_cache)\//,
@@ -148,46 +86,16 @@ export const DEFAULT_EXCLUDE = [
   /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|uv\.lock|poetry\.lock|Cargo\.lock|go\.sum)$/,
 ];
 
-/**
- * Endpoint rules, as data. These match the common literal registration forms and
- * nothing else — a non-literal path is skipped and counted, never guessed at,
- * because a phantom endpoint is worse than a missing one. The prefix a rule
- * doesn't declare a `mount` for comes from `resolveMounts`'s fixpoint
- * (src/model/mounts.mjs); a call a rule's receiver/method shape recognises but
- * whose path isn't a literal is counted too, not silently dropped — both live
- * in src/model/endpoints.mjs.
- */
-// No `mount`: the prefix is discovered from the repository's own mount chain.
-// A rule that states one is a claim by a config, and that always wins — see
-// src/model/endpoints.mjs.
-// The receiver must END in a router-ish word, so `photosRouter.post(...)` and
-// `router.post(...)` both match. Deliberately not any identifier at all, and
-// deliberately not a bare `api`: `api.get("/photos")` in client code is a call
-// *to* an endpoint, and reporting it as one would invent a route this
-// repository does not serve.
+/** Endpoint rules, as data: the common literal registration forms only, with the receiver required to end in a router-ish word so an outbound `api.get(...)` is not reported as a route. With no `mount`, the prefix comes from the repository's own mount chain. */
 const DEFAULT_ENDPOINT_RULES = [
   { re: /\b\w*(?:[Rr]outer|[Aa]pp|[Ss]erver)\s*\.\s*(get|post|patch|put|delete)\s*\(\s*["']([^"']+)["']/g },
   { re: /@\w*(?:[Rr]outer|[Aa]pp)\s*\.\s*(get|post|patch|put|delete)\s*\(\s*["']([^"']+)["']/g },
 ];
 
-/**
- * The service every repository has before detection finds any: one row, no root,
- * so `makeServiceOf` is total even here. A single-package repo legitimately ends
- * with exactly this one, and it must render — that is failure mode #1.
- */
+/** The service every repository has before detection finds any: one row, no root, so `makeServiceOf` stays total. */
 const DEFAULT_SERVICES = [{ id: "app", label: "APP", lang: "-", root: null, order: 0 }];
 
-/**
- * Findings thresholds (`src/model/findings.mjs`, Phase 5). Every value here is
- * a magnitude, never a verdict about a particular repository — a
- * `locThreshold` of 400 says "worth a second look past this many lines," not
- * "this file is bad."
- *
- * `mute` is empty by default. A finding's own `id`, printed by
- * `atlas findings --json`, is what a config pastes back in here to mute it —
- * the finding still appears in the payload with `muted: true`, so muting never
- * makes the map quietly incomplete.
- */
+/** Findings thresholds: magnitudes, never verdicts. `mute` takes a finding's own `id`, and a muted finding still ships with `muted: true`. */
 const DEFAULT_FINDINGS = {
   locThreshold: 400,
   godNodePercentile: 95,

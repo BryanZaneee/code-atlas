@@ -11,12 +11,7 @@ export const joinPath = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/
 // One scan per ctx for both callers, so the two answers cannot drift apart.
 const SCAN = Symbol("mount scan");
 
-/**
- * `{ edges, parents, mounted }` from a single pass.
- *
- *   edges    parent -> [{ child, prefix }]   (what the fixpoint walks)
- *   parents  child  -> Set<parent>           (who mounts this file)
- */
+/** One pass yielding `{edges: parent -> [{child, prefix}], parents: child -> Set<parent>, mounted}`. */
 function scanMounts(ctx) {
   if (ctx[SCAN]) return ctx[SCAN];
 

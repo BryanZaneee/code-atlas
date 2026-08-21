@@ -1,19 +1,5 @@
 #!/usr/bin/env node
-/**
- * atlas — isometric, interactive maps of a codebase.
- *
- * Read-only on the target repository: the ref is extracted with `git archive`
- * into a temp directory, so no branch is switched and no file is modified.
- * `atlas init` is the only command permitted to write to a target repo, and it
- * refuses to overwrite.
- *
- *   atlas build --repo . [--config atlas.config.mjs] [--ref R] [--out f] [--json]
- *   atlas scan  --repo .
- *   atlas init  --repo .
- *
- * `build` logs to stderr so `--json` stdout is a clean payload; `scan` reports
- * on stdout, because there the report is the output rather than the commentary.
- */
+/** atlas — isometric, interactive maps of a codebase. Read-only on the target repository, `atlas init` excepted, and it refuses to overwrite. `build` logs to stderr so `--json` stdout stays a clean payload; `scan` reports on stdout, where the report is the output. */
 import { parseArgs } from "node:util";
 import { writeFileSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -28,8 +14,7 @@ import { listen } from "../src/serve/server.mjs";
 import { resolveTarget, makeLive } from "../src/serve/proxy.mjs";
 import { spawn } from "node:child_process";
 
-// Draws nothing unless stderr is a terminal, so a redirect or a pipe is
-// untouched and the pipeline never has to know which it is.
+// Draws nothing unless stderr is a terminal, so a redirect or a pipe is untouched.
 const progress = makeProgress(process.stderr);
 const warn = (...m) => {
   progress.clear();
@@ -74,15 +59,7 @@ serve options
                     token never enters the browser
 `;
 
-/**
- * `--embed-source [glob]` is pulled out of argv before `parseArgs` sees it:
- * `node:util`'s parser has no notion of an optionally-valued flag, and
- * mistaking the next flag for this one's argument is worse than a small
- * hand-rolled pass. `--embed-source`, `--embed-source=glob` and
- * `--embed-source glob` (glob not itself looking like a flag) are the three
- * forms accepted; anything else leaves the token for `parseArgs` to see, so a
- * genuine mistake still surfaces as its own error rather than being eaten.
- */
+/** `--embed-source [glob]` is pulled out of argv first, since `node:util` has no optionally-valued flag; anything not matching the three accepted forms is left for `parseArgs`, so a real mistake still surfaces as its own error. */
 function extractEmbedSource(argv) {
   const rest = [];
   let embedSource = false, embedGlob = null;
@@ -124,8 +101,7 @@ const { values, positionals } = parseArgs({
 });
 
 const command = positionals[0];
-// Asking for help and being told you failed is a wart, so the exit code follows
-// the question rather than the arguments: `--help` succeeded, no command did not.
+// The exit code follows the question, not the arguments: `--help` succeeded, no command did not.
 if (values.help || !command) {
   process.stdout.write(USAGE);
   process.exit(values.help ? 0 : 1);
@@ -135,13 +111,10 @@ const PENDING = {};
 if (PENDING[command]) die(`\`atlas ${command}\` lands in phase ${PENDING[command]}`);
 if (!["build", "scan", "init", "serve", "findings"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
 
-// No config means defaults plus detection, which is the path a repository the
-// tool has never seen takes. A config only ever overrides what it names.
+// No config means defaults plus detection; a config only ever overrides what it names.
 const repo = path.resolve(values.repo);
 
-// The one command that writes to a target repository, and it writes one file it
-// has never seen before: an existing config was written or edited by a person,
-// and no amount of detection is worth overwriting that.
+// The one command that writes to a target repo, and only a file it has never seen: an existing config was written by a person.
 if (command === "init") {
   const file = path.join(repo, "atlas.config.mjs");
   if (existsSync(file)) die(`${file} already exists — delete it first, or edit it in place`);
@@ -153,36 +126,22 @@ if (command === "init") {
   await run();
 }
 
-/**
- * Everything past acquisition.
- *
- * A function, and no `process.exit()` anywhere near a write, because
- * `process.stdout` is asynchronous when it is a pipe: exiting discards whatever
- * has not drained, which silently truncated `--json` at the 64 KB pipe buffer.
- * Letting the event loop run dry is what flushes it.
- */
+/** Everything past acquisition, and no `process.exit()` near a write: stdout is async when it is a pipe, so exiting truncated `--json` at the 64 KB buffer. Letting the event loop run dry is what flushes it. */
 async function run() {
   const config = values.config
     ? (await import(pathToFileURL(path.resolve(values.config)).href)).default
     : undefined;
 
-  // `serve` reads live off disk rather than a git-archive snapshot: a dev
-  // server showing a frozen copy of what you are editing is the wrong default,
-  // and `fs` acquisition means `source.dir` is the repo itself — no temp dir
-  // to keep alive past `scan()`, nothing for the server to lose access to.
+  // `serve` reads off disk rather than a snapshot: `fs` acquisition means `source.dir` is the repo itself, with no temp dir to keep alive past `scan()`.
   const ref = command === "serve" ? "fs" : values.ref;
 
-  // `--embed-source`/`--gzip-source` are `build`-only: elsewhere the flag would
-  // pay for embedding a payload nothing goes on to write.
+  // `--embed-source`/`--gzip-source` are build-only: elsewhere they would pay for embedding a payload nothing writes.
   const embedding = command === "build" && embedSource;
   if (values["gzip-source"] && !embedding) {
     warn("atlas: --gzip-source has no effect without --embed-source" + (command === "build" ? "" : " (and only applies to build)"));
   }
 
-  // Live-mode flags are validated BEFORE the scan: a typo'd target should cost
-  // a message, not a full walk of somebody's repository first. `--target` is
-  // outbound-only and has nothing to do with the bind host, which is a literal
-  // in listen() with no flag at all — so the two are never read as a pair.
+  // Live flags are validated before the scan, so a typo'd target costs a message rather than a full walk. `--target` is outbound-only: the bind host is a literal in listen(), never a flag.
   let live = null;
   const liveFlags = ["target", "allow-live", "auth-env"].filter((f) => values[f]);
   if (command !== "serve" && liveFlags.length) {
@@ -194,8 +153,7 @@ async function run() {
     let token = null;
     if (values["auth-env"]) {
       token = process.env[values["auth-env"]];
-      // Starting anyway would send every request unauthenticated and show a
-      // wall of 401s, after you said you had a token. Failing now is kinder.
+      // Starting anyway would send every request unauthenticated, after you said you had a token.
       if (!token) die(`--auth-env ${values["auth-env"]} is not set in this environment`);
     }
     live = makeLive({ origin: t.origin, authEnv: values["auth-env"] ?? null, token });
@@ -226,17 +184,13 @@ async function run() {
 
   const { payload, diagnostics } = result;
 
-  // The report is a by-product of `build` and the whole point of `scan`, so it
-  // follows the same rule every other tool does: a command's output goes to
-  // stdout, a command's commentary goes to stderr.
+  // A command's output goes to stdout, its commentary to stderr; the report is `scan`'s output and `build`'s commentary.
   if (command === "scan") {
     diagnose(payload, diagnostics, (...m) => process.stdout.write(m.join(" ") + "\n"));
     return;
   }
 
-  // Findings are the report, same as `scan` — its own stdout, not build's
-  // stderr commentary — so `--json` stays pipeable and pairs with `--json`'s
-  // existing meaning on `build`: the payload, not the log.
+  // Findings are the output, so they go to stdout and `--json` stays pipeable, matching what `--json` already means on `build`.
   if (command === "findings") {
     if (values.json) {
       process.stdout.write(JSON.stringify(payload.findings, null, 2));

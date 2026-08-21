@@ -1,39 +1,4 @@
-/**
- * The chrome the payload ships to the viewer: which views exist, and what
- * colour everything is.
- *
- * Both are presentation tables rather than facts about the repository, both are
- * config-overridable, and both are read once and adjacently when the payload is
- * assembled — a view gaining a legend row touches the two together, which is
- * why they sit in one file rather than two.
- *
- * ---- VIEWS ----
- *
- * The viewer used to hardcode a list of four view ids and branch on two of them
- * by name, which meant a repo whose flows were called anything else silently
- * lost its flow views. A view is data now, and `kind` is what the viewer
- * branches on:
- *
- *   structure  every node, filtered by the sidebar toggles
- *   flow       only the nodes and edges named by this view's curated flows
- *   tests      test edges and coverage tint
- *   request    compose a request against one endpoint and play its modelled path
- *   findings   the whole map, with one finding's evidence lit and the rest dimmed
- *
- * A flow view is created for every distinct `flows[].view`, so curation adds a
- * view without touching the tool. Config may override any of it by supplying a
- * `views` array with matching ids.
- *
- * ---- THEME ----
- *
- * Canvas cannot read CSS custom properties, so the viewer needs real colour
- * values in JS. Previously it had them in two places — the style tables and a
- * hand-written legend that repeated the same ten literals — which could and did
- * drift apart. The legend is generated from these tables now, so a colour has
- * exactly one definition.
- *
- * Config may override any branch of this; `atlas init` will emit it.
- */
+/** Views and theme: config-overridable presentation tables the payload ships to the viewer. A view is data, and its `kind` (structure/flow/tests/request/findings) is what the viewer branches on; the legend names keys in these tables so a colour has one definition. */
 
 const DEFAULT_HINTS = {
   structure:
@@ -65,36 +30,25 @@ export function buildViews(config, flows = [], derived = [], endpoints = []) {
       id,
       label: id.toUpperCase(),
       kind: "flow",
-      // A view whose flows carry phases gets the phase watermark; one whose
-      // flows do not, does not. Derived, not declared.
+      // The phase watermark is derived from whether this view's flows carry phases.
       showPhase: flows.some((f) => f.view === id && f.phase),
     })),
-    // Derived paths get their own view rather than joining a curated one:
-    // a reader has to be able to tell, from the strip alone, whether what they
-    // are about to watch was asserted by a person or inferred by this tool.
+    // Derived paths get their own view, so the strip alone says asserted or inferred.
     ...(derived.length ? [{ id: "derived", label: "DERIVED PATHS", kind: "flow", derived: true }] : []),
     { id: "tests", label: "TESTS", kind: "tests" },
-    // Conditional, like the derived entry above and unlike findings below: a
-    // repo with no HTTP surface has nothing to compose a request against, and
-    // an empty composer is not a result the way an empty findings list is.
+    // Conditional: with no HTTP surface there is nothing to compose against, and an empty composer is not a result.
     ...(endpoints.length ? [{ id: "request", label: "REQUEST", kind: "request" }] : []),
-    // Unconditional, unlike the derived entry above: a repository with no
-    // findings has a RESULT to show, and it is one worth being able to read.
-    // Dropping the view when the list is empty would make "eight checks ran and
-    // matched nothing" indistinguishable from "this tool does not check", which
-    // is the one confusion the empty state exists to prevent.
+    // Unconditional: no findings is a result, and dropping the view would read as "this tool does not check".
     { id: "findings", label: "FINDINGS", kind: "findings" },
   ];
 
   const withDefaults = (v) => ({ title: DEFAULT_TITLES[v.kind], hint: DEFAULT_HINTS[v.kind], ...v });
 
-  // Config, when present, decides the order and the copy; the derived entry
-  // still supplies kind and showPhase so a config cannot get those wrong.
+  // Config decides order and copy; kind and showPhase still come from the derived entry.
   if (config.views) {
     const byId = new Map(base.map((v) => [v.id, v]));
     const named = config.views.map((v) => withDefaults({ ...byId.get(v.id), ...v }));
-    // A config that predates derivation — or findings — should not lose the
-    // view because it did not know to list it.
+    // A config predating a view should not lose it for not listing it.
     const extra = base.filter(
       (v) => (v.derived || v.kind === "findings" || v.kind === "request") && !config.views.some((c) => c.id === v.id),
     );
@@ -105,25 +59,17 @@ export function buildViews(config, flows = [], derived = [], endpoints = []) {
 
 export const DEFAULT_THEME = {
   ink: "#16181a",
-  // White, not cream. The map and the chrome stand on one ground, and a
-  // line-art drawing reads cleanest over the brightest one available.
+  // White, not cream: line art reads cleanest over the brightest ground.
   bg: "#ffffff",
   // A literal stack: canvas ignores var(--mono).
   font: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
   layerFallback: "#8a8a8a",
-  // The state channel's one colour. Identity writes to fill; state writes to
-  // stroke, ring and badge, so turning identity colour off cannot also turn the
-  // selection off. See PLAN.md, "The visual system".
+  // The state channel's one colour: state writes to stroke, ring and badge, never to fill. See PLAN.md "The visual system".
   accent: "#2563eb",
-  // The two greys every plate, outline, label halo and watermark is mixed from,
-  // at an alpha. A named token per opacity is thirteen tokens per palette, and
-  // that is how the old palette ended up hardcoded across the renderer.
-  // Cooled and lightened against the white ground: on cream a warm grey reads
-  // as paper, on white it reads as dirt.
+  // The two greys every plate, outline, halo and watermark is mixed from, at an alpha.
   plate: "#78828a",
   edge: "#11151a",
-  // The block face in `mono`, where identity fill is off and the stroke
-  // carries the whole form. The two vertical faces are shaded down from it.
+  // The block face in `mono`; the two vertical faces are shaded down from it.
   face: "#ffffff",
   packetLabel: "#1c1e1f",
 
@@ -148,39 +94,16 @@ export const DEFAULT_THEME = {
     "test:subject": "#8a3a1f", "test:exercises": "#8a3a1f", coupling: "#7a2a1a",
   },
 
-  // Coverage recolours a block in the tests view. `direct` deliberately has no
-  // tint: it keeps its layer colour, so orange means something.
+  // Coverage tint in the tests view; `direct` keeps its layer colour, so orange means something.
   coverTint: { none: "#b0562f", indirect: "#a89a5c" },
 
-  /**
-   * A finding's severity, for the ring and the evidence edges the findings view
-   * draws over the map. Colour is the SECOND channel here, never the only one:
-   * the sidebar chip spells the severity out and the panel names it in words,
-   * because a map read in greyscale or by someone who cannot separate red from
-   * orange still has to say which findings are the bad ones.
-   */
+  /** Finding severity for rings and evidence edges. Colour is always the second channel: the chip and panel name the severity in words. */
   findingSeverity: { error: "#b3261e", warning: "#b5730f", info: "#4a7a8c" },
 
-  /**
-   * A live response's status class, for the ring on the endpoint node.
-   *
-   * Three classes, not a gradient: the reader needs to know whether the
-   * endpoint answered, complained, or failed, and a shade between those is a
-   * distinction the map cannot back. `ok` is the only green in the palette and
-   * exists solely for this — a status is the one genuinely observed thing live
-   * mode adds, so it is allowed a colour nothing modelled ever wears.
-   */
+  /** A live response's status class: three classes rather than a gradient, and the only green in the palette, because a status is genuinely observed. */
   liveStatus: { ok: "#2f7d4f", client: "#b5730f", server: "#b3261e" },
 
-  /**
-   * The dark theme, as a delta rather than a second palette.
-   *
-   * Only the scalars flip. Everything mixed from them — plates, outlines, label
-   * halos, the watermark — follows, because they are the same token at an
-   * alpha. `edge` inverts from near-black to near-white: in a line-art map the
-   * stroke carries the whole form, and a dark outline on a dark ground is not a
-   * dimmer map, it is no map.
-   */
+  /** The dark theme as a delta: only the scalars flip, and everything mixed from them follows. */
   dark: {
     ink: "#e8eaec",
     bg: "#0e1011",
@@ -190,29 +113,12 @@ export const DEFAULT_THEME = {
     edge: "#e4e8ec",
     face: "#333a3f",
     packetLabel: "#e8eaec",
-    // The one table in the delta rather than a scalar: these are drawn over a
-    // veiled city, and a deep red that reads as urgent on white disappears
-    // into a near-black ground. Lightened rather than re-hued, so the three
-    // stay the same three severities.
+    // Lightened rather than re-hued: a deep red disappears into a near-black ground.
     findingSeverity: { error: "#ff6b5e", warning: "#f0a03c", info: "#79b8d0" },
     liveStatus: { ok: "#5fd08a", client: "#f0a03c", server: "#ff6b5e" },
   },
 
-  /**
-   * Legend rows, by view kind. `edge` and `swatch` name a key in the tables
-   * above rather than repeating its colour, which is what stops the legend and
-   * the map from disagreeing.
-   */
-  // How much air sits between things. Presentation, like colour, so it ships in
-  // the payload rather than being known by the viewer — and overridable, because
-  // "too sparse" is a judgement about one repository's shape, not a fact.
-  //
-  // `spacing` is the cell pitch and the two gutters are the gaps between layer
-  // columns and service rows. The gutters are where the air actually is: at the
-  // old 1.5/2/2.5 a district was mostly gap. Only `spacing` carries an
-  // invariant — a block's footprint is one cell, so it must stay above 1 or
-  // footprints overlap and the depth sort stops being exact. The viewer clamps
-  // it; this table stays clear of the floor on purpose.
+  // Cell pitch and the gutters between layer columns and service rows; `spacing` must stay above 1 or footprints overlap and the depth sort stops being exact.
   density: {
     default: "normal",
     presets: {
@@ -222,6 +128,7 @@ export const DEFAULT_THEME = {
       roomy: { spacing: 1.5, gutLayer: 2, gutSvc: 2.5 },
     },
   },
+  /** Legend rows by view kind; `edge` and `swatch` name a key in the tables above rather than repeat a colour. */
   legend: {
     default: [
       { edge: "import", label: "IMPORT" },
@@ -230,8 +137,7 @@ export const DEFAULT_THEME = {
       { edge: "sql", label: "SQL / CACHE" },
       { swatch: "request", label: "PACKET — CLICK TO INSPECT" },
     ],
-    // Every row names the severity in words as well as in colour — the legend
-    // is the one place the two channels are declared to be the same thing.
+    // Every row names the severity in words as well as in colour.
     findings: [
       { sev: "error", label: "ERROR" },
       { sev: "warning", label: "WARNING" },

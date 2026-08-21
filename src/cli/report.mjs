@@ -1,11 +1,4 @@
-/**
- * What the CLI prints.
- *
- * `report()` is the build's commentary and goes to stderr; `diagnose()` is
- * `atlas scan`'s whole output and goes to stdout. Both only ever read a
- * finished payload and format it, which is why they live beside the CLI rather
- * than in the pipeline that produced it.
- */
+/** What the CLI prints: `report()` to stderr, `diagnose()` to stdout. Both only read a finished payload and format it, which is why they sit beside the CLI rather than in the pipeline. */
 /** `a, b, c, +N more` — a sample long enough to recognise, short enough to read. */
 function sample(items, n) {
   return items.slice(0, n).join(", ") + (items.length > n ? `, +${items.length - n} more` : "");
@@ -15,16 +8,13 @@ function sample(items, n) {
 export function report(payload, diagnostics, warn) {
   const { stats, unclassified, orphanTests } = diagnostics;
   const m = payload.meta;
-  // Which rung ran decides whether this picture is reproducible from a commit,
-  // so it leads the report rather than hiding in the payload.
+  // Which rung ran decides whether this picture is reproducible from a commit, so it leads the report.
   const a = m.acquisition;
   const at = a.commit ? `@ ${a.commit}` : "uncommitted";
   warn(`atlas: ${a.mode} ${a.ref ?? ""} ${at}${a.dirty ? " · DIRTY" : ""}`);
   warn(`atlas: ${m.fileCount} code files, ${m.lineCount} lines, ${m.edgeCount} edges, ${m.endpointCount} endpoints`);
   warn(`atlas: imports resolved=${stats.resolved} unresolved=${stats.unresolved} external=${stats.external}`);
-  // The unsorted share is the honest read on classification quality: a repo
-  // whose layout no rule recognises still renders, and this is how you find out
-  // that is what happened rather than wondering why it is one column.
+  // The unsorted share is the honest read on classification quality: a repo no rule recognises still renders, and this is how you find that out.
   const share = m.fileCount ? Math.round((unclassified.length / m.fileCount) * 100) : 0;
   warn(`atlas: unsorted files=${unclassified.length} (${share}% — placed by fallback)${unclassified.length ? " -> " + sample(unclassified, 6) : ""}`);
   warn(`atlas: tests without a subject=${orphanTests.length}${orphanTests.length ? " -> " + orphanTests.map((n) => n.name).join(", ") : ""}`);
@@ -43,44 +33,25 @@ function outRanked(ranked, out, cap = 20) {
   if (ranked.length > cap) out(`  +${ranked.length - cap} more`);
 }
 
-/**
- * `atlas scan` — the long form of the same report.
- *
- * This diagnoses the *tool's read* of a repository, not the repository:
- * which specifiers it could not place, and how its files fell across the
- * columns and rows it drew. `atlas findings` (phase 5) is the one that
- * diagnoses the code.
- *
- * The histograms are the fastest way to see a config is wrong: every file in
- * one layer means no rule matched anything, and every file in one service means
- * detection found no manifest.
- */
+/** `atlas scan` — the long form, diagnosing the tool's read of a repository rather than the repository itself. The histograms are the fastest way to spot a wrong config: one layer means no rule matched, one service means detection found no manifest. */
 export function diagnose(payload, diagnostics, out) {
   const { stats } = diagnostics;
   report(payload, diagnostics, out);
 
   if (stats.unresolvedSpecs.length) {
-    // Grouped by specifier: one missing alias accounts for a hundred of these,
-    // and a list of a hundred identical lines hides that fact rather than showing it.
+    // Grouped by specifier: one missing alias accounts for a hundred of these, and a flat list would hide that.
     out(`atlas: unresolved specifiers, most common first`);
     outRanked(rankedCounts(stats.unresolvedSpecs, (u) => u.spec), out);
   }
 
-  // Endpoint registrations the extractor saw but could not turn into an
-  // endpoint without guessing — a non-literal path, or a literal path handed
-  // to a helper whose method this tool does not follow. Grouped by file the
-  // same way unresolved specifiers are grouped by spec: one helper accounts
-  // for most of these, and a flat list of a dozen identical lines hides that.
+  // Registrations seen but not turnable into an endpoint without guessing, grouped by file because one helper accounts for most of them.
   const skips = payload.endpoints.skips ?? [];
   if (skips.length) {
     out(`atlas: endpoint registrations skipped (non-literal path or invisible method)=${skips.length}`);
     outRanked(rankedCounts(skips, (k) => k.file), out);
   }
 
-  // "No endpoints here" and "this tool cannot read this language" are the same
-  // empty result from the outside, and only one of them is a fact about the
-  // repository. Reported by language rather than per file: one missing adapter
-  // is otherwise a hundred identical lines that hide the cause.
+  // "No endpoints here" and "no adapter for this language" look identical from outside, and only one is a fact about the repository; reported by language, since one missing adapter is otherwise a hundred lines.
   const unscanned = payload.endpoints.unscanned ?? [];
   if (unscanned.length) {
     const total = unscanned.reduce((a, [, n]) => a + n, 0);
@@ -100,15 +71,7 @@ export function diagnose(payload, diagnostics, out) {
   }
 }
 
-/**
- * `atlas findings` — the code diagnosis `diagnose()` above points at.
- * `atlas scan` reads what the tool made of a repository; this reads what the
- * repository is, structurally: cycles, layering violations, orphans, and the
- * rest of `src/model/findings.mjs`'s eight checks.
- *
- * A muted finding still counts and still prints — grouped separately — so
- * muting stays visible rather than making the map quietly incomplete.
- */
+/** `atlas findings` — the structural diagnosis of the repository itself. A muted finding still counts and still prints, grouped separately, so muting stays visible. */
 export function findingsReport(payload, out) {
   const all = payload.findings ?? [];
   const active = all.filter((f) => !f.muted);
