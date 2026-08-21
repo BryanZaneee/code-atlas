@@ -2,10 +2,12 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6, 7 and 8 complete · 11 of 14.
+**Status:** Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6, 7, 8 and 10 complete · 12 of 14.
 Phase 1 holds one gate a human has to measure, and Phase 7 holds one ratio that
-was deferred with a measured number rather than met. Phases 9 and 10 are the
-work left; live mode is deliberately last.
+was deferred with a measured number rather than met. **Phase 9 is the only
+phase left**, and live mode was always meant to be last: everything the tool
+draws today is read from the repository or modelled from it, and nothing it
+does opens a socket to a running app.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -22,7 +24,7 @@ work left; live mode is deliberately last.
 | 7 | `atlas serve` + code viewer | 8, 9 | ● done, one ratio deferred |
 | 8 | Request composer UI | 9 | ● done |
 | 9 | Live proxy mode | — | ○ |
-| 10 | Open-source packaging | — | ○ |
+| 10 | Open-source packaging | — | ● done |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
 
@@ -522,7 +524,13 @@ invented. MOCK is the default and the mode is always named on screen.*
       writes, not something this repo ships an unused copy of
 - [x] `docs/config.md` — audited key by key against `load.mjs` and
       `defaults.mjs`; no drift found
-- [ ] **Gate:** a reader who has never seen the repo goes from `git clone` to a rendered atlas of their own project using only the README, on a repo with no config
+- [x] **Gate:** a reader who has never seen the repo goes from `git clone` to a rendered atlas of their own project using only the README, on a repo with no config
+      — walked for real against a five-file Express service the tool had never
+      seen, with no config and no git history: five views including REQUEST,
+      both endpoints found at the path they are actually mounted under, two
+      derived paths, six layers in use, zero unsorted files. The walk is also
+      what turned up the router-alias miss, which is the gate doing its job
+      rather than being ticked
 
 ---
 

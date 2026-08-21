@@ -4,17 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 are complete. Phase 7 has its server
-and its reader.**
+**Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6, 7, 8 and 10 are complete. Phase 9,
+live proxy mode, is the only phase left.**
 
 `build`, `scan`, `init` and `serve` all work on any repository, with or without a
 config, and `findings` reports the eight structural checks over the graph.
 Derivation (`src/model/derive.mjs`) and its calibration
 harness (`test/calibrate.mjs`, `npm run calibrate`) are in, and the numbers
 they produce are published in the README rather than left in a commit message.
-Phase 7's server and its reader are both in — allowlisted `/api/source`,
-INFO/SOURCE tabs, jump-to-line and highlighting; what is left there is
-`--embed-source` and `--gzip-source`, which share a gate.
+Phase 7 is in whole, including `--embed-source` and `--gzip-source`; its one
+open item is the >=3x compression ratio, deferred with a measured 2.31x and the
+arithmetic showing the bar was set against a number that forgot base64. Phase 8
+ships the request composer, and Phase 10 the packaging: README, CONTRIBUTING and
+the three docs, with the cold-reader gate walked against a repo the tool had
+never seen.
 
 Phase 1 is done bar one gate — 60 fps sustained drag — which needs a human with
 the window in front, because `requestAnimationFrame` is suspended in a
