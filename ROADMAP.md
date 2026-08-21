@@ -547,6 +547,13 @@ knowledge lives in an adapter. Four places breach it: `derive.mjs`'s
 `METHOD_EXPORT` are JS-only; `tests.mjs`'s `subjectOf` treats any non-`.ts` file
 as Python. The fix is to widen the adapter contract, not to add branches.
 
+`endpoints.mjs` now also imports `blank()` from `ts.mjs` directly, to stop a
+commented-out route registering as an endpoint. That is the right behaviour
+reached through the wrong door: blanking is per-language lexing and belongs on
+the adapter contract, where `py.mjs` has its own copy nothing outside it can
+reach. Widening the contract should take `blank` with it — a Python or Go route
+rule would need exactly this and has no way to ask for it today.
+
 **Mount resolution does not follow `require()`.** `specifierFor` reads `import`
 syntax, so a CommonJS router still yields its endpoints but at the path it
 declares rather than the one it is served at. `fixtures/express-js` uses ESM in
