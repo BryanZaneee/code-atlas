@@ -199,7 +199,14 @@ export function extractEndpoints(ctx) {
       if (!NOT_CODE.has(langOf(p))) unscanned.set(langOf(p), (unscanned.get(langOf(p)) ?? 0) + 1);
       continue;
     }
-    const text = ctx.src.get(p);
+    // Blanked, for the same reason every other extractor in this repository
+    // blanks: a route registration inside a comment or a template literal is
+    // not a route. A commented-out `app.get("/deleted-last-year", …)` was
+    // reaching the payload as a live endpoint, and a phantom endpoint is the
+    // one thing this file is not allowed to produce. blank() preserves length
+    // and newlines, so every offset and line number below still lines up, and
+    // it leaves ordinary quoted strings intact, which is where the path is.
+    const text = blank(ctx.src.get(p));
     const { service } = serviceOf(p);
 
     // A router the file names something else. The default rules key on a
@@ -207,7 +214,7 @@ export function extractEndpoints(ctx) {
     // `axios.post("/orders")` is an outbound call, and matching any receiver
     // would make every HTTP client a phantom endpoint. `declaredRouters` widens
     // it by evidence instead — see its docstring for what that costs.
-    const declared = declaredRouters(text);
+    const declared = declaredRouters(ctx.src.get(p));
     const fileRules = declared.length
       ? [...rules, ...declared.map((name) => ({
         i: `#router:${name}`,
@@ -270,7 +277,7 @@ export function extractEndpoints(ctx) {
       add("GET", url, p, 1, service, `file-based route — an app-router page under ${p.split("/").slice(0, -1).join("/")}`);
       continue;
     }
-    const text = ctx.src.get(p);
+    const text = blank(ctx.src.get(p));
     for (const m of text.matchAll(METHOD_EXPORT)) {
       const method = m[1] ?? m[2];
       add(method, url, p, lineOf(text, m.index), service, `file-based route — ${method} exported from an app-router route file`);

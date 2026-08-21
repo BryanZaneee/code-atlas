@@ -78,6 +78,19 @@ test("a Router() that is a comment, a string, or since reassigned is not evidenc
 });
 
 /**
+ * The same trap, one level down: the DEFAULT rules match a receiver named
+ * router/app/server and need no declaration at all, so a commented-out
+ * `router.get(…)` was reaching the payload as a live endpoint. That predates
+ * the receiver widening and was found while fixing it.
+ */
+test("a commented-out or quoted route registration is not an endpoint", async () => {
+  const { payload } = await scanFixture("express-js");
+  for (const path of ["/legacy/retired", "/legacy/proposed", "/legacy/from-the-docs"]) {
+    assert.ok(!payload.endpoints.some((e) => e.path === path), `invented ${path}`);
+  }
+});
+
+/**
  * The mount chain has to compose across three files AND two module systems:
  * a `.cjs` router and an `.mjs` router, both mounted by a `.js` server. A
  * router's own declared path is not the path it is served at.

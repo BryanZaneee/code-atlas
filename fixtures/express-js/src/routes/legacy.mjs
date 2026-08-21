@@ -19,3 +19,8 @@ export const DOCS = `
 let mixed = Router();
 mixed = axios.create();
 export function ping() { return mixed.post("/legacy/ping"); }
+
+// The same trap for the DEFAULT rules, whose receiver needs no declaration:
+// router.get("/legacy/retired", handler);
+/* router.post("/legacy/proposed", handler); */
+export const SNIPPET = `router.delete("/legacy/from-the-docs", handler)`;
