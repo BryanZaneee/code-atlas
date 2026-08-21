@@ -71,3 +71,18 @@ function colorOf(n) {
   return layerById.get(n.layer)?.color ?? THEME.layerFallback;
 }
 
+/** World bbox over nodes' projected faces. Accumulated, not spread: Math.min(...pts) throws RangeError around 8k nodes. */
+function bboxOf(nodes) {
+  const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
+  for (const n of nodes) {
+    for (const face of n.faces ?? []) {
+      for (const p of face.pts) {
+        if (p.x < b.x0) b.x0 = p.x;
+        if (p.x > b.x1) b.x1 = p.x;
+        if (p.y < b.y0) b.y0 = p.y;
+        if (p.y > b.y1) b.y1 = p.y;
+      }
+    }
+  }
+  return b;
+}

@@ -42,8 +42,7 @@ function renderList() {
     all.onclick = () => { S.activeFlow = "__all__"; relayout(); renderList(); fitView(); renderCaption(); syncControls(); };
     wrap.append(all);
     for (const f of fs) {
-      // A real <button>: it acts like one, so it should be one — focusable,
-      // keyboard-reachable, and announced as a control rather than as text.
+      // A real <button>, so it is focusable, keyboard-reachable and announced as a control.
       const r = el("button", "row flow" + (S.activeFlow === f.id ? " sel" : ""));
       r.dataset.flow = f.id;
       r.append(el("span", "mk", "▶"), el("span", "nm", f.label), el("span", "num", f.steps.length));
@@ -71,14 +70,11 @@ function renderList() {
   for (const d of ds) {
     if (d.service !== lastSvc) {
       lastSvc = d.service;
-      // Same heading the findings list uses for its type groups, as a class
-      // rather than as an inline style repeated in two places.
+      // The same heading class the findings list uses, rather than an inline style in two places.
       wrap.append(el("div", "hint grp", (svcById.get(d.service)?.label ?? d.service).toUpperCase()));
     }
     const r = el("div", "row" + (S.focusDistrict === d.id ? " sel" : ""));
-    // The district's two-character code, tinted with its layer's identity
-    // colour. In `mono` the tint drops out and the code still names it — which
-    // is the point of shipping a code at all rather than relying on the swatch.
+    // The tint drops out in `mono` and the code still names the district, which is why a code ships at all.
     const cd = el("span", "cd", d.code ?? "");
     if (S.colorMode === "identity") cd.style.borderColor = layerById.get(d.layer)?.color ?? THEME.layerFallback;
     r.append(cd, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.blocks.length));
@@ -106,9 +102,7 @@ function renderServices() {
     det.ontoggle = () => det.open ? S.openServices.add(s.id) : S.openServices.delete(s.id);
 
     const sum = el("summary");
-    // The checkbox lives in the summary so a service can be switched off
-    // without opening it; stopping the click keeps that from also toggling
-    // the disclosure, which would make one gesture do two things.
+    // The checkbox sits in the summary so a service switches off without opening; stopping the click keeps one gesture doing one thing.
     const cb = el("input"); cb.type = "checkbox"; cb.checked = S.services.has(s.id);
     cb.onclick = (e) => e.stopPropagation();
     cb.onchange = () => {
@@ -147,9 +141,7 @@ function renderStats() {
   $("#bRepo").textContent = m.repo;
   $("#bRef").textContent = `${m.ref} @ ${m.commit} · ${m.generatedAt}`;
   const kind = viewKind(S.view);
-  // Severity counts lead the findings strip for the same reason the DERIVED
-  // caveat leads the default one: it is the number the view exists to report,
-  // and a strip that clips has to clip the least important thing on it.
+  // Severity counts lead, because a strip that clips has to clip the least important thing on it.
   const sevCount = (sev) => FINDINGS.filter((f) => !f.muted && f.severity === sev).length;
   const rows = kind === "findings"
     ? [
@@ -178,8 +170,7 @@ function renderStats() {
 }
 
 function renderLegend() {
-  // Rows name a theme key rather than repeating a colour, so the legend cannot drift.
-  // Keyed by view kind, with the default as fallback.
+  // Rows name a theme key rather than repeating a colour, keyed by view kind with the default as fallback, so the legend cannot drift.
   const rows = THEME.legend[viewKind(S.view)] ?? THEME.legend.default ?? [];
   const w = $("#legend"); w.innerHTML = "";
   for (const r of rows) {
@@ -191,8 +182,7 @@ function renderLegend() {
       ?? (r.layer ? layerById.get(r.layer)?.color : null)
       ?? THEME.layerFallback;
     const g = el("div", "lg");
-    // A severity is drawn as a stroke on the map — a ring and an arc — so the
-    // legend shows it as one rather than as a swatch that matches nothing.
+    // Severity is a stroke on the map, so the legend shows a stroke rather than a swatch that matches nothing.
     const line = r.edge || r.sev;
     const mark = el(line ? "i" : "u");
     if (line) { mark.style.borderTopColor = color; if (style?.dash || r.dash) mark.className = "dash"; }
@@ -202,9 +192,7 @@ function renderLegend() {
   }
   const right = el("div", "lg");
   right.style.marginLeft = "auto";
-  // `srcBadgeText()` (72-source.js) is the single place that decides what this
-  // page can actually do — served, embedded, or neither — so the legend can
-  // only ever repeat that answer, never contradict it.
+  // `srcBadgeText()` is the single place that decides served/embedded/neither, so the legend only repeats that answer.
   right.append(el("span", ATLAS.source ? "warn" : null, srcBadgeText()));
   w.append(right);
 }

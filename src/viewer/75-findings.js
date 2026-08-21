@@ -103,16 +103,7 @@ function drawFindings() {
   // Names are capped: a forty-file cycle turns to mush, and the panel lists them all anyway.
   if (blocks.length <= 12) {
     ctx.save();
-    ctx.font = `600 11px ${FONT}`;
-    ctx.textAlign = "center";
-    for (const n of blocks) {
-      const s = toScreen(n.top);
-      const w = ctx.measureText(n.name).width;
-      ctx.fillStyle = col;
-      ctx.fillRect(s.x - w / 2 - 5, s.y - 28, w + 10, 15);
-      ctx.fillStyle = BG;
-      ctx.fillText(n.name, s.x, s.y - 17);
-    }
+    for (const n of blocks) chip(ctx, toScreen(n.top), n.name, col);
     ctx.restore();
   }
 
@@ -145,17 +136,7 @@ function findArrow(arc, col) {
 
 /** Frame the evidence with the city still around it; unlike `focusOn`, the claim is about where this sits, so the neighbours stay in shot. */
 function findFocus(f) {
-  const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
-  for (const n of findBlocks(f)) {
-    for (const face of n.faces) {
-      for (const p of face.pts) {
-        if (p.x < b.x0) b.x0 = p.x;
-        if (p.x > b.x1) b.x1 = p.x;
-        if (p.y < b.y0) b.y0 = p.y;
-        if (p.y > b.y1) b.y1 = p.y;
-      }
-    }
-  }
+  const b = bboxOf(findBlocks(f));
   if (!Number.isFinite(b.x0)) return;
   const padX = Math.max(0, FIND_FRAME_MIN - (b.x1 - b.x0)) / 2;
   const padY = Math.max(0, FIND_FRAME_MIN - (b.y1 - b.y0)) / 2;

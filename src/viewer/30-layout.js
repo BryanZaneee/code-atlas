@@ -137,17 +137,7 @@ function reproject() {
   // Accumulated, not spread: `Math.min(...pts)` hits the argument limit and throws RangeError around 8k nodes.
   let bbox = null;
   if (vis.length) {
-    bbox = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
-    for (const n of vis) {
-      for (const face of n.faces) {
-        for (const p of face.pts) {
-          if (p.x < bbox.x0) bbox.x0 = p.x;
-          if (p.x > bbox.x1) bbox.x1 = p.x;
-          if (p.y < bbox.y0) bbox.y0 = p.y;
-          if (p.y > bbox.y1) bbox.y1 = p.y;
-        }
-      }
-    }
+    bbox = bboxOf(vis);
   }
   // Plates extend the bbox, or a row whose plate reaches past its tallest block gets cropped.
   if (bbox) {

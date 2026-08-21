@@ -169,14 +169,7 @@ function drawLive() {
   const text = r.error ? r.error
     : r.truncated ? `${r.status} · truncated at 1 MB`
     : `${r.status} · ${r.ms}ms`;
-  const s = toScreen(n.top);
-  ctx.font = `600 11px ${FONT}`;
-  ctx.textAlign = "center";
-  const w = ctx.measureText(text).width;
-  ctx.fillStyle = col;
-  ctx.fillRect(s.x - w / 2 - 5, s.y - 44, w + 10, 15);
-  ctx.fillStyle = BG;
-  ctx.fillText(text, s.x, s.y - 33);
+  chip(ctx, toScreen(n.top), text, col, 44);
 }
 
 /** The request as a shell command, printing `$VAR` rather than a token and built from the target and composed path, so it matches what the proxy would send. */

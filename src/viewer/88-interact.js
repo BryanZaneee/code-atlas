@@ -1,8 +1,6 @@
 /* ════════════════════ interaction ════════════════════ */
 let dragging = false, rotating = false, lastX = 0, lastY = 0, moved = 0;
-// Where an alt-drag started, so the cell delta is measured from the grab point
-// rather than accumulated per mouse move — accumulating would drift by a cell
-// every time the rounding fell either side of a half.
+// Where an alt-drag started, so the cell delta is measured from the grab point rather than accumulated and drifting on each rounding.
 let dragStartX = 0, dragStartY = 0;
 
 /** Rotating re-projects but never re-lays-out: nothing moves in world space. */
@@ -25,30 +23,25 @@ function stepBy(d) {
   syncControls();
 }
 
-// Every key here is printed in the hint strip, and the strip is only worth
-// having if it is true — so nothing is advertised that is not bound.
+// Every key here is printed in the hint strip, so nothing is advertised that is not bound.
 window.addEventListener("keydown", (e) => {
   if (e.target instanceof HTMLInputElement) return;
   const k = e.key.toLowerCase();
   if (k === "q") rotateTo(S.yaw - YAW_STEP);
   else if (k === "e") rotateTo(S.yaw + YAW_STEP);
-  // R is "put it back": the camera, and any districts that have been dragged
-  // out of the computed layout. One key, one obvious way home.
+  // R puts it back: the camera, and any districts dragged out of the computed layout.
   else if (k === "r") { const moved = resetDistrictOffsets(); rotateTo(YAW0); fitView(); if (moved) { renderList(); renderInspect(); } }
   else if (k === " ") { S.running = !S.running; syncControls(); }
   else if (k === "arrowright") stepBy(1);
   else if (k === "arrowleft") stepBy(-1);
   else if (k === "escape") {
-    // The reader is on top of everything else, so it is what Escape means while
-    // it is open. Clearing the selection underneath it would throw away the
-    // thing you opened the file to look at.
+    // The reader is on top, so Escape closes it rather than clearing the selection you opened the file to look at.
     if (SRC.open) closeSource();
     else {
       const lit = S.finding;
       S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
       S.finding = null; S.request = null;
-      // Only when there was one: the evidence set decides what is on the map,
-      // so dropping it has to re-pack — and nothing else here does.
+      // Only when there was one: the evidence set decides what is on the map, so dropping it has to re-pack.
       if (lit) relayout();
       renderList(); renderInspect(); renderCaption();
     }
@@ -59,9 +52,7 @@ window.addEventListener("keydown", (e) => {
 cv.addEventListener("mousedown", (e) => {
   dragging = true; rotating = e.shiftKey; moved = 0;
   lastX = e.clientX; lastY = e.clientY; cv.classList.add("drag");
-  // Alt grabs a district, the way shift grabs the camera. A modifier rather
-  // than a plain drag because the plates cover most of the map: claiming them
-  // for arranging would leave nowhere left to pan from.
+  // Alt grabs a district: a modifier, because the plates cover most of the map and claiming them would leave nowhere to pan from.
   S.dragDistrict = null;
   S.dragCells = { dx: 0, dy: 0 };
   if (e.altKey && !e.shiftKey) {
@@ -74,9 +65,7 @@ window.addEventListener("mouseup", () => {
   if (S.dragDistrict) {
     const { dx, dy } = S.dragCells;
     if (dx || dy) {
-      // A refused drop leaves the district where it was. The ghost has already
-      // said why in the error colour, so this is the end of it and not a
-      // silent no-op.
+      // A refused drop leaves the district where it was; the ghost already said why in the error colour.
       if (moveDistrict(S.dragDistrict, { dx, dy })) { renderList(); renderInspect(); }
     }
     S.dragDistrict = null;
@@ -91,8 +80,7 @@ window.addEventListener("mousemove", (e) => {
     moved += Math.abs(dx) + Math.abs(dy);
     lastX = e.clientX; lastY = e.clientY;
     if (S.dragDistrict) {
-      // Screen delta back to ground cells, snapped so blocks stay on the lattice.
-      // Pan cancels out of a difference, so only zoom is undone before projection.
+      // Screen delta back to ground cells, snapped so blocks stay on the lattice; pan cancels out of a difference, so only zoom is undone.
       const g = unproject((e.clientX - dragStartX) / S.zoom, (e.clientY - dragStartY) / S.zoom);
       S.dragCells = { dx: Math.round(g.gx / SPACING), dy: Math.round(g.gy / SPACING) };
     }
@@ -109,8 +97,7 @@ window.addEventListener("mousemove", (e) => {
   const sx = e.clientX - r.left, sy = e.clientY - r.top;
   const p = pickPacket(sx, sy);
   const n = p ? null : pickNode(sx, sy);
-  // Free now that the overlay is a live pass: this used to cost a full
-  // re-rasterisation of the city per mouse move, so there was no hover state.
+  // Free now that the overlay is a live pass, which is what makes a hover state affordable at all.
   S.hover = n ? n.id : null;
   const tip = $("#tip");
   if (p) {
@@ -149,20 +136,15 @@ cv.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 function syncControls() {
-  // Only a flow view has something to isolate. Disabled rather than hidden, so
-  // the strip does not reflow when you change view.
+  // Disabled rather than hidden, so the strip does not reflow when the view changes.
   $("#bIsolate").disabled = !playsFlow(S.view);
   $("#bPause").classList.toggle("on", S.running);
   $("#bPause").textContent = S.running ? "▮▮ PAUSE" : "▶ RESUME";
   const deg = Math.round(S.yaw * 180 / Math.PI) % 360;
-  // A modelled path says so ON THE CANVAS, curated or derived: a caveat living
-  // only in a side panel is not a caveat. The wording is what tells the two apart.
+  // A modelled path says so on the canvas, curated or derived: a caveat living only in a side panel is not a caveat.
   const f = flowById.get(S.activeFlow) ?? S.request;
   const modelled = f?.derived || (S.activeFlow === "__all__" && viewById.get(S.view)?.derived);
-  // Two elements: the status half drops on a narrow window, the caveat never does.
-  // Live adds the only observed fact on this map, and the badge has to keep it
-  // from spreading: a real status came back, and the hops drawn behind it are
-  // exactly as modelled as they were a moment ago in MOCK.
+  // Two elements, so the status half can drop on a narrow window while the caveat never does.
   $("#ovWarn").textContent = S.request?.live ? "LIVE · STATUS OBSERVED · PATH STILL MODELLED"
                             : modelled       ? "DERIVED · NOT VERIFIED"
                             : f              ? "CURATED · MODELLED PATH"
@@ -179,12 +161,10 @@ $("#bIsolate").onclick = () => {
   S.isolate = !S.isolate;
   $("#bIsolate").textContent = S.isolate ? "◎ ISOLATED" : "◍ IN CONTEXT";
   $("#bIsolate").classList.toggle("on", S.isolate);
-  // Same cost as switching flows, and for the same reason: the node set
-  // changes, so the world has to be re-packed and re-rasterised once.
+  // The node set changes, so the world is re-packed and re-rasterised once.
   relayout(); renderList(); fitView();
 };
-// Shape choices come from the SHAPES table rather than the markup, so adding
-// one is a single entry there and never a second list to keep in step.
+// Shape choices come from the SHAPES table rather than the markup, so adding one is never a second list to keep in step.
 for (const id of SHAPE_IDS) {
   const o = document.createElement("option");
   o.value = id; o.textContent = SHAPES[id].label.toLowerCase();
@@ -192,16 +172,14 @@ for (const id of SHAPE_IDS) {
 }
 $("#vShape").value = S.shape;
 $("#vShape").onchange = (e) => { S.shape = e.target.value; reproject(); staticDirty = true; };
-// Density options come from the payload's table for the same reason the shapes
-// do: the viewer offers what it was given rather than a list of its own.
+// Density options come from the payload's table: the viewer offers what it was given rather than a list of its own.
 for (const id of DENSITY_IDS) {
   const o = document.createElement("option");
   o.value = id; o.textContent = id;
   $("#vDensity").append(o);
 }
 $("#vDensity").value = S.density;
-// A density change repacks every district, so the old camera frames the wrong
-// world — fit, the way a packing change does.
+// A density change repacks every district, so the camera has to refit as it does for a packing change.
 $("#vDensity").onchange = (e) => { S.density = e.target.value; relayout(); fitView(); };
 $("#vPacking").onchange = (e) => { S.packing = e.target.value; relayout(); fitView(); };
 $("#vGround").onchange = (e) => { S.ground = e.target.checked; staticDirty = true; };
@@ -209,8 +187,7 @@ $("#vGround").onchange = (e) => { S.ground = e.target.checked; staticDirty = tru
 $("#bColor").onclick = () => {
   S.colorMode = S.colorMode === "mono" ? "identity" : "mono";
   $("#bColor").textContent = S.colorMode === "mono" ? "▣ COLOUR" : "▦ MONO";
-  // The sidebar carries identity colour too, on the district codes, so it has
-  // to follow the map rather than keep a tint the map just dropped.
+  // The sidebar carries identity colour on its district codes, so it has to follow the map rather than keep a dropped tint.
   renderList();
   staticDirty = true;
 };
@@ -222,8 +199,7 @@ $("#bTheme").onclick = () => {
   renderLegend();
   staticDirty = true;
 };
-// Debounced: a query change re-rasterises the whole city, and typing "service"
-// character by character asked for seven of them.
+// Debounced: a query change re-rasterises the whole city, once per keystroke otherwise.
 let queryTimer = null;
 $("#q").addEventListener("input", (e) => {
   const v = e.target.value.trim();
@@ -243,11 +219,9 @@ function setView(v) {
   S.view = v;
   S.focusDistrict = null; S.selected = null; S.pinnedPacket = null;
   S.activeFlow = "__all__";
-  // Cleared before relayout(), because the evidence of a finding is part of
-  // what `visibleSet()` keeps.
+  // Cleared before relayout(), because a finding's evidence is part of what `visibleSet()` keeps.
   S.finding = null;
-  // An armed request belongs to the request view; leaving it should not leave
-  // a played path animating underneath an unrelated view.
+  // An armed request belongs to the request view, and must not keep animating underneath an unrelated one.
   S.request = null;
   renderViews();
   relayout();

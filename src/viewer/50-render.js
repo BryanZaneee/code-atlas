@@ -405,6 +405,17 @@ function drawTrace() {
   ctx.restore();
 }
 
+/** A name on a solid chip above a block. `dy` lifts it clear of whatever is already there. */
+function chip(x, at, text, fill, dy = 28) {
+  x.font = `600 11px ${FONT}`;
+  x.textAlign = "center";
+  const w = x.measureText(text).width;
+  x.fillStyle = fill;
+  x.fillRect(at.x - w / 2 - 5, at.y - dy, w + 10, 15);
+  x.fillStyle = BG;
+  x.fillText(text, at.x, at.y - dy + 11);
+}
+
 /** Drawn after the blit, not baked into the cache: state changes per interaction, and an overlay may ignore the painter's algorithm to stay legible. */
 function drawOverlay() {
   const pick = (id) => (id && LAYOUT.ids.has(id) ? byId.get(id) : null);
@@ -420,14 +431,7 @@ function drawOverlay() {
     quad(ctx, silhouetteOf(sel).map(toScreen), null, THEME.accent, 2);
 
     // A chip rather than a halo: the overlay has one solid colour nothing else on the map uses.
-    const s = toScreen(sel.top);
-    ctx.font = `600 11px ${FONT}`;
-    ctx.textAlign = "center";
-    const w = ctx.measureText(sel.name).width;
-    ctx.fillStyle = THEME.accent;
-    ctx.fillRect(s.x - w / 2 - 5, s.y - 28, w + 10, 15);
-    ctx.fillStyle = BG;
-    ctx.fillText(sel.name, s.x, s.y - 17);
+    chip(ctx, toScreen(sel.top), sel.name, THEME.accent);
   }
   ctx.restore();
 }

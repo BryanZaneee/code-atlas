@@ -19,17 +19,7 @@ function fitView() {
 function focusOn(d) {
   // Accumulated, not spread: a district with thousands of members would blow the argument limit on the way to framing itself.
   if (!d.blocks.length) return;
-  const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
-  for (const n of d.blocks) {
-    for (const face of n.faces ?? []) {
-      for (const p of face.pts) {
-        if (p.x < b.x0) b.x0 = p.x;
-        if (p.x > b.x1) b.x1 = p.x;
-        if (p.y < b.y0) b.y0 = p.y;
-        if (p.y > b.y1) b.y1 = p.y;
-      }
-    }
-  }
+  const b = bboxOf(d.blocks);
   if (!Number.isFinite(b.x0)) return;
   fitBox(b, 0.62);
 }
