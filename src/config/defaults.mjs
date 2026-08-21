@@ -105,6 +105,10 @@ export const DEFAULT_LAYER_RULES = [
     ],
     why: "a conventional entrypoint filename",
   },
+  // Still last: a CLI's own `bin/` is an entry the filename list above cannot
+  // catch (`atlas.mjs` names the tool, not a convention), and it has to lose
+  // to every structural rule the same way `index.ts` under routes/ does.
+  { layer: "entry", dirs: ["bin"], why: "the conventional CLI entrypoint directory" },
 ];
 
 /**

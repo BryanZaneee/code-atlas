@@ -38,6 +38,7 @@ test("defaults place the conventional directories", () => {
   assert.equal(layer("README.md"), "docs");
   assert.equal(layer("db/0001_init.sql"), "migration");
   assert.equal(layer("src/server.ts"), "entry");
+  assert.equal(layer("bin/atlas.mjs"), "entry");
 });
 
 /**
