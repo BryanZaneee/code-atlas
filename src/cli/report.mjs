@@ -30,6 +30,19 @@ export function report(payload, diagnostics, warn) {
   warn(`atlas: tests without a subject=${orphanTests.length}${orphanTests.length ? " -> " + orphanTests.map((n) => n.name).join(", ") : ""}`);
 }
 
+/** Count by key, most common first, capped — one helper accounts for most of any such list. */
+function rankedCounts(items, keyOf) {
+  const by = new Map();
+  for (const it of items) by.set(keyOf(it), (by.get(keyOf(it)) ?? 0) + 1);
+  return [...by].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+/** Print a rankedCounts list, `+N more` past the cap. */
+function outRanked(ranked, out, cap = 20) {
+  for (const [label, n] of ranked.slice(0, cap)) out(`  ${String(n).padStart(4)} × ${label}`);
+  if (ranked.length > cap) out(`  +${ranked.length - cap} more`);
+}
+
 /**
  * `atlas scan` — the long form of the same report.
  *
@@ -49,12 +62,8 @@ export function diagnose(payload, diagnostics, out) {
   if (stats.unresolvedSpecs.length) {
     // Grouped by specifier: one missing alias accounts for a hundred of these,
     // and a list of a hundred identical lines hides that fact rather than showing it.
-    const by = new Map();
-    for (const u of stats.unresolvedSpecs) by.set(u.spec, (by.get(u.spec) ?? 0) + 1);
-    const ranked = [...by].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     out(`atlas: unresolved specifiers, most common first`);
-    for (const [spec, n] of ranked.slice(0, 20)) out(`  ${String(n).padStart(4)} × ${spec}`);
-    if (ranked.length > 20) out(`  +${ranked.length - 20} more`);
+    outRanked(rankedCounts(stats.unresolvedSpecs, (u) => u.spec), out);
   }
 
   // Endpoint registrations the extractor saw but could not turn into an
@@ -64,12 +73,8 @@ export function diagnose(payload, diagnostics, out) {
   // for most of these, and a flat list of a dozen identical lines hides that.
   const skips = payload.endpoints.skips ?? [];
   if (skips.length) {
-    const by = new Map();
-    for (const s of skips) by.set(s.file, (by.get(s.file) ?? 0) + 1);
-    const ranked = [...by].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     out(`atlas: endpoint registrations skipped (non-literal path or invisible method)=${skips.length}`);
-    for (const [file, n] of ranked.slice(0, 20)) out(`  ${String(n).padStart(4)} × ${file}`);
-    if (ranked.length > 20) out(`  +${ranked.length - 20} more`);
+    outRanked(rankedCounts(skips, (k) => k.file), out);
   }
 
   // "No endpoints here" and "this tool cannot read this language" are the same

@@ -26,6 +26,7 @@
  * highlights, never a prose description.
  */
 import { OFF_SPINE_LAYERS, UNREACHED_LAYERS } from "../config/defaults.mjs";
+import { adjacency, reachableFrom } from "./graph.mjs";
 
 
 /** p-th percentile of an ascending-sorted array, nearest-rank method. */
@@ -47,12 +48,7 @@ const sample = (ids, n = 6) => ids.slice(0, n).join(", ") + (ids.length > n ? `,
  * so every SCC of size 1 is a single file with no self-cycle, not a finding.
  */
 function findCycles(nodes, edges) {
-  const adj = new Map();
-  for (const e of edges) {
-    if (e.kind !== "import") continue;
-    if (!adj.has(e.from)) adj.set(e.from, []);
-    adj.get(e.from).push(e.to);
-  }
+  const adj = adjacency(edges, (e) => e.kind === "import");
 
   const index = new Map();
   const lowlink = new Map();
@@ -275,23 +271,7 @@ function findUnreachable(nodes, edges) {
   const entryIds = nodes.filter((n) => n.kind === "file" && n.layer === "entry").map((n) => n.id);
   if (!entryIds.length) return [];
 
-  const outImports = new Map();
-  for (const e of edges) {
-    if (e.kind !== "import") continue;
-    if (!outImports.has(e.from)) outImports.set(e.from, []);
-    outImports.get(e.from).push(e.to);
-  }
-
-  const reached = new Set(entryIds);
-  const queue = [...entryIds];
-  while (queue.length) {
-    for (const next of outImports.get(queue.pop()) ?? []) {
-      if (!reached.has(next)) {
-        reached.add(next);
-        queue.push(next);
-      }
-    }
-  }
+  const reached = reachableFrom(entryIds, adjacency(edges, (e) => e.kind === "import"));
 
   return nodes
     .filter((n) => n.kind === "file" && !UNREACHED_LAYERS.has(n.layer) && !reached.has(n.id))

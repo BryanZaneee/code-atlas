@@ -39,6 +39,7 @@
  */
 import { adapterFor } from "../adapters/index.mjs";
 import { mountParents } from "./mounts.mjs";
+import { adjacency } from "./graph.mjs";
 import { OFF_SPINE_LAYERS } from "../config/defaults.mjs";
 
 // The router -> controller -> service -> repository spine is what this exists
@@ -276,12 +277,7 @@ export function derivePaths(ctx, { nodes, edges, endpoints }) {
   const idIdx = new Map(nodes.map((n, i) => [n.id, i]));
   const layerRank = new Map((ctx.config.layers ?? []).map((l) => [l.id, l.rank]));
 
-  const importAdj = new Map();
-  for (const e of edges) {
-    if (e.kind !== "import") continue;
-    if (!importAdj.has(e.from)) importAdj.set(e.from, []);
-    importAdj.get(e.from).push(e.to);
-  }
+  const importAdj = adjacency(edges, (e) => e.kind === "import");
   for (const list of importAdj.values()) list.sort();
 
   // ONLY import edges. `edges` also carries curated flow and extraEdge
@@ -294,12 +290,7 @@ export function derivePaths(ctx, { nodes, edges, endpoints }) {
   // A file's edges into a datastore node — any kind (sql/cache/s3/...), since
   // this is deliberately not read/write: static analysis cannot tell them
   // apart, and step 3 needs only "is this file wired to a store at all".
-  const dsAdj = new Map();
-  for (const e of edges) {
-    if (byId.get(e.to)?.kind !== "datastore") continue;
-    if (!dsAdj.has(e.from)) dsAdj.set(e.from, []);
-    dsAdj.get(e.from).push(e.to);
-  }
+  const dsAdj = adjacency(edges, (e) => byId.get(e.to)?.kind === "datastore");
   for (const list of dsAdj.values()) list.sort();
 
   const endpointsByFile = new Map();

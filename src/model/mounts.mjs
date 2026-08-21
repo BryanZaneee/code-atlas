@@ -54,7 +54,8 @@ function specifierFor(text, symbol) {
     ?? null;
 }
 
-const join = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
+/** `/api/ai` + `/cleanup` -> `/api/ai/cleanup`, without doubling the slash. */
+export const joinPath = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
 
 // One scan answers two questions, so it runs once per ctx and both callers read
 // the same result. They used to be two near-identical passes in two modules,
@@ -153,7 +154,7 @@ export function resolveMounts(ctx) {
       if (!bases) continue;
       for (const base of [...bases]) {
         for (const { child, prefix } of list) {
-          const full = join(base, prefix);
+          const full = joinPath(base, prefix);
           if (!prefixes.has(child)) prefixes.set(child, new Set());
           if (prefixes.get(child).has(full)) continue;
           prefixes.get(child).add(full);

@@ -242,3 +242,29 @@ export function buildDistricts(nodes, layers) {
   }
   return districts;
 }
+
+/** Map of from -> [to] over the edges `accept` admits. */
+export function adjacency(edges, accept) {
+  const adj = new Map();
+  for (const e of edges) {
+    if (!accept(e)) continue;
+    if (!adj.has(e.from)) adj.set(e.from, []);
+    adj.get(e.from).push(e.to);
+  }
+  return adj;
+}
+
+/** Every id reachable from `seeds` along `adj`, seeds included. */
+export function reachableFrom(seeds, adj) {
+  const reached = new Set(seeds);
+  const queue = [...reached];
+  while (queue.length) {
+    for (const next of adj.get(queue.pop()) ?? []) {
+      if (!reached.has(next)) {
+        reached.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return reached;
+}

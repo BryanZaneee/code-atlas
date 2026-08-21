@@ -30,7 +30,7 @@
  * "app" IS the route) and path normalization (`:id` and `{id}` are the same
  * logical param in two frameworks' syntax, and collapse to one).
  */
-import { resolveMounts } from "./mounts.mjs";
+import { resolveMounts, joinPath } from "./mounts.mjs";
 import { adapterFor } from "../adapters/index.mjs";
 import { blank } from "../adapters/ts.mjs";
 import { langOf } from "./graph.mjs";
@@ -39,8 +39,6 @@ import { langOf } from "./graph.mjs";
 // what this tool can read, so it is not worth reporting as one.
 const NOT_CODE = new Set(["md", "json", "sql"]);
 
-/** `/api/ai` + `/cleanup` -> `/api/ai/cleanup`, without doubling the slash. */
-const joinPath = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
 
 /** 1-based line of a byte offset — jump-to-line (Phase 7) and skip reports. */
 const lineOf = (text, index) => text.slice(0, index).split("\n").length;
