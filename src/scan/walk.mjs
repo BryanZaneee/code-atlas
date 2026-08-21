@@ -16,7 +16,7 @@ import path from "node:path";
  * difference between reading the repository and reading every dependency it has
  * ever installed.
  */
-export function walk(dir, base = "", skip = []) {
+function walk(dir, base = "", skip = []) {
   const out = [];
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const rel = base ? `${base}/${e.name}` : e.name;

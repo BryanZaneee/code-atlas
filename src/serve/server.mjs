@@ -232,7 +232,7 @@ export function listen(port, { repo, keep, exclude, payload, live = null, log = 
  * would hand back.
  */
 /** A source file, not an asset — large enough for any real file, small enough to cap abuse. */
-export const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
 /**
  * @returns the absolute path to read, or null if the request must be refused.

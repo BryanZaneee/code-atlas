@@ -16,7 +16,7 @@
  * -> repository is the layering this axis exists to make visible; the layers
  * outside that spine (test, docs, tooling) sit past it rather than inside it.
  */
-export const DEFAULT_LAYERS = [
+const DEFAULT_LAYERS = [
   { id: "endpoint", label: "ENDPOINT", rank: -1, color: "#d8c98a" },
   { id: "entry", label: "ENTRY", rank: 0, color: "#c7b57a" },
   // A client-side repo has a whole spine the backend taxonomy has no column for.
@@ -69,7 +69,7 @@ export const OFF_SPINE_LAYERS = new Set(["test", "docs", "tooling", "unsorted"])
  * A rule matches only if EVERY primitive it declares matches, and each carries
  * a `why` that INSPECT shows verbatim.
  */
-export const DEFAULT_LAYER_RULES = [
+const DEFAULT_LAYER_RULES = [
   { layer: "docs", exts: [".md", ".mdx", ".rst", ".txt"], why: "a documentation file extension" },
   { layer: "migration", exts: [".sql"], why: "a .sql file is schema, not code" },
 
@@ -157,7 +157,7 @@ export const DEFAULT_EXCLUDE = [
 // deliberately not a bare `api`: `api.get("/photos")` in client code is a call
 // *to* an endpoint, and reporting it as one would invent a route this
 // repository does not serve.
-export const DEFAULT_ENDPOINT_RULES = [
+const DEFAULT_ENDPOINT_RULES = [
   { re: /\b\w*(?:[Rr]outer|[Aa]pp|[Ss]erver)\s*\.\s*(get|post|patch|put|delete)\s*\(\s*["']([^"']+)["']/g },
   { re: /@\w*(?:[Rr]outer|[Aa]pp)\s*\.\s*(get|post|patch|put|delete)\s*\(\s*["']([^"']+)["']/g },
 ];
@@ -167,7 +167,7 @@ export const DEFAULT_ENDPOINT_RULES = [
  * so `makeServiceOf` is total even here. A single-package repo legitimately ends
  * with exactly this one, and it must render — that is failure mode #1.
  */
-export const DEFAULT_SERVICES = [{ id: "app", label: "APP", lang: "-", root: null, order: 0 }];
+const DEFAULT_SERVICES = [{ id: "app", label: "APP", lang: "-", root: null, order: 0 }];
 
 /**
  * Findings thresholds (`src/model/findings.mjs`, Phase 5). Every value here is
@@ -180,7 +180,7 @@ export const DEFAULT_SERVICES = [{ id: "app", label: "APP", lang: "-", root: nul
  * the finding still appears in the payload with `muted: true`, so muting never
  * makes the map quietly incomplete.
  */
-export const DEFAULT_FINDINGS = {
+const DEFAULT_FINDINGS = {
   locThreshold: 400,
   godNodePercentile: 95,
   minGodInDegree: 5,

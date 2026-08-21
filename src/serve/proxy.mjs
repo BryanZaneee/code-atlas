@@ -41,14 +41,14 @@ export const LIVE_HEADERS = ["accept", "accept-language", "content-type", "if-ma
 /** Composer request body cap. Enforced here on the parsed value, and again while streaming the raw body in `readBody()`. */
 export const MAX_BODY_BYTES = 256 * 1024;
 /** Upstream response cap, enforced by `forward()` while reading. */
-export const MAX_RESPONSE_BYTES = 1024 * 1024;
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 /** Per-request upstream timeout, enforced by `forward()`. */
-export const LIVE_TIMEOUT_MS = 10_000;
+const LIVE_TIMEOUT_MS = 10_000;
 
 /** Default token-bucket size. A live config must never end up without a rate limit. */
-export const LIVE_RATE_CAPACITY = 60;
+const LIVE_RATE_CAPACITY = 60;
 /** Default refill rate, in requests per second. */
-export const LIVE_RATE_PER_SEC = 10;
+const LIVE_RATE_PER_SEC = 10;
 
 /* ════════════════════ the loopback/private-host check ════════════════════
  *

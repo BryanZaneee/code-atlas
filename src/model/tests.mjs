@@ -8,7 +8,7 @@
 import path from "node:path";
 
 /** Pull a string array out of a config file by regex. No AST — see CLAUDE.md. */
-export function extractArray(text, key) {
+function extractArray(text, key) {
   const m = text.match(new RegExp(`${key}\\s*:\\s*\\[([\\s\\S]*?)\\]`));
   return m ? [...m[1].matchAll(/["']([^"']+)["']/g)].map((x) => x[1]) : [];
 }
