@@ -281,7 +281,6 @@ test("the canvas says the status was observed and the path was not", async () =>
 });
 
 test("the endpoint ring colours by status class, and drawing does not throw", async () => {
-  assert.ok(true);
   const scope = load(await fixture(), { reply: DENIED });
   open(scope, "GET /api/users");
   scope.S.mode = "live";

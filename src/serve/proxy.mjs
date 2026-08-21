@@ -307,6 +307,14 @@ export function resolveOutbound(live, req) {
   // `//example.com`, a network-path reference that replaces the host
   // entirely. Both are caught here, by the same check, without special
   //-casing either shape.
+  // Refused by name here for the same reason resolveTarget refuses it in a
+  // target: credentials become an Authorization the log line never sees. Node's
+  // fetch happens to reject these too, but it collapses to a generic
+  // "unreachable", and a refusal nobody can read is the thing this file's
+  // header argues against.
+  if (target.username || target.password) {
+    return { ok: false, reason: "a path must not carry credentials" };
+  }
   if (target.origin !== live.origin) {
     return { ok: false, reason: `path "${req.path}" resolves outside the target origin` };
   }
@@ -443,19 +451,34 @@ export function liveInfo(live) {
  * request carries none — so the running total is what decides.
  */
 /**
- * The one stderr line per live request, refusal or not. This function has
- * no `headers` parameter at all — that is structural, not a discipline to
- * remember, so a token typed into a header can never reach this line
- * through it. `path` is reduced to the pathname alone before formatting: a
- * user-typed `?token=...` in the query string is dropped, so it never
- * reaches stderr either.
+ * Strip a query string out of anything on its way to the terminal.
+ *
+ * Applied to the whole assembled line rather than to one argument, because the
+ * first version of this only cleaned the `path` parameter and a refusal reason
+ * walked straight past it: `resolveOutbound` quotes the path it rejected, so
+ * `path "http://evil.com/x?token=SECRET" resolves outside the target origin`
+ * put the secret in the log in full. The reason still carries the whole path
+ * back to the PAGE, where showing someone their own typing is the useful thing
+ * to do; stderr is the boundary where it stops.
+ */
+const scrubQuery = (line) => String(line).replace(/\?[^\s"']*/g, "?…");
+
+/**
+ * The one line of stderr per proxied request, refusal or not.
+ *
+ * There is no headers parameter, and that is the design rather than an
+ * omission: a token typed into a header has no argument here to arrive
+ * through. Query strings are scrubbed from the finished line, which covers the
+ * path, the refusal reason, and anything added later that forgets to.
  */
 export function liveLogLine({ method, path, status, ms, bytes, error, refused }) {
   const p = String(path ?? "").split("?")[0];
-  if (refused) return `atlas live: ${method} ${p} refused: ${refused}`;
-  if (error) return `atlas live: ${method} ${p} -> ${error} in ${ms}ms`;
-  return `atlas live: ${method} ${p} -> ${status} in ${ms}ms ${bytes}B`;
+  const line = refused ? `atlas live: ${method} ${p} refused: ${refused}`
+    : error ? `atlas live: ${method} ${p} -> ${error} in ${ms}ms`
+    : `atlas live: ${method} ${p} -> ${status} in ${ms}ms ${bytes}B`;
+  return scrubQuery(line);
 }
+
 
 /* ══════════════════════ stats ══════════════════════ */
 

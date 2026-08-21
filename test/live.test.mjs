@@ -247,6 +247,49 @@ test("a cross-site fetch is refused", async (t) => {
   assert.equal(up.seen.length, 0);
 });
 
+/**
+ * sameOrigin deliberately permits a cross-site top-level navigation so a person
+ * can follow a link into the viewer. A cross-site form POST is exactly that
+ * shape, and this endpoint must not inherit the carve-out. The content-type
+ * gate blocks the same request today by accident; this asserts the deliberate
+ * check, so relaxing that gate later cannot quietly reopen the path.
+ */
+test("a cross-site document navigation is refused even carrying JSON", async (t) => {
+  const up = await upstream(t);
+  const { base } = await serveWith(t, { live: makeLive({ origin: up.origin }) });
+  const port = Number(new URL(base).port);
+  const body = JSON.stringify({ method: "GET", path: "/ok" });
+
+  // A raw socket, for the same reason serve.test.mjs uses one for Host:
+  // sec-fetch-* are forbidden header names, so fetch()/undici will not send
+  // them and a test written with fetch proves nothing about this path. The
+  // first version of this test did exactly that and passed against a server
+  // with the check removed.
+  const raw = await new Promise((resolve) => {
+    const sock = net.connect(port, "127.0.0.1", () => sock.write([
+      "POST /api/live HTTP/1.1",
+      `Host: 127.0.0.1:${port}`,
+      "Content-Type: application/json",
+      "Sec-Fetch-Site: cross-site",
+      "Sec-Fetch-Mode: navigate",
+      "Sec-Fetch-Dest: document",
+      `Content-Length: ${Buffer.byteLength(body)}`,
+      "Connection: close",
+      "", body,
+    ].join("\r\n")));
+    let out = "";
+    sock.setTimeout(3000);
+    sock.on("data", (d) => (out += d));
+    sock.on("timeout", () => { sock.destroy(); resolve(out); });
+    sock.on("close", () => resolve(out));
+    sock.on("error", () => resolve(out));
+  });
+
+  assert.match(raw, /^HTTP\/1\.1 403/, `expected a refusal, got: ${raw.split("\r\n")[0]}`);
+  assert.equal(up.seen.length, 0, "a cross-site navigation reached the target");
+});
+
+
 test("the live response carries the same security headers as everything else", async (t) => {
   const up = await upstream(t);
   const { base } = await serveWith(t, { live: makeLive({ origin: up.origin }) });

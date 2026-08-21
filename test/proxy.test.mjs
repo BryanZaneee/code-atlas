@@ -310,3 +310,48 @@ test("liveInfo(live) with no authEnv reports auth: none", () => {
 });
 
 
+/**
+ * The whole loopback defense rests on `new URL()` canonicalising an address
+ * before `isPrivateHost` ever sees it — handed `"2130706433"` raw, that
+ * function says false. These go through the real entry points on purpose, so
+ * the dependency is pinned rather than assumed: a refactor that hand-parses a
+ * target instead of parsing it would fail here rather than silently.
+ */
+test("encoded forms of an address are judged by what they decode to", () => {
+  for (const spec of ["http://2130706433", "http://0x7f000001", "http://0177.0.0.1", "http://127.0.0.1."]) {
+    const r = resolveTarget(spec);
+    assert.equal(r.ok, true, `${spec} decodes to loopback and should be allowed`);
+    assert.equal(new URL(r.origin).hostname, "127.0.0.1", `${spec} should normalise to 127.0.0.1`);
+  }
+  // The same trick pointed somewhere it must not go.
+  for (const spec of ["http://0xA9FEA9FE", "http://2852039166", "http://134744072"]) {
+    assert.equal(resolveTarget(spec).ok, false, `${spec} decodes outside the allowed ranges`);
+  }
+});
+
+/**
+ * `resolveTarget` refuses credentials because they become an Authorization the
+ * log line never sees. A path can carry the same thing and had been admitted:
+ * only Node's own fetch refused it, as a generic "unreachable" nobody could act
+ * on.
+ */
+test("a path may not carry credentials either, and says so", () => {
+  const r = resolveOutbound(live, { method: "GET", path: "//user:pass@127.0.0.1:3000/x" });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /credentials/i);
+});
+
+/**
+ * The refusal reason quotes what was rejected, which is right for the page and
+ * wrong for a terminal. The first version of liveLogLine stripped the query
+ * from its `path` argument only, and a secret walked past it inside the reason.
+ */
+test("a query string cannot reach stderr through a refusal reason", () => {
+  const bad = resolveOutbound(live, { method: "GET", path: "http://evil.com/x?token=SUPERSECRET" });
+  assert.equal(bad.ok, false);
+  assert.match(bad.reason, /SUPERSECRET/, "the page is still shown what it typed");
+
+  const line = liveLogLine({ method: "GET", path: "/x?token=SUPERSECRET", refused: bad.reason });
+  assert.ok(!line.includes("SUPERSECRET"), `the terminal must not see it: ${line}`);
+  assert.match(line, /refused/, "and the line still says what happened");
+});

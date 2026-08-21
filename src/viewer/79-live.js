@@ -35,6 +35,8 @@ const LIVE = {
   samples: new Map(),
   /** The last observed response, per endpoint id. */
   last: new Map(),
+  /** Sends whose timing was not a round trip, and so were not counted. */
+  dropped: new Map(),
   busy: false,
 };
 
@@ -116,9 +118,16 @@ function liveStats(samples) {
 /** `n=4 · 17ms · median 22ms · p95 41ms`, withholding what it has not earned. */
 function liveStatLine(id) {
   const s = liveStats(LIVE.samples.get(id) ?? []);
-  if (!s.n) return "";
+  if (!s.n) {
+    const cut = LIVE.dropped.get(id) ?? 0;
+    return cut ? `no round trip measured · ${cut} truncated at 1 MB` : "";
+  }
   const parts = [`n=${s.n}`, `min ${s.min}ms`, `median ${s.median}ms`];
   if (s.p95 != null) parts.push(`p95 ${s.p95}ms`);
+  // Named rather than silently absent: "n=3" when you pressed send five times
+  // is a question, and this is the answer to it.
+  const cut = LIVE.dropped.get(id) ?? 0;
+  if (cut) parts.push(`${cut} not counted (truncated)`);
   return parts.join(" · ");
 }
 
@@ -166,11 +175,17 @@ async function liveSend() {
   }
   LIVE.busy = false;
 
-  if (result.status != null && !result.error) {
+  // A truncated read's ms is time-to-1MB, not time-to-completion, so it is not
+  // a round trip and does not belong in a statistic labelled end-to-end.
+  // drawLive already refuses to print it as a number; letting it into the
+  // samples would have smuggled it back in as a median that quietly understates
+  // every endpoint returning a large body.
+  if (result.status != null && !result.error && !result.truncated) {
     const seen = LIVE.samples.get(ep.id) ?? [];
     seen.push(result.ms);
     LIVE.samples.set(ep.id, seen);
   }
+  if (result.truncated) LIVE.dropped.set(ep.id, (LIVE.dropped.get(ep.id) ?? 0) + 1);
   LIVE.last.set(ep.id, result);
 
   const steps = flow.steps.map(reqGrade);

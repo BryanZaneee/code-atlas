@@ -102,6 +102,14 @@ async function handleLive(req, res, live, log) {
   };
 
   if (req.method !== "POST") return send(res, 405, "method not allowed");
+  // sameOrigin lets a cross-site TOP-LEVEL NAVIGATION through, so a person can
+  // follow a link into the viewer. A proxied request is never a document
+  // navigation, so that carve-out is closed here — explicitly, because the
+  // content-type gate below happens to block the same shape today and relying
+  // on that would leave this endpoint one convenience away from reopening.
+  if (req.headers["sec-fetch-dest"] === "document") {
+    return refuse(403, "this endpoint does not answer document navigations");
+  }
   if (!live) {
     return refuse(403, "live mode is off — restart atlas serve with --allow-live and --target URL");
   }
