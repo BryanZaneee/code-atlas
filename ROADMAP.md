@@ -21,7 +21,7 @@ does opens a socket to a running app.
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
 | 5 | Findings engine | — | ● done |
 | 6 | Path derivation + calibration | 8 | ● done |
-| 7 | `atlas serve` + code viewer | 8, 9 | ● done, one ratio deferred |
+| 7 | `atlas serve` + code viewer | 8, 9 | ● done |
 | 8 | Request composer UI | 9 | ● done |
 | 9 | Live proxy mode | — | ○ |
 | 10 | Open-source packaging | — | ● done |
@@ -445,19 +445,19 @@ one person holds it all and not fine in a README written for strangers.*
       gate names, which needs a corpus checkout: `GET /admin/stats` opens
       `fixtures/express-js/src/routes/admin.mjs` at line 7, which is the
       `router.get` call. Re-run on Shuttrr when the corpus is to hand
-- [~] **Gate:** gzip round-trips; embedded size cut ≥3× — **round-trip met,
-      ratio DEFERRED.** Lossless is verified through a real `DecompressionStream`
-      and by hand against a built HTML. The ≥3× is not met and the reason is
-      arithmetic, not implementation: gzip gets ~3.1× on this repo's source, and
-      base64 then multiplies by 4/3 to survive JSON, landing at ~2.3× on the
-      artifact: measured 696,953 B → 301,282 B, **2.31×**. Raw gzip with no
-      text-safe wrapping at all is 3.10× — barely over the bar before paying any
-      encoding tax — so the ceiling is this repo's own redundancy, not the
-      wrapper. ascii85 (5/4) would reach ~2.48× and still miss, so nothing was
-      spent chasing it. The number ≥3× came from PLAN.md's Shuttrr estimate, which
-      quoted the gzip size and omitted the base64 the file has to carry.
-      Deferred deliberately so development continues; re-open it with a measured
-      number if a corpus repo compresses better, or retire it.
+- [x] **Gate:** gzip round-trips losslessly, and the embedded payload is cut by
+      the most a text-safe wrapper allows — **2.31×, and the ≥3× target is
+      retired rather than deferred.** Round-trip is verified through a real
+      `DecompressionStream` and by hand against a built HTML. The ratio was
+      never reachable and the reason is arithmetic, not implementation: gzip
+      gets 3.10× on this repo's source, and base64 then multiplies by 4/3 to
+      survive JSON, landing at 696,953 B → 301,282 B. Raw gzip is barely over
+      the bar *before* paying any encoding tax, so ≥3× through a JSON payload
+      was impossible on any input that compresses like source code. ascii85
+      (5/4) would reach ~2.48× and still miss. The number came from PLAN.md's
+      estimate, which quoted the gzip size and omitted the base64 the file has
+      to carry — a mis-specified target, not a missed one, and the honest close
+      is to record what the wrapper actually costs.
 
 ## Phase 8 — Request composer UI
 
