@@ -51,13 +51,6 @@ import { OFF_SPINE_LAYERS } from "../config/defaults.mjs";
 
 const IDENT_RE = /[A-Za-z_$][A-Za-z0-9_$]*/g;
 
-/** Blank `//`, `#` and `/* *\/` comments so a symbol name in a comment cannot seed a hop. */
-function stripComments(text) {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
-    .replace(/(^|[^:])\/\/.*$/gm, "$1")
-    .replace(/(^|[ \t])#.*$/gm, "$1");
-}
 
 /**
  * The source slice this one endpoint's handler owns: from its declared line to
@@ -83,61 +76,6 @@ function handlerSlice(text, line, otherLines) {
  * (ts.mjs never needed bound names; py.mjs tracks pre-alias names only, for its
  * own barrel resolution).
  */
-function importBindings(text, langId) {
-  const clean = stripComments(text);
-  const out = [];
-  if (langId === "ts") {
-    const NAMED = /\bimport\s+(?:type\s+)?(?:(\w+)\s*,\s*)?\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
-    for (const m of clean.matchAll(NAMED)) {
-      const localNames = new Set(m[1] ? [m[1]] : []);
-      for (const part of m[2].split(",")) {
-        const s = part.trim().replace(/^type\s+/, "");
-        if (!s) continue;
-        const bits = s.split(/\s+as\s+/);
-        localNames.add((bits[1] ?? bits[0]).trim());
-      }
-      out.push({ spec: m[3], localNames });
-    }
-    const NAMESPACE = /\bimport\s+\*\s+as\s+(\w+)\s*from\s*["']([^"']+)["']/g;
-    for (const m of clean.matchAll(NAMESPACE)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
-    const DEFAULT_ONLY = /\bimport\s+(\w+)\s*from\s*["']([^"']+)["']/g;
-    for (const m of clean.matchAll(DEFAULT_ONLY)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
-    const REQ = /\b(?:const|let|var)\s+(\w+)\s*=\s*require\(\s*["']([^"']+)["']\s*\)/g;
-    for (const m of clean.matchAll(REQ)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
-    const REQ_DESTRUCT = /\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\(\s*["']([^"']+)["']\s*\)/g;
-    for (const m of clean.matchAll(REQ_DESTRUCT)) {
-      const localNames = new Set();
-      for (const part of m[1].split(",")) {
-        const s = part.trim();
-        if (!s) continue;
-        const bits = s.split(":").map((x) => x.trim());
-        localNames.add(bits[1] ?? bits[0]);
-      }
-      out.push({ spec: m[2], localNames });
-    }
-  } else if (langId === "py") {
-    const FROM = /^[ \t]*from[ \t]+(\.*)([A-Za-z_][\w.]*)?[ \t]+import[ \t]+(\([^)]*\)|[^\n]+)/gm;
-    for (const m of clean.matchAll(FROM)) {
-      const spec = (m[1] ?? "") + (m[2] ?? "");
-      const localNames = new Set();
-      const symbols = [];
-      for (const part of m[3].replace(/[()]/g, "").split(",")) {
-        const s = part.trim();
-        if (!s) continue;
-        const bits = s.split(/\s+as\s+/);
-        symbols.push(bits[0].trim());
-        localNames.add((bits[1] ?? bits[0]).trim());
-      }
-      out.push({ spec, localNames, symbols });
-    }
-    const IMPORT = /^[ \t]*import[ \t]+([A-Za-z_][\w.]*)(?:[ \t]+as[ \t]+(\w+))?/gm;
-    for (const m of clean.matchAll(IMPORT)) {
-      out.push({ spec: m[1], localNames: new Set([m[2] ?? m[1].split(".")[0]]) });
-    }
-  }
-  return out;
-}
-
 /** Internal files reached by imports whose bound name is used in `slice`. */
 function seedTargets(file, slice, ctx) {
   const adapter = adapterFor(file);
@@ -145,7 +83,7 @@ function seedTargets(file, slice, ctx) {
   if (!adapter) return targets;
   const sliceIdents = new Set(slice.match(IDENT_RE) ?? []);
   if (!sliceIdents.size) return targets;
-  for (const b of importBindings(ctx.src.get(file) ?? "", adapter.id)) {
+  for (const b of adapter.importBindings(ctx.src.get(file) ?? "")) {
     if (![...b.localNames].some((n) => sliceIdents.has(n))) continue;
     const r = adapter.resolve(file, b.spec, ctx, b.symbols);
     if (r.kind === "internal") for (const id of r.ids) targets.add(id);

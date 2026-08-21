@@ -573,19 +573,53 @@ Raised by the quality sweep, verified against the code, and deliberately not
 fixed in it. None is a crash; each is something the map currently claims or
 omits without saying so.
 
-**Language-specific code in `src/model/`.** The adapters↔model seam says language
-knowledge lives in an adapter. Four places breach it: `derive.mjs`'s
-`importBindings` branches on `ts`/`py` with seven regexes; `mounts.mjs`'s
-`specifierFor` understands ES `import` only; `endpoints.mjs`'s `ROUTE_FILE` and
-`METHOD_EXPORT` are JS-only; `tests.mjs`'s `subjectOf` treats any non-`.ts` file
-as Python. The fix is to widen the adapter contract, not to add branches.
+**Language-specific code in `src/model/`.** ✅ **Closed.** The adapter contract
+gained `blankComments`, `importBindings` and `testSubject`, and the model now
+asks the adapter that owns a file instead of branching on language or importing
+`blank()` out of `ts.mjs`. `mounts.mjs`'s `specifierFor` is gone entirely —
+"which module did this symbol come from" is `importBindings` filtered by local
+name, so it works for any language for free.
 
-`endpoints.mjs` now also imports `blank()` from `ts.mjs` directly, to stop a
-commented-out route registering as an endpoint. That is the right behaviour
-reached through the wrong door: blanking is per-language lexing and belongs on
-the adapter contract, where `py.mjs` has its own copy nothing outside it can
-reach. Widening the contract should take `blank` with it — a Python or Go route
-rule would need exactly this and has no way to ask for it today.
+One JS-only thing stayed put on purpose: `endpoints.mjs`'s `ROUTE_FILE` and
+`METHOD_EXPORT`. Those encode Next.js **file-routing**, which is a framework
+convention rather than a language one — a Go or Java adapter would never
+implement them — and the extension list baked into `ROUTE_FILE` already stops
+them running over anything else. Moving them onto the contract would have added
+a member with one implementation.
+
+Closing this fixed a live bug rather than only tidying: Python files were being
+blanked with the TypeScript blanker, which does not know `#`, so a commented-out
+FastAPI route was extracted as a live endpoint. See `fixtures/py-routes/`.
+
+
+## Future languages
+
+The adapter contract is now wide enough that a new language needs no change in
+`src/model/`. Each of these is a self-contained piece of work: one file in
+`src/adapters/`, one line in `src/adapters/index.mjs`, one fixture, and one
+expectation table in `test/conformance.test.mjs`.
+
+- [ ] **Go.** The furthest along — `fixtures/hostile-go/` already exists (a
+  `go.mod`, a package-level `widget.go` and a `cmd/main.go`) and is currently
+  unused by any test. `docs/adapters.md` carries a worked Go adapter as its
+  example. The interesting part is that a Go import names a *package*, which is
+  a directory, so `resolve` returns every `.go` file in it — the case the array
+  return shape was designed for.
+- [ ] **Java / Kotlin.** Wildcard imports (`import com.example.*`) are the same
+  one-specifier-many-files shape as a Go package. Package-to-directory mapping is
+  conventional rather than declared, so `prepare` has to find the source roots
+  (`src/main/java`, `src/main/kotlin`) the way `py.mjs` infers `sys.path` roots.
+- [ ] **Ruby.** `require_relative` resolves against the requiring file, plain
+  `require` against a load path — the same two-mode problem Python has, so
+  `py.mjs` is the closer model to copy than `ts.mjs`.
+- [ ] **Rust.** The hard one, and worth naming so nobody starts here. `mod` and
+  `use` describe a module tree that only partly matches the file tree, and
+  `mod.rs`/`lib.rs` re-export in a way that needs the barrel handling
+  `symbols` exists for. Expect to spend the time in `resolve`, not extraction.
+
+The rule from CLAUDE.md still binds: never add a dependency to make one target
+repo work, and a language whose imports cannot be read by regex is one to skip
+and count, not to parse harder at.
 
 ---
 

@@ -14,6 +14,7 @@
  * at all — not "resolved to nothing", never seen.
  */
 import path from "node:path";
+import { withLines } from "./lex.mjs";
 
 // Line-anchored, and matched against blanked text: a docstring saying
 // "from x import y" is prose, not an edge.
@@ -69,16 +70,6 @@ function blank(text, keepStrings = false) {
   return out;
 }
 
-/** Line of a byte offset, walked once forward across matches sorted by index. */
-function withLines(text, matches) {
-  matches.sort((a, b) => a.index - b.index);
-  let line = 1, pos = 0;
-  return matches.map((m) => {
-    while (pos < m.index) { if (text[pos] === "\n") line++; pos++; }
-    const { index, ...rest } = m;
-    return { ...rest, line };
-  });
-}
 
 const dirOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
 
@@ -194,10 +185,43 @@ function resolveModule(from, mod, ctx) {
   return { kind: "external", ids: [top] };
 }
 
+/**
+ * Imported specifiers with the local names they bind. Path derivation uses
+ * this to tell which of a route file's many imports one endpoint actually
+ * touches, so the first hop is not the whole import list.
+ */
+function importBindings(text) {
+  const clean = blank(text, true);
+  const out = [];
+  const FROM = /^[ \t]*from[ \t]+(\.*)([A-Za-z_][\w.]*)?[ \t]+import[ \t]+(\([^)]*\)|[^\n]+)/gm;
+  for (const m of clean.matchAll(FROM)) {
+    const spec = (m[1] ?? "") + (m[2] ?? "");
+    const localNames = new Set();
+    const symbols = [];
+    for (const part of m[3].replace(/[()]/g, "").split(",")) {
+      const s = part.trim();
+      if (!s) continue;
+      const bits = s.split(/\s+as\s+/);
+      symbols.push(bits[0].trim());
+      localNames.add((bits[1] ?? bits[0]).trim());
+    }
+    out.push({ spec, localNames, symbols });
+  }
+  const IMPORT = /^[ \t]*import[ \t]+([A-Za-z_][\w.]*)(?:[ \t]+as[ \t]+(\w+))?/gm;
+  for (const m of clean.matchAll(IMPORT)) {
+    out.push({ spec: m[1], localNames: new Set([m[2] ?? m[1].split(".")[0]]) });
+  }
+  return out;
+}
+
 export default {
   id: "py",
   extensions: [".py"],
   blankComments: (text) => blank(text, true),
+  importBindings,
+
+  /** The source file a test conventionally covers: test/test_x.py -> app/x.py. */
+  testSubject: (p) => p.replace("/test/", "/app/").replace(/(^|\/)test_([^/]+)\.py$/, "$1$2.py"),
 
   /**
    * A barrel re-export means one specifier names many files: consumers of

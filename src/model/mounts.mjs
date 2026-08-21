@@ -24,34 +24,6 @@ import { adapterFor } from "../adapters/index.mjs";
 // A prefix that is not a literal is not a prefix we can use.
 const MOUNT = /\b(\w+)\s*\.\s*(?:route|use)\s*\(\s*["']([^"']*)["']\s*,\s*(\w+)\s*(?:\([^()]*\))?\s*[,)]/g;
 
-/**
- * The specifier a symbol was imported from, in this file.
- *
- * Four forms, because a mount chain does not care which module system wrote it.
- * The two `require` shapes were missing until a CommonJS server was tried: the
- * routers were found and their routes extracted, but every prefix was dropped,
- * so each one was reported at the path it declares rather than the path it is
- * served at. That is not a phantom — the route is real — but it is the wrong
- * answer given confidently, which is the same failure wearing a quieter face.
- */
-function specifierFor(text, symbol) {
-  const named = new RegExp(
-    `\\bimport\\s*(?:type\\s*)?\\{([^}]*\\b${symbol}\\b[^}]*)\\}\\s*from\\s*["']([^"']+)["']`,
-  );
-  const asDefault = new RegExp(`\\bimport\\s+${symbol}\\s*(?:,|from)[^"']*["']([^"']+)["']`);
-  // `const r = require("./x")` and `const { r } = require("./x")`.
-  const required = new RegExp(
-    `\\b(?:const|let|var)\\s+${symbol}\\s*=\\s*require\\s*\\(\\s*["']([^"']+)["']`,
-  );
-  const destructured = new RegExp(
-    `\\b(?:const|let|var)\\s*\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s*=\\s*require\\s*\\(\\s*["']([^"']+)["']`,
-  );
-  return text.match(named)?.[2]
-    ?? text.match(asDefault)?.[1]
-    ?? text.match(required)?.[1]
-    ?? text.match(destructured)?.[1]
-    ?? null;
-}
 
 /** `/api/ai` + `/cleanup` -> `/api/ai/cleanup`, without doubling the slash. */
 export const joinPath = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
@@ -100,7 +72,7 @@ function scanMounts(ctx) {
       // Guessing which file exports a name would be the fabrication this tool
       // refuses to make: a mount we cannot follow yields no prefix, and the
       // route it guards is reported at the path the file itself declares.
-      const spec = specifierFor(text, m[3]);
+      const spec = adapter.importBindings(text).find((b) => b.localNames.has(m[3]))?.spec ?? null;
       if (!spec) continue;
       const r = adapter.resolve(p, spec, ctx);
       const child = r.kind === "internal" ? r.ids[0] : null;

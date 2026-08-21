@@ -12,6 +12,7 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { withLines } from "./lex.mjs";
 
 const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 
@@ -82,15 +83,6 @@ function blank(text) {
   return out;
 }
 
-/** Line of a byte offset, walked once forward across matches sorted by index. */
-function withLines(text, matches) {
-  matches.sort((a, b) => a.index - b.index);
-  let line = 1, pos = 0;
-  return matches.map((m) => {
-    while (pos < m.index) { if (text[pos] === "\n") line++; pos++; }
-    return { spec: m.spec, kind: m.kind, line };
-  });
-}
 
 /**
  * `tsconfig.json` allows `//`/`/* *\/` comments and a trailing comma, neither
@@ -179,10 +171,53 @@ function nearestTsconfig(from, configs) {
   return configs.find((c) => c.dir === "" || from === c.dir || from.startsWith(c.dir + "/")) ?? null;
 }
 
+/**
+ * Imported specifiers with the local names they bind. Path derivation uses
+ * this to tell which of a route file's many imports one endpoint actually
+ * touches, so the first hop is not the whole import list.
+ */
+function importBindings(text) {
+  const clean = blank(text);
+  const out = [];
+  const NAMED = /\bimport\s+(?:type\s+)?(?:(\w+)\s*,\s*)?\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
+  for (const m of clean.matchAll(NAMED)) {
+    const localNames = new Set(m[1] ? [m[1]] : []);
+    for (const part of m[2].split(",")) {
+      const s = part.trim().replace(/^type\s+/, "");
+      if (!s) continue;
+      const bits = s.split(/\s+as\s+/);
+      localNames.add((bits[1] ?? bits[0]).trim());
+    }
+    out.push({ spec: m[3], localNames });
+  }
+  const NAMESPACE = /\bimport\s+\*\s+as\s+(\w+)\s*from\s*["']([^"']+)["']/g;
+  for (const m of clean.matchAll(NAMESPACE)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
+  const DEFAULT_ONLY = /\bimport\s+(\w+)\s*from\s*["']([^"']+)["']/g;
+  for (const m of clean.matchAll(DEFAULT_ONLY)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
+  const REQ = /\b(?:const|let|var)\s+(\w+)\s*=\s*require\(\s*["']([^"']+)["']\s*\)/g;
+  for (const m of clean.matchAll(REQ)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
+  const REQ_DESTRUCT = /\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\(\s*["']([^"']+)["']\s*\)/g;
+  for (const m of clean.matchAll(REQ_DESTRUCT)) {
+    const localNames = new Set();
+    for (const part of m[1].split(",")) {
+      const s = part.trim();
+      if (!s) continue;
+      const bits = s.split(":").map((x) => x.trim());
+      localNames.add(bits[1] ?? bits[0]);
+    }
+    out.push({ spec: m[2], localNames });
+  }
+  return out;
+}
+
 export default {
   id: "ts",
   extensions: EXTENSIONS,
   blankComments: blank,
+  importBindings,
+
+  /** The source file a test conventionally covers: test/x.test.ts -> src/x.ts. */
+  testSubject: (p) => p.replace("/test/", "/src/").replace(/\.test\.ts$/, ".ts"),
 
   /**
    * `paths`/`baseUrl` are scoped per tsconfig, not repo-wide: a monorepo

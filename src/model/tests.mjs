@@ -6,6 +6,7 @@
  * it. Config names the files to read; the glob translation is generic.
  */
 import path from "node:path";
+import { adapterFor } from "../adapters/index.mjs";
 
 /** Pull a string array out of a config file by regex. No AST — see CLAUDE.md. */
 function extractArray(text, key) {
@@ -56,10 +57,8 @@ const tokens = (f) =>
  */
 export function subjectOf(p, internal, ctx) {
   const { layerOf } = ctx.config;
-  const conv = p.endsWith(".ts")
-    ? p.replace("/test/", "/src/").replace(/\.test\.ts$/, ".ts")
-    : p.replace("/test/", "/app/").replace(/(^|\/)test_([^/]+)\.py$/, "$1$2.py");
-  if (ctx.fileSet.has(conv) && conv !== p) return conv;
+  const conv = adapterFor(p)?.testSubject(p);
+  if (conv && ctx.fileSet.has(conv) && conv !== p) return conv;
 
   const want = tokens(p);
   const dir = path.posix.dirname(p).split("/").pop();
