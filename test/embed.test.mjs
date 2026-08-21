@@ -3,7 +3,7 @@
  *
  * The viewer-side reading of `payload.source` (cache, decompression, the
  * three-state badge, jump-to-line without a server) is covered in
- * test/source.test.mjs; this file covers what produces that field: `scan()`'s
+ * test/viewer-source.test.mjs; this file covers what produces that field: `scan()`'s
  * `embedSourceFiles()` call, determinism, the CLI's optional-value flag
  * parsing, and the gzip size-cut gate from ROADMAP.md Phase 7.
  */

@@ -433,7 +433,7 @@ one person holds it all and not fine in a README written for strangers.*
       somewhere plausible: there is no import to open, and saying so is the point
 - [x] Highlighter — **vendored Prism 1.29.0 instead of the planned ~60-line regex**
       (~27 KB, committed not installed; reasoning in PLAN.md). Tokenizer only, DOM
-      built by hand from text nodes; `test/source.test.mjs` runs the real paint
+      built by hand from text nodes; `test/viewer-source.test.mjs` runs the real paint
       against a DOM whose `innerHTML` setter throws, so escape-as-you-emit is
       enforced rather than reviewed
 - [x] `--embed-source [glob]` + permanent `SOURCE EMBEDDED` badge + CLI size warning

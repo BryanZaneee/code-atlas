@@ -11,7 +11,7 @@
  * browser gets it: every module in filename order, in one scope, over a DOM
  * small enough to reason about. That DOM refuses `innerHTML` on anything but
  * the empty string, which is the guarantee the source reader already lives
- * under (test/source.test.mjs) extended to the panels — a finding's `message`
+ * under (test/viewer-source.test.mjs) extended to the panels — a finding's `message`
  * is built from repository paths, and it must reach the document as text.
  */
 import { test } from "node:test";
