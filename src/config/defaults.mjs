@@ -124,7 +124,12 @@ export const DEFAULT_KEEP = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|rb|java|kt|php|sq
 export const DEFAULT_EXCLUDE = [
   /(^|\/)node_modules\//,
   /(^|\/)\.git\//,
-  /(^|\/)(dist|build|out|coverage|public|static)\//,
+  // Anchored to the repo root: a real build product lives at the top, and a
+  // deeper `src/build/` is application code that happens to share the name —
+  // this tool's own `src/build/` is exactly that case. `public|static` stay
+  // unanchored: framework asset directories are genuinely nested.
+  /^(dist|build|out|coverage)\//,
+  /(^|\/)(public|static)\//,
   /(^|\/)\.(next|nuxt|turbo|svelte-kit|venv|tox|mypy_cache|pytest_cache|ruff_cache)\//,
   /(^|\/)(venv|env|__pycache__|target|vendor|site-packages)\//,
   /\.min\.(js|css)$/,
