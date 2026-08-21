@@ -1,4 +1,10 @@
 /* ════════════════════ state ════════════════════ */
+// The OS asking for stillness. Ambient drift is the only thing on this map that
+// moves without being asked for, so it is the only thing this turns off: a flow
+// the reader picked still plays. With it off the render loop goes fully idle,
+// which is what makes a small machine stop spinning at 60 Hz on a static map.
+const REDUCED_MOTION = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+
 const S = {
   view: "structure",
   theme: "light",
@@ -24,7 +30,7 @@ const S = {
   query: "",
   services: new Set(ATLAS.services.map(s => s.id)),
   openServices: new Set(),
-  opts: { docs:false, tests:false, contract:true, ambient:true, labels:true },
+  opts: { docs:false, tests:false, contract:true, ambient: !REDUCED_MOTION, labels:true },
   hover: null,
   // Where a reader has dragged a district to, in whole cells, keyed by district
   // id. Whole cells because a block's footprint is one cell: an offset off the

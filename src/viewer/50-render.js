@@ -18,6 +18,10 @@ let staticDirty = true, W = 0, H = 0, DPR = 1;
  */
 const CACHE = { key: "", scale: 0, x0: 0, y0: 0, w: 1, h: 1 };
 const MAX_CACHE_SIDE = 8192;   // hard limit on the backing store, per side
+// And a total-area budget. The per-side limit alone still permits a square
+// 8192x8192 store — 268 MB — which on a small machine is a failed allocation
+// rather than a slow frame. `deviceMemory` is a browser hint, in GB.
+const MAX_CACHE_PIXELS = ((globalThis.navigator?.deviceMemory ?? 8) >= 8 ? 32 : 8) * 1e6;
 // Slack for labels and plate tabs, which are drawn in SCREEN px and therefore
 // cover more world px the further out you are: a fixed world-space pad crops
 // exactly the long service tab at exactly the zoom you first see it at.
@@ -185,7 +189,9 @@ function drawStatic() {
   // Fit the backing store to the budget rather than the wish: a very large repo
   // at a very high zoom would otherwise ask for a canvas no browser will give.
   const wanted = mipScale(S.zoom);
-  const scale = Math.min(wanted, MAX_CACHE_SIDE / (Math.max(ext.w, ext.h) * DPR));
+  const bySide = MAX_CACHE_SIDE / (Math.max(ext.w, ext.h) * DPR);
+  const byArea = Math.sqrt(MAX_CACHE_PIXELS / Math.max(1, ext.w * ext.h * DPR * DPR));
+  const scale = Math.min(wanted, bySide, byArea);
 
   CACHE.key = cacheKey();
   CACHE.scale = wanted;
@@ -618,7 +624,19 @@ function draw() {
   }
 }
 
+/**
+ * Everything a frame's appearance depends on that is NOT already in cacheKey().
+ * Compared against the last frame so a still map costs a string instead of a
+ * full redraw. Both veils are in here, so an easing transition keeps drawing
+ * without needing a flag of its own.
+ */
+function frameSig() {
+  const r = S.request?.live;
+  return `${cacheKey()}|${W}x${H}|${S.zoom}|${S.panX}|${S.panY}|${S.selected}|${S.hover}|${S.finding}|${S.dragDistrict}|${S.dragCells.dx},${S.dragCells.dy}|${veil.toFixed(3)}|${findVeil.toFixed(3)}|${r ? `${r.status},${r.ms}` : ""}`;
+}
+
 let last = performance.now();
+let lastSig = null;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -628,8 +646,16 @@ function frame(now) {
   const target = playsFlow(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
   veil += (target - veil) * Math.min(1, dt * 7);
   easeFindings(dt);
+  const playing = (S.running || S.stepBudget > 0) && (runners.length || ambient.length);
   if (S.running || S.stepBudget > 0) advance(dt);
-  draw();
+
+  // A still map draws nothing. Packet motion is the one thing frameSig cannot
+  // see, so it is asked for separately; everything else changes the signature.
+  const sig = frameSig();
+  if (playing || staticDirty || sig !== lastSig) {
+    lastSig = sig;
+    draw();
+  }
   requestAnimationFrame(frame);
 }
 
