@@ -513,11 +513,15 @@ invented. MOCK is the default and the mode is always named on screen.*
 
 ## Phase 10 — Open-source packaging
 
-- [ ] `README.md` — why it exists · **real-vs-modeled table placed before the feature list** · quick start with no config · running the servers + security posture · configuration with two worked examples · features · tech stack **and why** · limitations incl. the Phase 6 calibration numbers
-- [ ] `LICENSE`, `CONTRIBUTING.md`
-- [ ] `docs/payload-schema.md` — every field, with a stability tier
-- [ ] `docs/adapters.md` — "add a language in 30 lines", against a real fixture
-- [ ] `docs/config.md`
+- [x] `README.md` — why it exists · **real-vs-modeled table placed before the feature list** · quick start with no config · running the servers + security posture · configuration with two worked examples · features · tech stack **and why** · limitations incl. the Phase 6 calibration numbers
+- [x] `LICENSE`, `CONTRIBUTING.md`
+- [x] `docs/payload-schema.md` — every field, with a stability tier
+- [x] `docs/adapters.md` — "add a language in 30 lines", against a real fixture
+      — `fixtures/hostile-go/` ships, so the walkthrough is runnable rather than
+      asserted. The Go adapter itself stays in the doc: it is what a contributor
+      writes, not something this repo ships an unused copy of
+- [x] `docs/config.md` — audited key by key against `load.mjs` and
+      `defaults.mjs`; no drift found
 - [ ] **Gate:** a reader who has never seen the repo goes from `git clone` to a rendered atlas of their own project using only the README, on a repo with no config
 
 ---
