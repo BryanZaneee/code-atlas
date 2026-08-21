@@ -46,7 +46,7 @@ const DYNAMIC_IMPORT = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
  * rather than too little — under-reporting, not a phantom import — so it is
  * left as the accepted cost rather than special-cased.
  */
-export function blank(text) {
+function blank(text) {
   let out = "";
   let i = 0;
   const n = text.length;
@@ -182,6 +182,7 @@ function nearestTsconfig(from, configs) {
 export default {
   id: "ts",
   extensions: EXTENSIONS,
+  blankComments: blank,
 
   /**
    * `paths`/`baseUrl` are scoped per tsconfig, not repo-wide: a monorepo

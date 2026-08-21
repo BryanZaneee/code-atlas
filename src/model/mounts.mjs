@@ -14,7 +14,6 @@
  * invented one.
  */
 import { adapterFor } from "../adapters/index.mjs";
-import { blank } from "../adapters/ts.mjs";
 
 // `receiver.route/use(prefix, symbol)` — a literal prefix and a bare symbol —
 // or `receiver.route/use(prefix, factory(args))`, the common "router built by a
@@ -86,10 +85,10 @@ function scanMounts(ctx) {
     // Blanked before matching, for the reason endpoints.mjs blanks: a mount
     // inside a comment or a template literal is not a mount, and a commented-out
     // `app.use("/v2", router)` would otherwise move every route behind it.
-    const text = blank(ctx.src.get(p) ?? "");
-    if (!text) continue;
     const adapter = adapterFor(p);
     if (!adapter) continue;
+    const text = adapter.blankComments(ctx.src.get(p) ?? "");
+    if (!text) continue;
 
     const out = [];
     for (const m of text.matchAll(MOUNT)) {

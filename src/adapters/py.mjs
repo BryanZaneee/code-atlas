@@ -30,7 +30,11 @@ const symbolsOf = (clause) =>
  * name inside quotes, so nothing is lost — and a triple-quoted docstring is the
  * single most common place to find text that looks exactly like an import.
  */
-function blank(text) {
+/**
+ * Blank `#` comments and string bodies. `keepStrings` leaves ordinary quoted
+ * strings intact — triple-quoted ones are blanked either way, being docstrings.
+ */
+function blank(text, keepStrings = false) {
   let out = "";
   let i = 0;
   const n = text.length;
@@ -42,16 +46,21 @@ function blank(text) {
     } else if (c === '"' || c === "'") {
       const triple = text.slice(i, i + 3);
       const quote = triple === c.repeat(3) ? triple : c;
-      out += " ".repeat(quote.length);
+      const verbatim = keepStrings && quote.length === 1;
+      out += verbatim ? quote : " ".repeat(quote.length);
       i += quote.length;
       while (i < n && text.slice(i, i + quote.length) !== quote) {
         // A backslash escape cannot end the string, and consuming both
         // characters is what stops `"\\"` from swallowing the rest of the file.
-        if (text[i] === "\\" && i + 1 < n) { out += keep(text[i]) + keep(text[i + 1]); i += 2; continue; }
-        out += keep(text[i]);
+        if (text[i] === "\\" && i + 1 < n) {
+          out += verbatim ? text.slice(i, i + 2) : keep(text[i]) + keep(text[i + 1]);
+          i += 2;
+          continue;
+        }
+        out += verbatim ? text[i] : keep(text[i]);
         i++;
       }
-      if (i < n) { out += " ".repeat(quote.length); i += quote.length; }
+      if (i < n) { out += verbatim ? quote : " ".repeat(quote.length); i += quote.length; }
     } else {
       out += c;
       i++;
@@ -188,6 +197,7 @@ function resolveModule(from, mod, ctx) {
 export default {
   id: "py",
   extensions: [".py"],
+  blankComments: (text) => blank(text, true),
 
   /**
    * A barrel re-export means one specifier names many files: consumers of

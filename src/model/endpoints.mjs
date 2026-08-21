@@ -32,7 +32,6 @@
  */
 import { resolveMounts, joinPath } from "./mounts.mjs";
 import { adapterFor } from "../adapters/index.mjs";
-import { blank } from "../adapters/ts.mjs";
 import { langOf } from "./graph.mjs";
 
 // Prose and data. A `.md` or `.json` file having no endpoints is not a gap in
@@ -82,8 +81,8 @@ const ROUTER_IMPORT = /\bimport\s[^;\n]*\bRouter\b[^;\n]*\bfrom\b|\brequire\s*\(
  * proof. Both fail toward finding nothing, which is the direction this file is
  * allowed to be wrong in.
  */
-function declaredRouters(text) {
-  const code = blank(text).replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (m) => " ".repeat(m.length));
+function declaredRouters(adapter, text) {
+  const code = adapter.blankComments(text).replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (m) => " ".repeat(m.length));
   const names = [];
   for (const m of code.matchAll(ROUTER_DECL)) {
     const [, name, receiver] = m;
@@ -193,7 +192,8 @@ export function extractEndpoints(ctx) {
     // silence, because "we do not read this language" and "this language has
     // no routes" look identical from the outside and only one of them is a
     // fact about the repository.
-    if (!adapterFor(p)) {
+    const adapter = adapterFor(p);
+    if (!adapter) {
       if (!NOT_CODE.has(langOf(p))) unscanned.set(langOf(p), (unscanned.get(langOf(p)) ?? 0) + 1);
       continue;
     }
@@ -201,10 +201,10 @@ export function extractEndpoints(ctx) {
     // blanks: a route registration inside a comment or a template literal is
     // not a route. A commented-out `app.get("/deleted-last-year", …)` was
     // reaching the payload as a live endpoint, and a phantom endpoint is the
-    // one thing this file is not allowed to produce. blank() preserves length
+    // one thing this file is not allowed to produce. blank preserves length
     // and newlines, so every offset and line number below still lines up, and
     // it leaves ordinary quoted strings intact, which is where the path is.
-    const text = blank(ctx.src.get(p));
+    const text = adapter.blankComments(ctx.src.get(p));
     const { service } = serviceOf(p);
 
     // A router the file names something else. The default rules key on a
@@ -212,7 +212,7 @@ export function extractEndpoints(ctx) {
     // `axios.post("/orders")` is an outbound call, and matching any receiver
     // would make every HTTP client a phantom endpoint. `declaredRouters` widens
     // it by evidence instead — see its docstring for what that costs.
-    const declared = declaredRouters(ctx.src.get(p));
+    const declared = declaredRouters(adapter, ctx.src.get(p));
     const fileRules = declared.length
       ? [...rules, ...declared.map((name) => ({
         i: `#router:${name}`,
@@ -275,7 +275,9 @@ export function extractEndpoints(ctx) {
       add("GET", url, p, 1, service, `file-based route — an app-router page under ${p.split("/").slice(0, -1).join("/")}`);
       continue;
     }
-    const text = blank(ctx.src.get(p));
+    const fileAdapter = adapterFor(p);
+    if (!fileAdapter) continue;
+    const text = fileAdapter.blankComments(ctx.src.get(p));
     for (const m of text.matchAll(METHOD_EXPORT)) {
       const method = m[1] ?? m[2];
       add(method, url, p, lineOf(text, m.index), service, `file-based route — ${method} exported from an app-router route file`);

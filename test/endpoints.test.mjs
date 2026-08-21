@@ -148,3 +148,20 @@ test("a repo with no endpoints still produces a payload", async () => {
   assert.equal(payload.endpoints.length, 0);
   assert.ok(payload.nodes.length > 0, "a repo with no routes is still a map");
 });
+
+/**
+ * Python files were blanked with the TypeScript blanker, which does not know
+ * `#`. A commented-out FastAPI route was extracted as a live endpoint, and a
+ * phantom endpoint is the one thing this extractor may never emit. Blanking is
+ * per-language and now reaches the model through the adapter contract.
+ */
+test("a commented-out Python route is not an endpoint", async () => {
+  const { payload } = await scanFixture("py-routes");
+  assert.deepEqual(ids(payload), ["GET /health", "POST /v1/documents"]);
+});
+
+/** A route path quoted inside a docstring is prose, not a registration. */
+test("a route path inside a Python docstring is not an endpoint", async () => {
+  const { payload } = await scanFixture("py-routes");
+  assert.ok(!ids(payload).some((i) => i.includes("legacy")));
+});
