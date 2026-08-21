@@ -69,6 +69,19 @@ test("a language no adapter claims is reported rather than dropped in silence", 
   assert.equal(payload.endpoints.unscanned?.length ?? 0, 0, "every file here is JS; nothing should be unscanned");
 });
 
+/**
+ * The two facts a reader needs to correct a wrong endpoint path: which
+ * registration rule matched, and how the mount prefix was decided — one
+ * string, the way `layerWhy` is one string for a file node.
+ */
+test("an endpoint carries the rule that matched and how its mount was decided", async () => {
+  const { payload } = await scanFixture("express-js");
+  const e = payload.endpoints.find((e) => e.path === "/admin/stats");
+  assert.ok(e, "expected the /admin/stats endpoint");
+  assert.match(e.why, /matched endpoint rule #\d+/);
+  assert.match(e.why, /mount chain|declared by the rule|no mount resolved/);
+});
+
 /** Totality: a repo with no routes at all must still scan, not throw. */
 test("a repo with no endpoints still produces a payload", async () => {
   const { payload } = await scanFixture("hostile-py");

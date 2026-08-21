@@ -121,6 +121,9 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
       id: d.id, name: d.label, dir: "infrastructure", service: "infra", layer: "datastore",
       lang: "-", loc: d.loc ?? 0, kind: "datastore", exports: 0, externals: [],
       testKind: null, subject: null, inDeg: 0, outDeg: 0, uncovered: false, note: d.note,
+      // A datastore is config-declared, not rule-placed — that IS its provenance.
+      layerWhy: "declared as a datastore in the config",
+      serviceWhy: "datastores are grouped under the infra service",
     });
   }
 
@@ -129,6 +132,9 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
       id: e.id, name: e.id, dir: e.definedIn, service: e.service, layer: "endpoint",
       lang: "-", loc: 0, kind: "endpoint", exports: 0, externals: [],
       testKind: null, subject: null, inDeg: 0, outDeg: 0, uncovered: false,
+      layerWhy: "an endpoint is its own layer, not a file's",
+      serviceWhy: `the service of ${e.definedIn}`,
+      why: e.why,
     });
   }
 

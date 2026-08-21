@@ -244,3 +244,31 @@ test("classification provenance is present on every file node", async () => {
     assert.ok(n.serviceWhy, `${n.id} has no reason for its service`);
   }
 });
+
+test("endpoint nodes carry the same serviceWhy/layerWhy shape file nodes do, plus which rule placed them", async () => {
+  const p = await payloadOf();
+  const endpointNodes = p.nodes.filter((n) => n.kind === "endpoint");
+  assert.ok(endpointNodes.length > 0, "expected at least one endpoint node");
+  for (const n of endpointNodes) {
+    assert.ok(n.layerWhy, `${n.id} has no reason for its layer`);
+    assert.ok(n.serviceWhy, `${n.id} has no reason for its service`);
+    assert.ok(n.why, `${n.id} has no reason for its registration rule`);
+  }
+});
+
+test("datastore nodes are provenanced as declared in config", async () => {
+  const { buildNodes } = await import("../src/model/graph.mjs");
+  const ctx = {
+    paths: [],
+    src: new Map(),
+    config: {
+      layerOf: () => ({ layer: "unsorted", why: "no rule matched", matched: false }),
+      serviceOf: () => ({ service: "app", why: "fell back" }),
+      datastores: [{ id: "db:main", label: "MAIN DB" }],
+    },
+  };
+  const { nodes } = buildNodes(ctx, { imports: new Map(), endpoints: [], testKind: () => null, subjectOf: () => null });
+  const store = nodes.find((n) => n.kind === "datastore");
+  assert.equal(store.layerWhy, "declared as a datastore in the config");
+  assert.equal(store.serviceWhy, "datastores are grouped under the infra service");
+});

@@ -521,12 +521,6 @@ syntax, so a CommonJS router still yields its endpoints but at the path it
 declares rather than the one it is served at. `fixtures/express-js` uses ESM in
 its server for exactly this reason and says so.
 
-**Endpoint and datastore nodes carry no provenance.** File nodes record the rule
-that placed them and INSPECT reads those fields; `graph.mjs` builds endpoint and
-datastore nodes without them, so INSPECT on an endpoint shows a bare label.
-`endpoints.mjs`'s `add()` also discards which rule matched and where the prefix
-came from — the two facts a user needs to correct a wrong path.
-
 ---
 
 ## Resolved questions

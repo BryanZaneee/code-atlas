@@ -54,7 +54,10 @@ const ADDED_STEP = ["warn"];
 const ADDED_NODE = ["layerWhy", "serviceWhy",
   // phase 2.5: the flow index read from the node's end. Absent when empty, so
   // deleting it is a no-op on the nodes no flow touches.
-  "travelledBy"];
+  "travelledBy",
+  // phase 7 follow-up: an endpoint node's own registration-rule provenance —
+  // layerWhy/serviceWhy above now cover endpoint and datastore nodes too.
+  "why"];
 // phase 2.5: a stable two-character district name, and the district-hierarchy
 // field PLAN.md ships ahead of the layout that consumes it.
 const ADDED_DISTRICT = ["code", "parentId"];
@@ -63,7 +66,10 @@ const ADDED_DISTRICT = ["code", "parentId"];
 // endpoints must still match the prototype exactly, and they do.
 // phase 6: the derived internal path, MODELLED rather than observed — it adds
 // a field to every endpoint but changes no observed fact about it.
-const ADDED_ENDPOINT = ["line", "derivedPath"];
+// phase 7 follow-up: which registration rule matched and how its mount prefix
+// was decided, in one string — additive, the method/path/definedIn of all 18
+// endpoints still match the prototype exactly.
+const ADDED_ENDPOINT = ["line", "derivedPath", "why"];
 // phase 7 prep: the line an import edge is declared on — the same
 // jump-to-line field as ADDED_ENDPOINT's, on the other side of the graph.
 // Additive — from/to/kind/cross of every edge must still match, and do.

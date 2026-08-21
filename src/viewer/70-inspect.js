@@ -131,7 +131,7 @@ function renderInspect() {
     add("LINES", fmt(n.loc));
     add("EXPORTS", n.exports);
   }
-  add("KIND", n.kind);
+  add("KIND", n.kind, n.why);
   add("IN / OUT", `${n.inDeg} in · ${n.outDeg} out`);
   if (n.testKind) add("SUITE", n.testKind);
   if (n.subject) add("COVERS", byId.get(n.subject)?.name ?? n.subject);

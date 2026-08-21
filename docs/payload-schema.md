@@ -133,7 +133,7 @@ on some kinds.
 | `name` | string | stable | basename, or the label / endpoint id |
 | `dir` | string | stable | parent directory; for an endpoint, its defining file |
 | `service` `layer` | string | stable | ids into `services` / `layers` |
-| `serviceWhy` `layerWhy` | string | stable | the rule that placed it, in prose — `matched rule #4 — a service directory`. File nodes only; INSPECT shows it |
+| `serviceWhy` `layerWhy` | string | stable | why it landed in this service/layer, in prose — `matched rule #4 — a service directory` for a file, a fixed sentence for an endpoint or a datastore, since neither is placed by a rule. INSPECT shows it |
 | `lang` | string | stable | `ts` `py` `sql` `md`, or `-` for non-files |
 | `loc` | int | stable | lines, trailing newline not counted |
 | `kind` | string | stable | `file` · `datastore` · `endpoint` |
@@ -145,6 +145,7 @@ on some kinds.
 | `coverage` | string\|null | stable | see below. **Absent** on non-file nodes |
 | `uncovered` | bool | stable | `coverage === "none"` |
 | `note` | string | experimental | datastore nodes only |
+| `why` | string | experimental | endpoint nodes only — which registration rule matched and where its mount prefix came from, e.g. `matched endpoint rule #0 /router\.(get\|post)…/ · prefix "/api" from the mount chain` |
 | `travelledBy` | string[] | experimental | ids of the flows passing through this node. **Absent**, not empty, when no flow does |
 
 ### `coverage`

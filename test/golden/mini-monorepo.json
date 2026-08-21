@@ -546,7 +546,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "GET /api/users/:id",
@@ -563,7 +566,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "POST /api/users",
@@ -580,7 +586,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "GET /health",
@@ -597,7 +606,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/worker/app/main.py",
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule"
     },
     {
       "id": "POST /jobs",
@@ -614,7 +626,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/worker/app/main.py",
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule"
     }
   ],
   "edges": [
@@ -697,6 +712,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 6,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -758,6 +774,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 7,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -819,6 +836,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 8,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -880,6 +898,7 @@
       "service": "worker",
       "definedIn": "services/worker/app/main.py",
       "line": 8,
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -906,6 +925,7 @@
       "service": "worker",
       "definedIn": "services/worker/app/main.py",
       "line": 13,
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule",
       "derivedPath": {
         "steps": [
           {

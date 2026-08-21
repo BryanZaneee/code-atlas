@@ -98,7 +98,7 @@ function fileRouteUrl(p) {
 
 export function extractEndpoints(ctx) {
   const { endpointRules = [], layerOf, serviceOf } = ctx.config;
-  const rules = endpointRules.map((r) => ({ ...r, callRe: callShape(r) }));
+  const rules = endpointRules.map((r, i) => ({ ...r, i, callRe: callShape(r) }));
   const endpoints = [];
   const seen = new Set();          // service|method|path — dedupe within a service
   const routeCount = new Map();    // method|path -> how many services declare it
@@ -114,7 +114,7 @@ export function extractEndpoints(ctx) {
   // fact about its repository, and discovery must not overrule it.
   const mounts = resolveMounts(ctx);
 
-  const add = (method, rawPath, p, line, service) => {
+  const add = (method, rawPath, p, line, service, why) => {
     matchedLines.add(`${p}|${line}`);
     const path = rawPath || "/";
     // `path` stays exactly what the source declared — the payload documents
@@ -127,7 +127,7 @@ export function extractEndpoints(ctx) {
     seen.add(key);
     const route = `${method}|${norm}`;
     routeCount.set(route, (routeCount.get(route) ?? 0) + 1);
-    endpoints.push({ id: `${method} ${path}`, method, path, service, definedIn: p, line });
+    endpoints.push({ id: `${method} ${path}`, method, path, service, definedIn: p, line, why });
   };
 
   for (const p of ctx.paths) {
@@ -162,7 +162,13 @@ export function extractEndpoints(ctx) {
         const prefixes = rule.mount != null ? [rule.mount] : [...(mounts.get(p) ?? [""])].sort();
         for (const prefix of prefixes) {
           const full = raw.startsWith(prefix) ? raw : joinPath(prefix, raw);
-          add(m[1].toUpperCase(), full, p, line, service);
+          const mountedAt = rule.mount != null
+            ? `prefix "${rule.mount}" declared by the rule`
+            : prefix
+              ? `prefix "${prefix}" from the mount chain`
+              : "no mount resolved — the path is the one this file declares";
+          const why = `matched endpoint rule #${rule.i} ${rule.re.source} · ${mountedAt}`;
+          add(m[1].toUpperCase(), full, p, line, service, why);
         }
       }
       if (rule.callRe) {
@@ -195,12 +201,13 @@ export function extractEndpoints(ctx) {
     const { service } = serviceOf(p);
 
     if (base.startsWith("page.")) {
-      add("GET", url, p, 1, service);
+      add("GET", url, p, 1, service, `file-based route — an app-router page under ${p.split("/").slice(0, -1).join("/")}`);
       continue;
     }
     const text = ctx.src.get(p);
     for (const m of text.matchAll(METHOD_EXPORT)) {
-      add(m[1] ?? m[2], url, p, lineOf(text, m.index), service);
+      const method = m[1] ?? m[2];
+      add(method, url, p, lineOf(text, m.index), service, `file-based route — ${method} exported from an app-router route file`);
     }
     // A route.ts with no recognised HTTP export is not guessed at or reported
     // as a skip: it is not a registration this tool saw and could not
