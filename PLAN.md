@@ -183,6 +183,12 @@ Most repos have zero curated flows, so derivation makes curation an *enhancement
 
 ```
 0. Seed with the mount chain (statically PROVEN wiring) — certainty:"wired".
+   The endpoint -> definedIn edge already IS one link of that proof: it is the
+   exact call site extractEndpoints found. The rest of the chain — whichever
+   file(s) call `app.route/use(prefix, definedIn)`, walked back to a root the
+   way mounts.mjs's fixpoint does — is proof of the same kind and is walked
+   here too. Without it a two-file Express or FastAPI app (app.ts registers,
+   routes.ts declares) loses its first hop on every endpoint.
 1. BFS from endpoint.definedIn over internal import edges: depth ≤ 6,
    rank non-decreasing, layer not skipped, not already admitted.
 2. Sort by (rank, depth, inDegree desc, path); one step per adjacent pair.
@@ -195,6 +201,18 @@ Most repos have zero curated flows, so derivation makes curation an *enhancement
 **Seed from the handler, not the file** — the highest-value 30 lines here. A route file imports 15 things; only some are on *this* endpoint's path. Slice the text from the route's line to the next route declaration, collect identifiers, seed the BFS only with imports whose symbols intersect. That's the difference between a plausible path and a shotgun.
 
 **Calibration is a script, and it runs before any composer UI exists.** `tools/calibrate.mjs` diffs the derived path against **every** curated flow — all 9, not one — and emits precision/recall per flow plus an aggregate: which hops derivation invented, which it missed, which it got in the wrong order. One endpoint is an anecdote; nine is a measurement. Its output ships in the README so expectations are set *before* first use, and it becomes a regression test — derivation changes must not regress the aggregate.
+
+**Certainty is a three-value vocabulary**, and the honesty contract rests on it:
+`wired` is statically proven mounting, `imported` is a real import edge, and
+`inferred` is a gap the model bridged. Nothing renders an inferred hop the way it
+renders a wired one, and per-hop timing — `ms / hops.length` — is never computed
+anywhere, because dividing a measured total across modelled hops would turn a
+guess into a reading.
+
+Only the router -> controller -> service -> repository spine is traced; a request
+never legitimately routes through a test file or a README, so the off-spine
+layers are skipped (`OFF_SPINE_LAYERS` in `src/config/defaults.mjs`, shared with
+the layering finding rather than restated).
 
 Derived at scan time, stored as integer node indices. Every solid hop opens the exact import line that justifies it — auditable in two clicks. `[+ CURATE THIS]` copies a ready-to-paste config entry.
 
@@ -275,6 +293,28 @@ Controls: `Q`/`E` and `⟲ ⟳` rotate 15°; **Shift+drag** rotates freely; `R` 
 **Why a proxy at all:** viewer on `127.0.0.1:4173`, app on `:3000` — different origin, so browser `fetch` is blocked and `Authorization` adds a preflight; in `build` mode the origin is `null`. Requiring you to change your app's CORS config so a visualization tool can call it is unacceptable. Server-side fetch has no CORS.
 
 **Not an open relay:** the proxy takes `{method, path, headers, body}` — **no host, no URL**. Target origin comes from server config; the final URL is asserted against it. `--target` is what SETS that server config, read once in `bin/atlas.mjs` and validated before the server starts — so PLAN's `--target URL` and ROADMAP's "origin from server config" are the same statement, not two. **Built with no non-loopback override**, despite the line below allowing one: the check sits in one named function so adding it later stays a deliberate act. `--allow-live` required at the *process* level. Target must be loopback/private unless explicitly overridden. Method + header allowlists, timeout, 256 KB cap, `redirect:"manual"`, rate bucket, one stderr line per proxied request.
+
+**DNS is never resolved, anywhere on the outbound leg.** Resolving a hostname at
+validation time and connecting by that name later is TOCTOU against ourselves —
+the same rebinding class the inbound `Host` pinning defends against, and it would
+be perverse to defend one direction and leave the other open. Resolving and
+connecting by IP instead would break SNI and vhost routing, and needs a custom
+`lookup` hook the global `fetch` does not offer. So the host check is purely
+syntactic on what the operator typed: a name that *resolves* to a private address
+(an `/etc/hosts` alias, split-horizon DNS) is refused. `myapp.local` will not
+work; type `http://127.0.0.1:3000`. That is the direction this design accepts
+being wrong in — "atlas would not talk to my dev alias", never "atlas fetched the
+metadata service".
+
+Every comparison is on parsed integer octets, never a string prefix: `172.32.0.1`
+and `172.15.0.1` both look like "172." to a `startsWith` check and both sit
+outside 172.16.0.0/12.
+
+Two residual risks, named rather than implied. `localhost` could itself be
+repointed via `/etc/hosts`, which needs local root — whoever holds that owns the
+process anyway. And a loopback target could redirect outward, which is why
+`redirect: "manual"` is a **security control and not a display choice**: a
+followed 302 to 169.254.169.254 would launder every check above.
 
 **Auth token stays out of the browser.** `--auth-env AUTH_TOKEN`; the server injects the header, the viewer shows `AUTH: from env` and offers no field. Fallback is `sessionStorage` (never `localStorage`) with explicit clear. `[ COPY AS cURL ]` verifies what would be sent *without sending it*.
 

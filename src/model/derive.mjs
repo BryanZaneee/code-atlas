@@ -1,41 +1,7 @@
 /**
- * Path derivation — the internal path a request takes, MODELLED rather than
- * observed. Most repositories curate zero flows, so this is what makes
- * curation an enhancement instead of a requirement (PLAN.md "Path derivation +
- * calibration"). It is also the most honesty-critical code in the project: a
- * derived hop is never rendered as fact, and under-claiming (fewer hops) is
- * always the safer failure than a plausible-looking invented one.
- *
- * Algorithm, per PLAN.md, run once per endpoint:
- *
- *   0. Seed with the mount chain (statically PROVEN wiring) — certainty:"wired".
- *      The endpoint -> definedIn edge already IS one link of that proof: it is
- *      the exact call site extractEndpoints found. The rest of the chain —
- *      whichever file(s) actually call `app.route/use(prefix, definedIn)`,
- *      walked back to a root the same way src/model/mounts.mjs's fixpoint
- *      does — is proof of the same kind and is walked here too: without it, a
- *      two-file Express/FastAPI app (app.ts registers, routes.ts declares) is
- *      missing its first hop on every single endpoint.
- *   1. BFS from endpoint.definedIn over internal import edges: depth <= 6,
- *      rank non-decreasing, layer not skipped, not already admitted.
- *   2. Sort by (rank, depth, inDegree desc, path); one step per adjacent pair.
- *      Real edge -> solid, certainty:"imported". Gap -> dotted, inferred:true.
- *   3. Terminals: a file with a datastore edge terminates into it with the
- *      NEUTRAL kind "io" — static analysis cannot tell a read from a write.
- *   4. Response leg: reverse, <=3 hops, all inferred.
- *
- * The highest-value refinement is step 1's seed: a route file typically
- * imports far more than the one endpoint being derived needs, so the BFS's
- * first hop is restricted to imports whose bound identifier is actually used
- * in THIS endpoint's own source — the slice from its declared line to the next
- * route declaration in the same file (or EOF). Everything past that first hop
- * walks the plain import graph, because downstream files are not route
- * handlers and have no such boundary to slice against.
- *
- * Steps are stored as integer indices into the `nodes` array — the payload
- * already carries that array, so a path string would only be a second name for
- * data that exists once. `endpoint.derivedPath.steps[]` is `{from, to, kind,
- * certainty, inferred}`; certainty is `wired` | `imported` | `inferred`.
+ * Path derivation: the internal path a request takes, MODELLED not observed.
+ * Under-claiming is always the safer failure here. Algorithm, certainty
+ * vocabulary and the seed rule: PLAN.md "Path derivation + calibration".
  */
 import { adapterFor } from "../adapters/index.mjs";
 import { mountParents } from "./mounts.mjs";
