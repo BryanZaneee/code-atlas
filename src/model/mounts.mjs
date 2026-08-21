@@ -14,6 +14,7 @@
  * invented one.
  */
 import { adapterFor } from "../adapters/index.mjs";
+import { blank } from "../adapters/ts.mjs";
 
 // `receiver.route/use(prefix, symbol)` — a literal prefix and a bare symbol —
 // or `receiver.route/use(prefix, factory(args))`, the common "router built by a
@@ -24,13 +25,33 @@ import { adapterFor } from "../adapters/index.mjs";
 // A prefix that is not a literal is not a prefix we can use.
 const MOUNT = /\b(\w+)\s*\.\s*(?:route|use)\s*\(\s*["']([^"']*)["']\s*,\s*(\w+)\s*(?:\([^()]*\))?\s*[,)]/g;
 
-/** The specifier a symbol was imported from, in this file. */
+/**
+ * The specifier a symbol was imported from, in this file.
+ *
+ * Four forms, because a mount chain does not care which module system wrote it.
+ * The two `require` shapes were missing until a CommonJS server was tried: the
+ * routers were found and their routes extracted, but every prefix was dropped,
+ * so each one was reported at the path it declares rather than the path it is
+ * served at. That is not a phantom — the route is real — but it is the wrong
+ * answer given confidently, which is the same failure wearing a quieter face.
+ */
 function specifierFor(text, symbol) {
   const named = new RegExp(
     `\\bimport\\s*(?:type\\s*)?\\{([^}]*\\b${symbol}\\b[^}]*)\\}\\s*from\\s*["']([^"']+)["']`,
   );
   const asDefault = new RegExp(`\\bimport\\s+${symbol}\\s*(?:,|from)[^"']*["']([^"']+)["']`);
-  return text.match(named)?.[2] ?? text.match(asDefault)?.[1] ?? null;
+  // `const r = require("./x")` and `const { r } = require("./x")`.
+  const required = new RegExp(
+    `\\b(?:const|let|var)\\s+${symbol}\\s*=\\s*require\\s*\\(\\s*["']([^"']+)["']`,
+  );
+  const destructured = new RegExp(
+    `\\b(?:const|let|var)\\s*\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s*=\\s*require\\s*\\(\\s*["']([^"']+)["']`,
+  );
+  return text.match(named)?.[2]
+    ?? text.match(asDefault)?.[1]
+    ?? text.match(required)?.[1]
+    ?? text.match(destructured)?.[1]
+    ?? null;
 }
 
 const join = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
@@ -61,7 +82,10 @@ function scanMounts(ctx) {
     // serves it, and letting it in reports every route at two paths — one of
     // which nobody can call.
     if (ctx.config.layerOf?.(p).layer === "test") continue;
-    const text = ctx.src.get(p);
+    // Blanked before matching, for the reason endpoints.mjs blanks: a mount
+    // inside a comment or a template literal is not a mount, and a commented-out
+    // `app.use("/v2", router)` would otherwise move every route behind it.
+    const text = blank(ctx.src.get(p) ?? "");
     if (!text) continue;
     const adapter = adapterFor(p);
     if (!adapter) continue;

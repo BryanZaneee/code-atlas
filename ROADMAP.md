@@ -554,11 +554,6 @@ the adapter contract, where `py.mjs` has its own copy nothing outside it can
 reach. Widening the contract should take `blank` with it — a Python or Go route
 rule would need exactly this and has no way to ask for it today.
 
-**Mount resolution does not follow `require()`.** `specifierFor` reads `import`
-syntax, so a CommonJS router still yields its endpoints but at the path it
-declares rather than the one it is served at. `fixtures/express-js` uses ESM in
-its server for exactly this reason and says so.
-
 ---
 
 ## Resolved questions

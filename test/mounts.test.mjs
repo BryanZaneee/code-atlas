@@ -175,3 +175,29 @@ test("skipped endpoint registrations are reported by atlas scan, grouped by file
   assert.ok(out.some((l) => l.includes("_shared.ts")));
   assert.ok(out.some((l) => /^ +2 .*routes\/items\.ts$/.test(l)));
 });
+
+/**
+ * A CommonJS server, where the mount chain can only be followed through
+ * `require`.
+ *
+ * `fixtures/express-js` has a `.cjs` router but an ESM server, and says so —
+ * which is exactly why this gap survived: the mount was always read from an
+ * `import`. With no `import` anywhere, every prefix was dropped and each route
+ * was reported at the path it declares rather than the path it is served at.
+ * Not a phantom, since the route is real, but the wrong answer given
+ * confidently, which is the same failure wearing a quieter face.
+ */
+test("a mount chain written in require resolves like one written in import", async () => {
+  const { payload } = await scanFixture("express-cjs");
+  const ids = payload.endpoints.map((e) => e.id).sort();
+  assert.deepEqual(ids, ["GET /admin/stats", "GET /items", "POST /items"]);
+  assert.ok(!payload.endpoints.some((e) => e.path === "/" || e.path === "/stats"),
+    "a route reported at the path it declares means its prefix was lost");
+});
+
+/** A mount inside a comment would move every route behind it. */
+test("a commented-out mount does not move the routes behind it", async () => {
+  const { payload } = await scanFixture("express-cjs");
+  assert.ok(!payload.endpoints.some((e) => e.path.startsWith("/v2")),
+    "read a mount out of a comment");
+});

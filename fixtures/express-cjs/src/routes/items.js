@@ -1,0 +1,8 @@
+// Bound by a default require: `const itemsRouter = require(...)`.
+const express = require("express");
+const router = express.Router();
+
+router.get("/", (req, res) => res.json([]));
+router.post("/", (req, res) => res.status(201).json(req.body));
+
+module.exports = router;
