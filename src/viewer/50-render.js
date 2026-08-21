@@ -167,8 +167,21 @@ function drawGrid(x, ext, px) {
   x.restore();
 }
 
-/** World extent to cache: the blocks, the plates under them, and slack for text. */
+/**
+ * World extent to cache: the blocks, the plates under them, and slack for text.
+ * Memoized — it only moves on relayout, rotation or a mip change, but the veil
+ * passes ask for it every frame.
+ */
+let extentMemo = { key: null, ext: null };
 function cacheExtent() {
+  const key = `${layoutEpoch}|${S.yaw}|${mipScale(S.zoom)}`;
+  if (extentMemo.key === key) return extentMemo.ext;
+  const ext = computeExtent();
+  extentMemo = { key, ext };
+  return ext;
+}
+
+function computeExtent() {
   const b = LAYOUT.bbox ?? { x0: 0, y0: 0, x1: 1, y1: 1 };
   let x0 = b.x0, y0 = b.y0, x1 = b.x1, y1 = b.y1;
   for (const p of LAYOUT.servicePlates) {
@@ -556,7 +569,7 @@ function draw() {
   // Pan never invalidates: it only moves where the cached bitmap is blitted.
   if (staticDirty || CACHE.key !== cacheKey() || CACHE.scale !== mipScale(S.zoom)) drawStatic();
 
-  ctx.clearRect(0, 0, W, H);
+  // No clearRect: BG is opaque and this fillRect covers the same area.
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, W, H);
   const o = toScreen({ x: CACHE.x0, y: CACHE.y0 });

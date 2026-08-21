@@ -235,7 +235,14 @@ $("#bTheme").onclick = () => {
   renderLegend();
   staticDirty = true;
 };
-$("#q").addEventListener("input", (e) => { S.query = e.target.value.trim(); staticDirty = true; });
+// Debounced: a query change re-rasterises the whole city, and typing "service"
+// character by character asked for seven of them.
+let queryTimer = null;
+$("#q").addEventListener("input", (e) => {
+  const v = e.target.value.trim();
+  clearTimeout(queryTimer);
+  queryTimer = setTimeout(() => { S.query = v; staticDirty = true; }, 120);
+});
 
 for (const [id, key] of [["#oDocs","docs"], ["#oTests","tests"], ["#oContract","contract"], ["#oAmbient","ambient"], ["#oLabels","labels"]]) {
   $(id).onchange = (e) => {
