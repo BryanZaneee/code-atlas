@@ -350,16 +350,35 @@ function renderComposer(b) {
   b.append(el("h3", null, "COMPOSED"));
   b.append(el("div", "path", url ? `${ep.method} ${url}` : "fill every path parameter to compose this request"));
 
-  const send = el("button", null, "SEND (MODELED)");
+  const liveNow = S.mode === "live" && liveOffered();
+  const send = el("button", null, liveNow ? "SEND (LIVE)" : "SEND (MODELED)");
   send.style.marginTop = "9px";
-  send.disabled = !url || !check.ok || !flow;
-  send.onclick = () => reqSend();
+  send.disabled = !url || !check.ok || !flow || LIVE.busy;
+  send.onclick = () => (liveNow ? liveSend() : reqSend());
   b.append(send);
+  if (LIVE.busy) b.append(el("div", "hint", "waiting for the target…"));
   if (!flow) {
     b.append(el("div", "note warn", "No path can be played for this endpoint: nobody curated one, and derivation found none through the import graph."));
   }
 
+  renderLiveControls(b);
+
   if (!S.request) return;
+
+  // What the target actually said, kept apart from the hops below it: the
+  // status is observed, the hops are not, and the two must not read as one
+  // block of findings about the same thing.
+  const observed = S.request.live;
+  if (observed) {
+    b.append(el("h3", null, "RESPONSE · OBSERVED"));
+    b.append(el("div", observed.error ? "note warn" : "path",
+      observed.error ? observed.error
+        : `${observed.status} ${observed.statusText ?? ""} · ${observed.ms}ms${observed.truncated ? " · truncated at 1 MB" : ""}`));
+    if (observed.redirected) b.append(el("div", "hint", "A redirect, reported and not followed."));
+    if (observed.status != null && observed.status >= 400) {
+      b.append(el("div", "hint", "The path below stops at the first hop: the request reached the endpoint, and everything past it is a route this tool modelled for a journey that did not finish."));
+    }
+  }
 
   b.append(el("h3", null, S.request.derived ? "HOPS · DERIVED" : "HOPS · CURATED"));
   b.append(el("div", "hint", S.request.derived

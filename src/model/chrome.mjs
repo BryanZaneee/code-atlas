@@ -162,6 +162,17 @@ export const DEFAULT_THEME = {
   findingSeverity: { error: "#b3261e", warning: "#b5730f", info: "#4a7a8c" },
 
   /**
+   * A live response's status class, for the ring on the endpoint node.
+   *
+   * Three classes, not a gradient: the reader needs to know whether the
+   * endpoint answered, complained, or failed, and a shade between those is a
+   * distinction the map cannot back. `ok` is the only green in the palette and
+   * exists solely for this — a status is the one genuinely observed thing live
+   * mode adds, so it is allowed a colour nothing modelled ever wears.
+   */
+  liveStatus: { ok: "#2f7d4f", client: "#b5730f", server: "#b3261e" },
+
+  /**
    * The dark theme, as a delta rather than a second palette.
    *
    * Only the scalars flip. Everything mixed from them — plates, outlines, label
@@ -184,6 +195,7 @@ export const DEFAULT_THEME = {
     // into a near-black ground. Lightened rather than re-hued, so the three
     // stay the same three severities.
     findingSeverity: { error: "#ff6b5e", warning: "#f0a03c", info: "#79b8d0" },
+    liveStatus: { ok: "#5fd08a", client: "#f0a03c", server: "#ff6b5e" },
   },
 
   /**
@@ -246,6 +258,7 @@ export function buildTheme(config) {
     packetColor: { ...DEFAULT_THEME.packetColor, ...t.packetColor },
     coverTint: { ...DEFAULT_THEME.coverTint, ...t.coverTint },
     findingSeverity: { ...DEFAULT_THEME.findingSeverity, ...t.findingSeverity },
+    liveStatus: { ...DEFAULT_THEME.liveStatus, ...t.liveStatus },
     dark: { ...DEFAULT_THEME.dark, ...t.dark },
     density: { ...DEFAULT_THEME.density, ...t.density, presets: { ...DEFAULT_THEME.density.presets, ...t.density?.presets } },
     legend: { ...DEFAULT_THEME.legend, ...t.legend },

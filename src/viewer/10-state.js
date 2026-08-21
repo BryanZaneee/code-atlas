@@ -47,6 +47,11 @@ const S = {
   // a ReferenceError with a stack pointing at neither file. null until a
   // composed request is sent, so this is inert everywhere it is not used.
   request: null,
+  // MOCK or LIVE, and MOCK is a literal here rather than something derived from
+  // whether a server happens to be reachable. The default has to be a fact you
+  // can read, not an inference: the one mode that sends real traffic should
+  // never be arrived at by a chain of conditions nobody re-reads.
+  mode: "mock",
 };
 
 const byId = new Map(ATLAS.nodes.map(n => [n.id, n]));

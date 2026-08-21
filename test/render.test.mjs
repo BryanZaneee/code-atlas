@@ -17,7 +17,7 @@ import path from "node:path";
 import { VIEWER_DIR } from "../src/build/assemble.mjs";
 import { DEFAULT_THEME, buildViews } from "../src/model/chrome.mjs";
 
-const MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "50-render.js", "75-findings.js"];
+const MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "50-render.js", "75-findings.js", "79-live.js"];
 
 /**
  * Just enough canvas to count what the renderer asks for.

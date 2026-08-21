@@ -173,8 +173,12 @@ function syncControls() {
   const modelled = f?.derived || (S.activeFlow === "__all__" && viewById.get(S.view)?.derived);
   // Two elements, not one string: the status half is dropped on a narrow
   // window, the caveat half never is.
-  $("#ovWarn").textContent = modelled ? "DERIVED · NOT VERIFIED"
-                            : f        ? "CURATED · MODELLED PATH"
+  // Live adds the only observed fact on this map, and the badge has to keep it
+  // from spreading: a real status came back, and the hops drawn behind it are
+  // exactly as modelled as they were a moment ago in MOCK.
+  $("#ovWarn").textContent = S.request?.live ? "LIVE · STATUS OBSERVED · PATH STILL MODELLED"
+                            : modelled       ? "DERIVED · NOT VERIFIED"
+                            : f              ? "CURATED · MODELLED PATH"
                             : "";
   $("#ovStatus").textContent = `${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
 }

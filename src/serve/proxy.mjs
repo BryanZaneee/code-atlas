@@ -389,44 +389,6 @@ export function rateBucket({ capacity, perSec, now = Date.now }) {
 /* ══════════════════════ logging ══════════════════════ */
 
 /**
- * The one stderr line per live request, refusal or not. This function has
- * no `headers` parameter at all — that is structural, not a discipline to
- * remember, so a token typed into a header can never reach this line
- * through it. `path` is reduced to the pathname alone before formatting: a
- * user-typed `?token=...` in the query string is dropped, so it never
- * reaches stderr either.
- */
-export function liveLogLine({ method, path, status, ms, bytes, error, refused }) {
-  const p = String(path ?? "").split("?")[0];
-  if (refused) return `atlas live: ${method} ${p} refused: ${refused}`;
-  if (error) return `atlas live: ${method} ${p} -> ${error} in ${ms}ms`;
-  return `atlas live: ${method} ${p} -> ${status} in ${ms}ms ${bytes}B`;
-}
-
-/* ══════════════════════ stats ══════════════════════ */
-
-/**
- * Summarize a set of latency samples. `n` is always present; `p95` is
- * withheld below five samples, because a p95 over two or three samples is
- * an invented statistic and this tool does not invent numbers — the caller
- * is expected to render `n=` alongside whatever it shows.
- */
-export function liveStats(samples) {
-  const n = samples.length;
-  if (n === 0) return { n };
-
-  const sorted = [...samples].sort((a, b) => a - b);
-  const mean = samples.reduce((sum, v) => sum + v, 0) / n;
-  const out = { n, min: sorted[0], max: sorted[n - 1], mean };
-  if (n >= 5) {
-    out.p95 = sorted[Math.min(n - 1, Math.ceil(0.95 * n) - 1)];
-  }
-  return out;
-}
-
-/* ══════════════════════ the live config object ══════════════════════ */
-
-/**
  * Freeze the server's live-mode config into the object `resolveOutbound`
  * and `liveInfo` read from. Built once in `bin`, from an already-validated
  * `resolveTarget()` origin — this does not re-run that validation itself
@@ -480,6 +442,23 @@ export function liveInfo(live) {
  * ever resident. `content-length` is a hint and never a guarantee — a chunked
  * request carries none — so the running total is what decides.
  */
+/**
+ * The one stderr line per live request, refusal or not. This function has
+ * no `headers` parameter at all — that is structural, not a discipline to
+ * remember, so a token typed into a header can never reach this line
+ * through it. `path` is reduced to the pathname alone before formatting: a
+ * user-typed `?token=...` in the query string is dropped, so it never
+ * reaches stderr either.
+ */
+export function liveLogLine({ method, path, status, ms, bytes, error, refused }) {
+  const p = String(path ?? "").split("?")[0];
+  if (refused) return `atlas live: ${method} ${p} refused: ${refused}`;
+  if (error) return `atlas live: ${method} ${p} -> ${error} in ${ms}ms`;
+  return `atlas live: ${method} ${p} -> ${status} in ${ms}ms ${bytes}B`;
+}
+
+/* ══════════════════════ stats ══════════════════════ */
+
 export async function readBody(req, limit = MAX_BODY_BYTES) {
   let n = 0;
   const chunks = [];

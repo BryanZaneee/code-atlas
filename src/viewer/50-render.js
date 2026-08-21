@@ -559,6 +559,7 @@ function draw() {
   // Before the overlay, after the city: a finding veils the map, and the
   // selection ring has to stay legible on top of the veil.
   drawFindings();
+  drawLive();
   drawDragGhost();
   drawOverlay();
   livePackets = [];

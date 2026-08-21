@@ -13,7 +13,6 @@ import {
   resolveOutbound,
   rateBucket,
   liveLogLine,
-  liveStats,
   makeLive,
   liveInfo,
   LIVE_METHODS,
@@ -310,21 +309,4 @@ test("liveInfo(live) with no authEnv reports auth: none", () => {
   assert.equal(info.authEnv, null);
 });
 
-/* ════════════════════ liveStats — no invented p95 ════════════════════ */
 
-test("liveStats withholds p95 below n=5, always reports n", () => {
-  for (let n = 0; n < 5; n++) {
-    const stats = liveStats(Array.from({ length: n }, (_, i) => i + 1));
-    assert.equal(stats.n, n);
-    assert.ok(!("p95" in stats), `n=${n} must not carry a p95`);
-  }
-});
-
-test("liveStats reports p95 at n=5 and above", () => {
-  const stats = liveStats([10, 20, 30, 40, 50]);
-  assert.equal(stats.n, 5);
-  assert.ok("p95" in stats);
-  assert.equal(stats.min, 10);
-  assert.equal(stats.max, 50);
-  assert.equal(stats.mean, 30);
-});

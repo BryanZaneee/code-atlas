@@ -250,6 +250,11 @@
       "warning": "#b5730f",
       "info": "#4a7a8c"
     },
+    "liveStatus": {
+      "ok": "#2f7d4f",
+      "client": "#b5730f",
+      "server": "#b3261e"
+    },
     "dark": {
       "ink": "#e8eaec",
       "bg": "#0e1011",
@@ -263,6 +268,11 @@
         "error": "#ff6b5e",
         "warning": "#f0a03c",
         "info": "#79b8d0"
+      },
+      "liveStatus": {
+        "ok": "#5fd08a",
+        "client": "#f0a03c",
+        "server": "#ff6b5e"
       }
     },
     "density": {
