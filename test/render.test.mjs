@@ -370,3 +370,116 @@ test("a drop that changes nothing does not re-render", () => {
   scope.draw();
   assert.equal(scope.counts.drawStatic, before, "a drop that moved nothing still re-rasterised the city");
 });
+
+/* ════════════════════ the on-canvas modelled-path badge ════════════════════
+ *
+ * `syncControls()` used to raise `#ovWarn` for a tool-derived flow only. A
+ * curated flow's hops are just as modelled — build.mjs counts them in
+ * meta.derivedCount for exactly that reason — but its badge was silent, which
+ * is the dishonest case the honesty contract in CLAUDE.md rules out. This
+ * needs the interaction layer (88-interact.js) and a DOM that keeps state
+ * across `$()` calls, so it gets its own small harness rather than reusing
+ * `runRenderer`, whose fake document hands back a fresh, disconnected element
+ * every time.
+ */
+
+const BADGE_MODULES = [
+  "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
+  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "72-source.js",
+  "75-findings.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
+];
+
+function fakeBadgeElement() {
+  const kids = [];
+  const node = {
+    nodeType: 1, className: "", childNodes: kids,
+    style: { setProperty() {} }, dataset: {}, hidden: false, disabled: false,
+    width: 0, height: 0, value: "", checked: false, open: false, title: "",
+    classList: {
+      add(c) { node.className = `${node.className} ${c}`.trim(); },
+      remove(c) { node.className = node.className.split(/\s+/).filter((x) => x && x !== c).join(" "); },
+      toggle(c, on) { on ? this.add(c) : this.remove(c); },
+      contains(c) { return node.className.split(/\s+/).includes(c); },
+    },
+    get textContent() { return kids.map((k) => (typeof k === "string" ? k : "")).join(""); },
+    set textContent(v) { kids.length = 0; kids.push(String(v)); },
+    set innerHTML(v) { if (v !== "") throw new Error("no markup"); kids.length = 0; },
+    append() {}, replaceChildren() {}, addEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }),
+    getContext: () => fakeContext({ drawStatic: 0, drawImage: 0, arcs: [] }),
+    querySelector: () => fakeBadgeElement(),
+  };
+  return node;
+}
+
+function loadBadgeScope(atlas) {
+  const bySelector = new Map();
+  const document = {
+    createElement: () => fakeBadgeElement(),
+    createTextNode: (d) => d,
+    querySelector: (sel) => {
+      if (!bySelector.has(sel)) bySelector.set(sel, fakeBadgeElement());
+      return bySelector.get(sel);
+    },
+    querySelectorAll: () => [],
+    documentElement: { setAttribute() {} },
+    addEventListener() {},
+  };
+  const source = BADGE_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("\n");
+  const ctx = {
+    ATLAS: atlas, console,
+    location: { protocol: "http:" },
+    performance: { now: () => 0 },
+    requestAnimationFrame: () => 0,
+    fetch: () => Promise.reject(new Error("no network in a test")),
+    addEventListener: () => {},
+    innerWidth: 1400,
+  };
+  ctx.window = ctx; ctx.self = ctx; ctx.document = document;
+  ctx.window.devicePixelRatio = 1;
+  vm.createContext(ctx);
+  vm.runInContext(
+    `"use strict";\n${source}\n
+     setYaw(S.yaw);
+     resize();
+     globalThis.scope = { S, syncControls, $: (sel) => document.querySelector(sel) };`,
+    ctx,
+    { timeout: 60_000 },
+  );
+  return ctx.scope;
+}
+
+function badgePayload() {
+  const p = payload(20);
+  const id = (i) => p.nodes[i].id;
+  const derived = {
+    id: "derived:x", label: "GET /x", view: "derived", derived: true,
+    steps: [{ from: id(0), to: id(1), kind: "request", certainty: "inferred", inferred: true }],
+  };
+  const curated = {
+    id: "curated:x", label: "curated", view: "curated",
+    steps: [{ from: id(0), to: id(1), kind: "request" }],
+  };
+  p.flows = [curated];
+  p.derivedFlows = [derived];
+  p.views = buildViews({}, [curated], [derived]);
+  return p;
+}
+
+test("the canvas badge says DERIVED for a derived flow, CURATED for a curated one, and nothing for neither", () => {
+  const scope = loadBadgeScope(badgePayload());
+
+  scope.S.activeFlow = "derived:x";
+  scope.syncControls();
+  assert.equal(scope.$("#ovWarn").textContent, "DERIVED · NOT VERIFIED",
+    "a tool-derived path must say so on the map, not only in the sidebar");
+
+  scope.S.activeFlow = "curated:x";
+  scope.syncControls();
+  assert.equal(scope.$("#ovWarn").textContent, "CURATED · MODELLED PATH",
+    "a curated flow's hops are modelled too — build.mjs counts them the same way");
+
+  scope.S.activeFlow = "__all__";
+  scope.syncControls();
+  assert.equal(scope.$("#ovWarn").textContent, "", "no active flow, no caveat to show");
+});

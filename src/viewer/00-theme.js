@@ -91,4 +91,8 @@ const VIEWS = ATLAS.views;
 const viewById = new Map(VIEWS.map(v => [v.id, v]));
 const viewKind = (id) => viewById.get(id)?.kind ?? "structure";
 const isFlowView = (id) => viewKind(id) === "flow";
+// The request view plays a single armed path the same way a flow view plays
+// one of its own — isolation, dimming, packet building and stepping all key
+// off this, not off "flow", so the composer gets that machinery for free.
+const playsFlow = (id) => isFlowView(id) || viewKind(id) === "request";
 

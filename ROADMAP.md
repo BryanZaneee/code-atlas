@@ -503,12 +503,6 @@ Raised by the quality sweep, verified against the code, and deliberately not
 fixed in it. None is a crash; each is something the map currently claims or
 omits without saying so.
 
-**Modelled hops inside curated flows carry no badge.** `build.mjs` counts them
-(`meta.derivedCount`) and its own comment says curation and derivation alike
-model an ordering imports cannot express — but only tool-derived flows raise the
-badge. The caveat for a curated flow's unobserved hops appears in the sidebar
-strip and nowhere on the canvas.
-
 **Language-specific code in `src/model/`.** The adapters↔model seam says language
 knowledge lives in an adapter. Four places breach it: `derive.mjs`'s
 `importBindings` branches on `ts`/`py` with seven regexes; `mounts.mjs`'s

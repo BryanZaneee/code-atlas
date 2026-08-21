@@ -49,7 +49,7 @@ window.addEventListener("keydown", (e) => {
     else {
       const lit = S.finding;
       S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
-      S.finding = null;
+      S.finding = null; S.request = null;
       // Only when there was one: the evidence set decides what is on the map,
       // so dropping it has to re-pack — and nothing else here does.
       if (lit) relayout();
@@ -157,18 +157,25 @@ cv.addEventListener("wheel", (e) => {
 function syncControls() {
   // Only a flow view has something to isolate. Disabled rather than hidden, so
   // the strip does not reflow when you change view.
-  $("#bIsolate").disabled = !isFlowView(S.view);
+  $("#bIsolate").disabled = !playsFlow(S.view);
   $("#bPause").classList.toggle("on", S.running);
   $("#bPause").textContent = S.running ? "▮▮ PAUSE" : "▶ RESUME";
   const deg = Math.round(S.yaw * 180 / Math.PI) % 360;
   // A derived path says so ON THE CANVAS. PLAN.md is explicit that a caveat
   // living only in a side panel is not a caveat: the thing being watched is the
   // map, so the map is where "this was inferred, not observed" has to appear.
-  const f = flowById.get(S.activeFlow);
+  // A curated flow is a person's assertion, but its hops are still an ordering
+  // imports cannot express — build.mjs counts them in meta.derivedCount for
+  // exactly that reason. Only tool-derived flows used to raise this badge,
+  // which let a curated flow's modelled hops read as observed. Both now say so
+  // on the canvas; the wording is what tells them apart.
+  const f = flowById.get(S.activeFlow) ?? S.request;
   const modelled = f?.derived || (S.activeFlow === "__all__" && viewById.get(S.view)?.derived);
   // Two elements, not one string: the status half is dropped on a narrow
   // window, the caveat half never is.
-  $("#ovWarn").textContent = modelled ? "DERIVED · NOT VERIFIED" : "";
+  $("#ovWarn").textContent = modelled ? "DERIVED · NOT VERIFIED"
+                            : f        ? "CURATED · MODELLED PATH"
+                            : "";
   $("#ovStatus").textContent = `${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
 }
 $("#bPause").onclick = () => { S.running = !S.running; syncControls(); };
@@ -241,6 +248,9 @@ function setView(v) {
   // Cleared before relayout(), because the evidence of a finding is part of
   // what `visibleSet()` keeps.
   S.finding = null;
+  // An armed request belongs to the request view; leaving it should not leave
+  // a played path animating underneath an unrelated view.
+  S.request = null;
   renderViews();
   relayout();
   renderList(); renderInspect(); renderLegend(); renderStats(); renderCaption();

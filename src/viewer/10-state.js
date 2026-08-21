@@ -40,6 +40,13 @@ const S = {
   // progress costs a ghost rectangle rather than a relayout per mouse move.
   dragDistrict: null,
   dragCells: { dx: 0, dy: 0 },
+  // The armed request-composer path (Phase 8). Lives on S rather than as a
+  // top-level binding in 78-request.js: test/render.test.mjs loads 20-select.js
+  // without 78-request.js, and activeFlows() there reads S.request whenever the
+  // view is "request" — a binding scoped to the not-yet-loaded file would throw
+  // a ReferenceError with a stack pointing at neither file. null until a
+  // composed request is sent, so this is inert everywhere it is not used.
+  request: null,
 };
 
 const byId = new Map(ATLAS.nodes.map(n => [n.id, n]));
