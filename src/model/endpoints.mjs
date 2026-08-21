@@ -47,6 +47,9 @@ const lineOf = (text, index) => text.slice(0, index).split("\n").length;
 /** `{id}` -> `:id`, so a path is one logical node regardless of which framework's param syntax wrote it. */
 const normalizePath = (p) => p.replace(/\{(\w+)\}/g, ":$1");
 
+/** `const orders = Router()` / `= express.Router()` — the file naming a router. */
+const ROUTER_DECL = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:\w+\s*\.\s*)?Router\s*\(/g;
+
 // The quoted-literal tail every default and config endpoint rule ends with.
 // Stripping it from a rule's source turns the rule into "the call this rule's
 // receiver/method shape recognises", with no requirement that the argument be
@@ -152,7 +155,30 @@ export function extractEndpoints(ctx) {
     const text = ctx.src.get(p);
     const { service } = serviceOf(p);
 
-    for (const rule of rules) {
+    // A router the file names something else.
+    //
+    // The default rules key on the receiver ending in router/app/server, and
+    // that constraint is not fussiness: `axios.post("/orders")` is an outbound
+    // call, and matching any receiver at all would turn every HTTP client in
+    // the repository into a phantom endpoint. But `export const orders =
+    // Router()` is ordinary code, and skipping it reports zero endpoints for a
+    // perfectly normal service.
+    //
+    // So the receiver is widened by EVIDENCE rather than by name: only a
+    // variable this same file declares from a Router() call. That is the file
+    // saying what the thing is, which is the difference between reading a fact
+    // and guessing at one.
+    const declared = [...text.matchAll(ROUTER_DECL)].map((m) => m[1])
+      .filter((n) => !/(?:router|app|server)$/i.test(n));
+    const fileRules = declared.length
+      ? [...rules, ...declared.map((name) => ({
+        i: `#router:${name}`,
+        re: new RegExp(`\\b${name}\\s*\\.\\s*(get|post|patch|put|delete)\\s*\\(\\s*["']([^"']+)["']`, "g"),
+        declared: name,
+      }))]
+      : rules;
+
+    for (const rule of fileRules) {
       for (const m of text.matchAll(rule.re)) {
         const raw = m[2];
         const line = lineOf(text, m.index);
@@ -167,7 +193,9 @@ export function extractEndpoints(ctx) {
             : prefix
               ? `prefix "${prefix}" from the mount chain`
               : "no mount resolved — the path is the one this file declares";
-          const why = `matched endpoint rule #${rule.i} ${rule.re.source} · ${mountedAt}`;
+          const why = rule.declared
+            ? `${rule.declared} is declared from Router() in this file · ${mountedAt}`
+            : `matched endpoint rule #${rule.i} ${rule.re.source} · ${mountedAt}`;
           add(m[1].toUpperCase(), full, p, line, service, why);
         }
       }

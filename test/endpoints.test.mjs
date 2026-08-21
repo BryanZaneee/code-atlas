@@ -28,8 +28,34 @@ test("an Express app in plain JavaScript yields its endpoints", async () => {
     "GET /health",
     "GET /items",
     "GET /items/:id",
+    "GET /shop/orders",
     "POST /login",
+    "POST /shop/orders",
   ]);
+});
+
+/**
+ * A router the file calls something other than `router`.
+ *
+ * The default rules key on a receiver ending in router/app/server, which is not
+ * fussiness: `client.post("/hooks/order")` is an outbound HTTP call, and
+ * matching any receiver at all would turn every HTTP client in a repository
+ * into a phantom endpoint. But `export const orders = Router()` is ordinary
+ * code, and skipping it reported zero endpoints for a perfectly normal service.
+ *
+ * So the receiver is widened by EVIDENCE — a variable this same file declares
+ * from a Router() call — and `orders.mjs` holds both cases at once so the two
+ * cannot be widened apart by accident.
+ */
+test("a router bound to another name is read, and an http client is not", async () => {
+  const { payload } = await scanFixture("express-js");
+  const shop = payload.endpoints.filter((e) => e.definedIn === "src/routes/orders.mjs");
+  assert.deepEqual(shop.map((e) => e.path).sort(), ["/shop/orders", "/shop/orders"],
+    "both registrations are found, and mounted where the server mounts them");
+  assert.match(shop[0].why, /declared from Router\(\)/,
+    "and the endpoint says the file called it a router, rather than naming a rule that did not match");
+  assert.ok(!payload.endpoints.some((e) => e.path.includes("/hooks")),
+    "client.post is an outbound call, not a route this service serves");
 });
 
 /**
