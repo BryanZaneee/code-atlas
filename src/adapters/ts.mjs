@@ -46,7 +46,7 @@ const DYNAMIC_IMPORT = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
  * rather than too little — under-reporting, not a phantom import — so it is
  * left as the accepted cost rather than special-cased.
  */
-function blank(text) {
+export function blank(text) {
   let out = "";
   let i = 0;
   const n = text.length;

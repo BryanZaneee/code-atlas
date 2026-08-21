@@ -32,6 +32,7 @@
  */
 import { resolveMounts } from "./mounts.mjs";
 import { adapterFor } from "../adapters/index.mjs";
+import { blank } from "../adapters/ts.mjs";
 import { langOf } from "./graph.mjs";
 
 // Prose and data. A `.md` or `.json` file having no endpoints is not a gap in
@@ -48,7 +49,53 @@ const lineOf = (text, index) => text.slice(0, index).split("\n").length;
 const normalizePath = (p) => p.replace(/\{(\w+)\}/g, ":$1");
 
 /** `const orders = Router()` / `= express.Router()` — the file naming a router. */
-const ROUTER_DECL = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:\w+\s*\.\s*)?Router\s*\(/g;
+const ROUTER_DECL = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:(\w+)\s*\.\s*)?Router\s*\(/g;
+
+/** The same name later pointed at something that is not a Router. */
+const reassigned = (name) =>
+  new RegExp(`\\b${name}\\s*=\\s*(?!\\s*(?:\\w+\\s*\\.\\s*)?Router\\s*\\()`);
+
+/**
+ * `import { Router } …` / `import Router from …` — the file saying where Router
+ * came from. Deliberately does not look for the specifier's quotes: this runs
+ * over text whose string literals have been blanked away entirely.
+ */
+const ROUTER_IMPORT = /\bimport\s[^;\n]*\bRouter\b[^;\n]*\bfrom\b|\brequire\s*\(/;
+
+/**
+ * The routers a file declares, by name.
+ *
+ * Read from BLANKED source, which is the whole reason this is a function and
+ * not an inline match. Every other extractor in this codebase blanks comments
+ * and template literals before matching — `ts.mjs`, `py.mjs`, and `derive.mjs`,
+ * whose comment says "so a symbol name in a comment cannot seed a hop". Reading
+ * raw text here reintroduced exactly that: a note saying `const orders =
+ * Router()` above code that no longer serves HTTP was enough to turn an
+ * unrelated `orders.get(…)` into a phantom endpoint.
+ *
+ * Quoted strings are blanked too, unlike in import extraction where the
+ * specifier lives inside them. A router declaration never does.
+ *
+ * Two more guards, both about the same thing — evidence, not resemblance:
+ * a name reassigned to anything else afterwards is dropped, because
+ * `let x = Router(); x = axios.create()` makes the declaration a lie by the
+ * time the calls run; and `Router` has to arrive by import or as a member of
+ * something, so a local factory that happens to share the name is not taken as
+ * proof. Both fail toward finding nothing, which is the direction this file is
+ * allowed to be wrong in.
+ */
+function declaredRouters(text) {
+  const code = blank(text).replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (m) => " ".repeat(m.length));
+  const names = [];
+  for (const m of code.matchAll(ROUTER_DECL)) {
+    const [, name, receiver] = m;
+    if (/(?:router|app|server)$/i.test(name)) continue;   // the default rules already have it
+    if (!receiver && !ROUTER_IMPORT.test(code)) continue;  // a bare Router() nobody imported
+    if (reassigned(name).test(code.slice(m.index + m[0].length))) continue;
+    names.push(name);
+  }
+  return [...new Set(names)];
+}
 
 // The quoted-literal tail every default and config endpoint rule ends with.
 // Stripping it from a rule's source turns the rule into "the call this rule's
@@ -155,21 +202,12 @@ export function extractEndpoints(ctx) {
     const text = ctx.src.get(p);
     const { service } = serviceOf(p);
 
-    // A router the file names something else.
-    //
-    // The default rules key on the receiver ending in router/app/server, and
-    // that constraint is not fussiness: `axios.post("/orders")` is an outbound
-    // call, and matching any receiver at all would turn every HTTP client in
-    // the repository into a phantom endpoint. But `export const orders =
-    // Router()` is ordinary code, and skipping it reports zero endpoints for a
-    // perfectly normal service.
-    //
-    // So the receiver is widened by EVIDENCE rather than by name: only a
-    // variable this same file declares from a Router() call. That is the file
-    // saying what the thing is, which is the difference between reading a fact
-    // and guessing at one.
-    const declared = [...text.matchAll(ROUTER_DECL)].map((m) => m[1])
-      .filter((n) => !/(?:router|app|server)$/i.test(n));
+    // A router the file names something else. The default rules key on a
+    // receiver ending in router/app/server, and that is not fussiness:
+    // `axios.post("/orders")` is an outbound call, and matching any receiver
+    // would make every HTTP client a phantom endpoint. `declaredRouters` widens
+    // it by evidence instead — see its docstring for what that costs.
+    const declared = declaredRouters(text);
     const fileRules = declared.length
       ? [...rules, ...declared.map((name) => ({
         i: `#router:${name}`,

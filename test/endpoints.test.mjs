@@ -59,6 +59,25 @@ test("a router bound to another name is read, and an http client is not", async 
 });
 
 /**
+ * The three ways a `Router()` declaration can be a lie.
+ *
+ * Widening the receiver by declaration was worth doing and was got wrong the
+ * first time: the scan read raw source, so a COMMENT mentioning the old code
+ * was enough to seed it, and a name reassigned after its declaration kept the
+ * evidence it no longer deserved. `fixtures/express-js/src/routes/legacy.mjs`
+ * holds all three, and every one of them is a plausible-looking registration —
+ * which is what makes them worth a fixture rather than a code comment.
+ */
+test("a Router() that is a comment, a string, or since reassigned is not evidence", async () => {
+  const { payload } = await scanFixture("express-js");
+  assert.equal(payload.endpoints.filter((e) => e.definedIn === "src/routes/legacy.mjs").length, 0,
+    "nothing in that file registers a route");
+  for (const path of ["/legacy/orders", "/legacy/carts", "/legacy/ping"]) {
+    assert.ok(!payload.endpoints.some((e) => e.path === path), `invented ${path}`);
+  }
+});
+
+/**
  * The mount chain has to compose across three files AND two module systems:
  * a `.cjs` router and an `.mjs` router, both mounted by a `.js` server. A
  * router's own declared path is not the path it is served at.
