@@ -434,7 +434,7 @@ export function liveStats(samples) {
  * unchecked origin gets a `live` object whose requests all refuse there
  * instead of being silently accepted here.
  */
-export function makeLive({ origin, authEnv, token }) {
+export function makeLive({ origin, authEnv, token, timeoutMs, bucket } = {}) {
   return Object.freeze({
     origin,
     authEnv: authEnv ?? null,
@@ -442,7 +442,11 @@ export function makeLive({ origin, authEnv, token }) {
     methods: LIVE_METHODS,
     headers: LIVE_HEADERS,
     maxBodyBytes: MAX_BODY_BYTES,
-    timeoutMs: LIVE_TIMEOUT_MS,
+    timeoutMs: timeoutMs ?? LIVE_TIMEOUT_MS,
+    // Always present, never optional. A live config without a rate limit is one
+    // missing a security control, and defaulting it here means no caller can
+    // forget to pass one. Injectable so a test can set the capacity it needs.
+    bucket: bucket ?? rateBucket({}),
   });
 }
 
@@ -466,5 +470,94 @@ export function liveInfo(live) {
     headers: live.headers,
     maxBodyBytes: live.maxBodyBytes,
     timeoutMs: live.timeoutMs,
+  };
+}
+
+/**
+ * Read a request body, refusing while reading rather than after.
+ *
+ * The cap is checked after every chunk, so at most `limit` plus one chunk is
+ * ever resident. `content-length` is a hint and never a guarantee — a chunked
+ * request carries none — so the running total is what decides.
+ */
+export async function readBody(req, limit = MAX_BODY_BYTES) {
+  let n = 0;
+  const chunks = [];
+  for await (const chunk of req) {
+    n += chunk.length;
+    if (n > limit) return { ok: false, reason: `request body over ${limit} bytes` };
+    chunks.push(chunk);
+  }
+  return { ok: true, text: Buffer.concat(chunks).toString("utf8") };
+}
+
+/**
+ * Send the one request, and report only what was observed about it.
+ *
+ * The return carries no response body and never will. Without that rule this
+ * function would be a read primitive against everything the host can reach,
+ * and with it the worst a page can learn is a status code and a duration. It
+ * is also all the honesty contract lets the map draw: "the endpoint answered
+ * 401 in 43 ms" is observed, and the response's contents are not something the
+ * tool has any business rendering next to a modelled path.
+ *
+ * `redirect: "manual"` is a SECURITY control here, not a display choice. A
+ * target inside the private ranges is free to redirect somewhere outside them,
+ * and a followed redirect would launder every check in this file — as well as
+ * attributing another origin's status to this endpoint.
+ *
+ * Errors collapse to a closed vocabulary. `e.message` is never surfaced:
+ * Node's `fetch failed` carries the address it tried in its cause, and this
+ * result is rendered in a browser and logged to a terminal.
+ */
+export async function forward(out, live) {
+  const headers = { ...out.headers };
+  // The only place the token is read, one line before it goes on the wire.
+  if (live.token) headers.authorization = live.token;
+
+  const started = performance.now();
+  let r;
+  try {
+    r = await fetch(out.url, {
+      method: out.method,
+      headers,
+      body: out.body,
+      redirect: "manual",
+      signal: AbortSignal.timeout(live.timeoutMs ?? LIVE_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const timedOut = e?.name === "TimeoutError" || e?.name === "AbortError";
+    return {
+      status: null,
+      error: timedOut ? "timeout" : "unreachable",
+      ms: Math.round(performance.now() - started),
+    };
+  }
+
+  let bytes = 0;
+  let truncated = false;
+  try {
+    for await (const chunk of r.body ?? []) {
+      bytes += chunk.length;
+      if (bytes >= MAX_RESPONSE_BYTES) {
+        truncated = true;
+        await r.body.cancel();
+        break;
+      }
+    }
+  } catch {
+    // A body that dies mid-read still produced a status worth reporting.
+    truncated = true;
+  }
+
+  return {
+    status: r.status,
+    statusText: r.statusText,
+    // A redirect is reported, never followed, and the destination is not
+    // handed to the page: knowing one happened is the honest part.
+    redirected: r.status >= 300 && r.status < 400,
+    ms: Math.round(performance.now() - started),
+    bytes,
+    truncated,
   };
 }

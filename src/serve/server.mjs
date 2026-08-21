@@ -2,9 +2,10 @@
  * `atlas serve` — a loopback dev server for the viewer, plus a read-only
  * source endpoint that exists only in this mode.
  *
- * `build` writes the viewer once, self-contained. `serve` re-concatenates the
- * same `src/viewer/*.js` modules per request via `assemble()` — the only
- * legitimate second caller of that assembly, never a duplicate of it.
+ * `build` writes the viewer once, self-contained. `serve` concatenates the same
+ * `src/viewer/*.js` modules through `assemble()` — the only legitimate second
+ * caller of that assembly, never a duplicate of it. Once per process, not per
+ * request: the bundle cannot change while the server is up.
  *
  * Everything else here defends a server a browser can reach: `listen()` binds
  * `127.0.0.1` as a literal, not a parameter, so it can never become a flag.
@@ -19,6 +20,7 @@ import { lstatSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { collect } from "../scan/walk.mjs";
 import { assemble } from "../build/assemble.mjs";
+import { readBody, forward, resolveOutbound, liveInfo, liveLogLine, MAX_BODY_BYTES } from "./proxy.mjs";
 
 const CSP = [
   "default-src 'none'",
@@ -79,7 +81,71 @@ function handleSource(req, res, url, repoDir, allow) {
   send(res, 200, body);
 }
 
-function makeHandler({ repoDir, html, allow, hostOf }) {
+/**
+ * `POST /api/live` — forward one composed request to the configured target.
+ *
+ * Sits behind `sameOrigin` like everything else, with one tightening: that
+ * check deliberately lets a cross-site TOP-LEVEL NAVIGATION through, so a
+ * person can follow a link into the viewer. A proxied request is never a
+ * document navigation, so this endpoint does not inherit that carve-out.
+ *
+ * The order below is load-bearing. Every cheap refusal happens before any body
+ * is buffered, so a request that was never going to be sent cannot cost 256 KB
+ * of memory first. 403 is reserved for the process-level gate — live mode is
+ * off — and 400 means the request itself was refused, so the page can tell
+ * "this server will never do that" from "fix what you typed".
+ */
+async function handleLive(req, res, live, log) {
+  const refuse = (status, reason, fields = {}) => {
+    log(liveLogLine({ method: fields.method ?? req.method, path: fields.path ?? "/api/live", refused: reason }));
+    return send(res, status, reason + "\n");
+  };
+
+  if (req.method !== "POST") return send(res, 405, "method not allowed");
+  if (!live) {
+    return refuse(403, "live mode is off — restart atlas serve with --allow-live and --target URL");
+  }
+  // Before the body read: a rate-limited request must not cost a buffer either.
+  if (!live.bucket.take()) return refuse(429, "too many live requests");
+  const type = String(req.headers["content-type"] ?? "");
+  if (!type.startsWith("application/json")) {
+    return refuse(415, "expected application/json");
+  }
+
+  const body = await readBody(req, MAX_BODY_BYTES);
+  if (!body.ok) {
+    // Respond first, then destroy: destroying the request first kills the
+    // response with it, and the page would see a socket hang up rather than
+    // the reason it was refused.
+    const out = refuse(413, body.reason);
+    req.destroy();
+    return out;
+  }
+
+  let parsed;
+  try { parsed = JSON.parse(body.text); } catch { return refuse(400, "body must be JSON"); }
+
+  const out = resolveOutbound(live, parsed);
+  if (!out.ok) return refuse(400, out.reason, { method: parsed?.method, path: parsed?.path });
+
+  const result = await forward(out, live);
+  const where = new URL(out.url);
+  log(liveLogLine({
+    method: out.method,
+    // Pathname only — and liveLogLine strips a query string again on its own
+    // side, so this is the outer of two independent layers rather than the
+    // only one. A secret typed into the composer's query field has to get past
+    // both to reach a terminal, and neither knows the other is there.
+    path: where.pathname,
+    status: result.status,
+    ms: result.ms,
+    bytes: result.bytes,
+    error: result.error,
+  }));
+  return send(res, 200, JSON.stringify(result), "application/json; charset=utf-8");
+}
+
+function makeHandler({ repoDir, html, allow, hostOf, live = null, log = () => {} }) {
   return (req, res) => {
     // Origin-form only. A proxy may legitimately send an absolute request
     // target (`GET http://host/path`), but then `new URL()` takes its authority
@@ -97,6 +163,7 @@ function makeHandler({ repoDir, html, allow, hostOf }) {
 
     const url = new URL(req.url, "http://atlas.invalid");
     if (url.pathname === "/api/source") return handleSource(req, res, url, repoDir, allow);
+    if (url.pathname === "/api/live") return handleLive(req, res, live, log);
 
     if (url.pathname === "/") {
       if (req.method !== "GET") return send(res, 405, "method not allowed");
@@ -115,12 +182,15 @@ function makeHandler({ repoDir, html, allow, hostOf }) {
  * The bind host is a literal below: `listen(port, opts)` takes no host
  * argument, so there is nothing a caller could pass to change it.
  */
-export function listen(port, { repo, keep, exclude, payload }) {
+export function listen(port, { repo, keep, exclude, payload, live = null, log = () => {} }) {
   const { fileSet } = collect(repo, { keep, exclude });
-  const html = assemble(payload);
+  // Live config is injected into the payload the VIEWER gets, never into the
+  // one `scan()` produced: the payload stays a pure function of the repository,
+  // so the goldens do not move and `--json` never learns about a server mode.
+  const html = assemble({ ...payload, live: liveInfo(live) });
 
   let host = null; // resolved once the actual bound port is known
-  const server = createServer(makeHandler({ repoDir: repo, html, allow: fileSet, hostOf: () => host }));
+  const server = createServer(makeHandler({ repoDir: repo, html, allow: fileSet, hostOf: () => host, live, log }));
 
   return new Promise((resolve, reject) => {
     server.once("error", reject);
