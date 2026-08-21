@@ -239,7 +239,7 @@ function drawStatic() {
   // Ambient edges sit on the ground, under the blocks. Bucketed by style so the
   // stroke state is set once per bucket instead of once per edge — with a
   // save()/restore() pair each, that was the single hottest loop here.
-  if (!isFlowView(S.view)) {
+  if (!playsFlow(S.view)) {
     const buckets = new Map();
     for (const e of LAYOUT.edges) {
       const a = byId.get(e.from), b = byId.get(e.to);
@@ -624,7 +624,7 @@ function frame(now) {
   // Eased, not cut: the transition is what says the map changed rather than
   // reloaded. Nothing else in the frame depends on it, so it never invalidates.
   // Nothing to veil when the map holds only the flow already.
-  const target = isFlowView(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
+  const target = playsFlow(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
   veil += (target - veil) * Math.min(1, dt * 7);
   easeFindings(dt);
   if (S.running || S.stepBudget > 0) advance(dt);

@@ -91,7 +91,7 @@ function relayout() {
   LAYOUT = {
     nodes: vis, districts, servicePlates, bbox: null,
     ids: new Set(vis.map(n => n.id)),
-    steps: isFlowView(S.view) ? pathSteps() : new Map(),
+    steps: playsFlow(S.view) ? pathSteps() : new Map(),
     edges: visibleEdges(vis),
   };
   reproject();

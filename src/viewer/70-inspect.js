@@ -44,9 +44,13 @@ function renderInspect() {
   const finding = S.selected || S.pinnedPacket ? null : findSelected();
   if (finding) { renderFinding(b, finding); return; }
 
+  // The composer owns the panel in the request view, until you click a packet
+  // or a block — both of which are questions about the path it just played.
+  if (viewKind(S.view) === "request" && !S.pinnedPacket && !S.selected) { renderComposer(b); return; }
+
   if (S.pinnedPacket) {
     const st = S.pinnedPacket;
-    const f = flowById.get(st.flowId);
+    const f = flowById.get(st.flowId) ?? (S.request?.id === st.flowId ? S.request : null);
     b.append(el("div", "title", st.label || "packet"));
     b.append(el("div", "path", `${f ? f.label + " · " : ""}step ${st.i + 1}`));
     const dl = el("dl", "kv");

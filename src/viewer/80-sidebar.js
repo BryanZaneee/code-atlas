@@ -33,6 +33,11 @@ function renderList() {
     return;
   }
 
+  if (viewKind(S.view) === "request") {
+    renderRequestList(wrap, title, count);
+    return;
+  }
+
   if (isFlowView(S.view)) {
     title.textContent = viewById.get(S.view)?.listLabel ?? "PATHS";
     const fs = flowsForView(S.view);

@@ -2,9 +2,9 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6 and 7 complete · 10 of 14.
+**Status:** Phases 0, 2, 2.5, 2.6, 2.7, 3, 4, 5, 6, 7 and 8 complete · 11 of 14.
 Phase 1 holds one gate a human has to measure, and Phase 7 holds one ratio that
-was deferred with a measured number rather than met. Phases 8, 9 and 10 are the
+was deferred with a measured number rather than met. Phases 9 and 10 are the
 work left; live mode is deliberately last.
 
 | # | Milestone | Unblocks | Status |
@@ -20,7 +20,7 @@ work left; live mode is deliberately last.
 | 5 | Findings engine | — | ● done |
 | 6 | Path derivation + calibration | 8 | ● done |
 | 7 | `atlas serve` + code viewer | 8, 9 | ● done, one ratio deferred |
-| 8 | Request composer UI | 9 | ○ |
+| 8 | Request composer UI | 9 | ● done |
 | 9 | Live proxy mode | — | ○ |
 | 10 | Open-source packaging | — | ○ |
 
@@ -455,13 +455,34 @@ one person holds it all and not fine in a README written for strangers.*
 
 ## Phase 8 — Request composer UI
 
-- [ ] `kind:"request"` view; endpoint list; composer (path params, query, headers, JSON body + validity)
-- [ ] Composer state to `sessionStorage`, **`authorization` value excluded**
-- [ ] `SEND (MODELED)` animates the path with substituted values
-- [ ] Curated-vs-derived badge **on the canvas**, not only the panel; per-hop solid/dotted certainty
-- [ ] Audit: every solid hop opens the import line that justifies it
-- [ ] `[+ CURATE THIS]` emits a paste-ready config entry
-- [ ] **Gate:** the emitted entry pastes into a config and validates
+- [x] `kind:"request"` view; endpoint list; composer (path params, query, headers, JSON body + validity)
+      — query and headers are one text field each, deliberately. Key/value rows
+      are the first step toward collections and environments, which the scope
+      guard names by example
+- [x] Composer state to `sessionStorage`, **`authorization` value excluded**
+      — redacted at the serialization boundary rather than at the input, so the
+      value survives the session in memory and never the reload. The header NAME
+      comes back with an empty value: a row that vanishes reads as a bug
+- [x] `SEND (MODELED)` animates the path with substituted values
+      — curated path first, derived second, and neither means the button is
+      disabled with the reason spelled out rather than a dead control
+- [x] Curated-vs-derived badge **on the canvas**, not only the panel; per-hop solid/dotted certainty
+      — closes the "modelled hops inside curated flows carry no badge" finding
+      in the same lines. Curated steps carry no certainty, so they are graded in
+      the viewer at clone time: no payload field, no golden movement
+- [x] Audit: every solid hop opens the import line that justifies it
+      — **built stronger than written.** A hop that grades justified but has no
+      evidence behind it is REGRADED inferred rather than drawn solid with a
+      button that lands somewhere plausible. Evidence is judged on whether an
+      import exists, not on whether a server is there to read it, so a `file://`
+      atlas still grades honestly while offering no jumps
+- [x] `[+ CURATE THIS]` emits a paste-ready config entry
+      — certainty is not emitted: it is this tool's grading of its own guess,
+      and pasting a flow makes the path the reader's claim
+- [x] **Gate:** the emitted entry pastes into a config and validates
+      — three ascending checks in `test/request-view.test.mjs`: it parses as JS,
+      the real `validateFlows` accepts it, and a full `--strict` scan with it
+      ships the flow and gains a playable view, with no warning
 
 ## Phase 9 — Live proxy mode
 
