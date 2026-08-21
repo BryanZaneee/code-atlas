@@ -61,6 +61,14 @@ const DEFAULT_LAYERS = [
 export const OFF_SPINE_LAYERS = new Set(["test", "docs", "tooling", "unsorted"]);
 
 /**
+ * Layers a request was never meant to reach, and a test was never meant to
+ * cover. Distinct from OFF_SPINE_LAYERS: `unsorted` means "no rule matched",
+ * which is an absence of knowledge rather than a licence to skip the file,
+ * while `migration` is genuinely off any request path.
+ */
+export const UNREACHED_LAYERS = new Set(["test", "docs", "tooling", "migration"]);
+
+/**
  * Layer rules, in `src/model/classify.mjs`'s shape. First match wins, so the
  * order is the whole design: a file under `services/` that is named
  * `user.test.ts` is a test, not a service, which is why every test rule comes

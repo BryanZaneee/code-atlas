@@ -25,7 +25,7 @@
  * `{ nodes: string[], edges: {from,to,kind}[] }` — the exact ids a renderer
  * highlights, never a prose description.
  */
-import { OFF_SPINE_LAYERS } from "../config/defaults.mjs";
+import { OFF_SPINE_LAYERS, UNREACHED_LAYERS } from "../config/defaults.mjs";
 
 
 /** p-th percentile of an ascending-sorted array, nearest-rank method. */
@@ -264,16 +264,13 @@ function findOrphans(nodes, roots) {
  * reports nothing: there is no entrypoint to measure reachability from, so
  * "unreachable" would be a claim about every file rather than about the ones
  * that actually sit off the spine. Test, docs, tooling and migration files
- * are excluded from the result the same way `derive.mjs`'s `SKIP_LAYERS`
- * excludes them from the spine itself — they were never meant to be reached
- * by a request in the first place. Orphans, oversized files and god nodes do
+ * are excluded via UNREACHED_LAYERS — they were never meant to be reached by
+ * a request in the first place. Orphans, oversized files and god nodes do
  * NOT apply this exclusion — PLAN.md states each of those three in terms of
  * plain in/out-degree or LOC with no layer carve-out, and a repository's own
  * config/docs/tooling files legitimately having zero edges is itself part of
  * what "orphan" means there.
  */
-const OFF_SPINE = new Set(["test", "docs", "tooling", "migration"]);
-
 function findUnreachable(nodes, edges) {
   const entryIds = nodes.filter((n) => n.kind === "file" && n.layer === "entry").map((n) => n.id);
   if (!entryIds.length) return [];
@@ -297,7 +294,7 @@ function findUnreachable(nodes, edges) {
   }
 
   return nodes
-    .filter((n) => n.kind === "file" && !OFF_SPINE.has(n.layer) && !reached.has(n.id))
+    .filter((n) => n.kind === "file" && !UNREACHED_LAYERS.has(n.layer) && !reached.has(n.id))
     .sort((a, b) => a.id.localeCompare(b.id))
     .map((n) => ({
       id: `unreachable:${n.id}`,

@@ -12,7 +12,7 @@
  * Phase 2 makes this `null` everywhere when a repo has no tests, so an untested
  * repo reads as "not measured" instead of an all-orange map.
  */
-const NOT_MEASURED = ["test", "tooling", "docs", "migration"];
+import { UNREACHED_LAYERS } from "../config/defaults.mjs";
 
 export function deriveCoverage(nodes, edges) {
   const direct = new Set(edges.filter((e) => e.kind.startsWith("test:")).map((e) => e.to));
@@ -43,7 +43,7 @@ export function deriveCoverage(nodes, edges) {
   }
 
   for (const n of nodes) {
-    if (n.kind !== "file" || NOT_MEASURED.includes(n.layer)) continue;
+    if (n.kind !== "file" || UNREACHED_LAYERS.has(n.layer)) continue;
     n.coverage = direct.has(n.id) ? "direct" : reached.has(n.id) ? "indirect" : "none";
     n.uncovered = n.coverage === "none";
   }
