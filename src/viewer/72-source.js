@@ -1,24 +1,4 @@
-/* ════════════════════ source panel ════════════════════
- *
- * The other half of INSPECT: INFO says what the tool concluded about a file,
- * SOURCE shows the file. It is a wide right-docked overlay rather than a third
- * column because 310px is unreadable for code — the map keeps rendering behind
- * it, so reading a line never costs you the place you were reading it from.
- *
- * Two constraints shape everything below.
- *
- * ONE: repository source is never markup. Every character that arrives from
- * `/api/source` reaches the document as a text node — `document.createTextNode`
- * or `.textContent`, never `innerHTML`. Prism is used as a tokenizer only; the
- * token tree is walked here and the DOM is built by hand. A file containing
- * `<script>` is a file, not a script, and the server's `text/plain` is only the
- * first of the two places that has to hold.
- *
- * TWO: this is the viewer's only network path, and it must fail out loud. A
- * refused or unreachable read paints the reason, because a blank panel is the
- * prototype's documented worst failure and "nothing happened" is the least
- * informative thing a tool can say.
- */
+/* Source panel. Two constraints: repository source reaches the DOM only as text nodes (Prism tokenizes, the DOM is built by hand, never innerHTML), and every failed read paints its reason rather than leaving a blank panel. */
 
 const SRC = {
   open: false,
@@ -34,22 +14,12 @@ const SRC_HIGHLIGHT_LIMIT = 400_000;
 /** Verbatim from PLAN.md: what a built, server-less atlas says instead of source. */
 const SRC_STATIC_COPY = "Source is not embedded. Run `atlas serve`, or rebuild with --embed-source.";
 
-/**
- * Is there a server to ask? `build` produces one HTML file that is opened from
- * disk (`file:`), and `serve` sends the same bytes over loopback — same markup,
- * two worlds. The protocol is the honest test: no probe, no timeout, no feature
- * offered that cannot work.
- */
+/** Is there a server to ask? The protocol is the honest test: no probe, no timeout, no feature offered that cannot work. */
 function srcServed() {
   return location.protocol === "http:" || location.protocol === "https:";
 }
 
-/**
- * Can this page read source at all — live from a server, or from what
- * `--embed-source` baked into the payload? Everything that used to gate on
- * `srcServed()` alone now gates on this, so a built, embedded, server-less
- * atlas keeps every jump-to-line affordance the served one has.
- */
+/** Can this page read source at all, live or embedded? Every jump-to-line affordance gates on this, not on srcServed() alone. */
 function srcCapable() {
   return srcServed() || !!ATLAS.source;
 }
@@ -65,14 +35,7 @@ function srcEmbeddedHas(path) {
 
 let srcEmbeddedFilesPromise = null; // memoized: the one blob is inflated at most once
 
-/**
- * `ATLAS.source.files` when the build was not gzip-compressed. Otherwise
- * `ATLAS.source.blob` is one gzip stream covering every embedded file's text
- * together — `--embed-source`'s compression works file-against-file, not
- * file-against-nothing, so it is inflated once, as a whole, with the same
- * `DecompressionStream` the round trip was built around, and cached rather
- * than repeated on every file open.
- */
+/** Embedded files, inflating `ATLAS.source.blob` once and caching it: the gzip stream covers every file together, so it cannot be inflated per file. */
 function srcEmbeddedFiles() {
   if (!ATLAS.source.gzip) return Promise.resolve(ATLAS.source.files);
   if (!srcEmbeddedFilesPromise) {
@@ -92,12 +55,7 @@ async function srcEmbeddedText(path) {
   return (await srcEmbeddedFiles())[path];
 }
 
-/**
- * The footer's honesty statement about this exact page — not about the tool in
- * general. Three states, because "no source" and "source served live" make
- * very different promises, and `SOURCE EMBEDDED` is the one PLAN.md insists
- * cannot be quiet: it means this file carries the codebase, not just the map.
- */
+/** The footer's honesty statement about this exact page: three states, because embedded source means the file carries the codebase, not just the map. */
 function srcBadgeText() {
   if (ATLAS.source) {
     const n = ATLAS.source.paths.length;
@@ -120,13 +78,7 @@ function srcLangOf(path) {
   }[ext] ?? null;
 }
 
-/**
- * Prism's token tree -> a flat list of `[text, className]`.
- *
- * Flat because the gutter needs lines, and a token may straddle several of them
- * (a block comment, a template literal). Splitting a nested tree on newlines is
- * the part that goes wrong; splitting a flat list is arithmetic.
- */
+/** Prism's token tree flattened to `[text, className]`: a token may straddle lines, and splitting a flat list on newlines is arithmetic. */
 function srcFlatten(tokens, cls, out) {
   for (const t of tokens) {
     if (typeof t === "string") { out.push([t, cls]); continue; }
@@ -146,18 +98,12 @@ function srcPieces(text, lang) {
     srcFlatten(Prism.tokenize(text, grammar), "", out);
     return out;
   } catch {
-    // A grammar that throws is a cosmetic failure. Losing the colour is fine;
-    // losing the file because of it is not.
+    // A grammar that throws is cosmetic: lose the colour, never the file.
     return [[text, ""]];
   }
 }
 
-/**
- * Paint `text` into `host` as numbered lines, `hit` highlighted and centred.
- *
- * Takes its container as an argument and touches no other state, which is what
- * lets the escaping guarantee be tested directly rather than inferred.
- */
+/** Paint `text` into `host` as numbered lines; takes its container and touches no other state, so the escaping guarantee is directly testable. */
 function srcPaint(host, text, lang, hit) {
   const code = el("div", "srcCode");
   const pieces = srcPieces(text, lang);
@@ -180,8 +126,7 @@ function srcPaint(host, text, lang, hit) {
     for (let i = 0; i < parts.length; i++) {
       if (i > 0) newRow();
       if (!parts[i]) continue;
-      // The one line that matters: source becomes a text node, always. A span
-      // when it is coloured, a bare text node when it is not — neither is parsed.
+      // The line that matters: source becomes a text node, always, coloured or not, and neither form is parsed.
       if (cls) cell.append(el("span", cls, parts[i]));
       else cell.append(document.createTextNode(parts[i]));
     }
@@ -190,8 +135,7 @@ function srcPaint(host, text, lang, hit) {
   host.replaceChildren(code);
   const target = hit > 0 && hit <= ln ? code.children[hit - 1] : null;
   if (target) {
-    // Centred, not merely visible: a line pinned to the top edge has no context
-    // above it, which is half of what reading a line is for.
+    // Centred, not merely visible: a line at the top edge has no context above it.
     code.scrollTop = Math.max(0, target.offsetTop - code.clientHeight / 2 + target.offsetHeight / 2);
   }
   return ln;
@@ -212,25 +156,20 @@ function srcEndpoint(id) {
   return srcEpMap.get(id);
 }
 
-/**
- * Open a file at a line. The single entry point — every jump-to-line in the
- * INFO panel is a call to this, so there is one fetch path and one failure path.
- */
+/** Open a file at a line: the single entry point, so there is one fetch path and one failure path. */
 function openSource(path, line) {
   SRC.open = true;
   SRC.path = path;
   SRC.line = line || 0;
   $("#source").hidden = false;
-  // The map keeps animating behind the reader, so its overlays step aside
-  // rather than hide — see `#main.reading` in style.css.
+  // The map keeps animating behind the reader, so overlays step aside rather than hide; see `#main.reading` in style.css.
   $("#main").classList.add("reading");
   srcSyncTabs();
   $("#srcPath").textContent = path ?? "—";
   $("#srcWhere").textContent = line ? `line ${fmt(line)}` : "";
 
   if (!srcCapable()) {
-    // Not an error. This atlas is a file on disk, and saying so beats a fetch
-    // that fails for a reason the reader would have to guess at.
+    // Not an error: this atlas is a file on disk, and saying so beats a fetch failing for a guessable reason.
     srcMessage(SRC_STATIC_COPY, "This atlas was built as a single file, so it carries the map but not the code it maps. Served from `atlas serve`, this panel reads the file straight from the repository; rebuilt with --embed-source, it reads what was baked in instead.");
     return;
   }
@@ -251,20 +190,7 @@ function openSource(path, line) {
   });
 }
 
-/**
- * Read a file, `SRC.cache` first. Embedded source is checked next — it is a
- * guaranteed-complete, self-contained answer, so it wins over a live fetch
- * rather than racing it: a page opened as a plain static file (not through
- * `atlas serve`) can look "served" by protocol alone while no `/api/source`
- * actually answers behind it, and embedded text never has that failure mode.
- * A live server is still consulted for any path the embed glob left out, so
- * `--embed-source some/**` plus `atlas serve` degrades to "embedded first,
- * live for the rest" rather than an all-or-nothing choice.
- *
- * `path` is the node id, which IS the repository-relative path — the same
- * string the scan put in the allowlist and the one `--embed-source` keyed its
- * files by, so neither path needs handling of its own.
- */
+/** Read a file: cache, then embedded (which beats a live fetch because protocol alone can look served with no `/api/source` behind it), then the server for paths the embed glob left out. */
 async function srcRead(path) {
   const hit = SRC.cache.get(path);
   if (hit != null) return hit;
@@ -276,10 +202,7 @@ async function srcRead(path) {
   }
 
   if (!srcServed()) {
-    // Embedding ran (srcCapable() already required it, or the panel could
-    // never have reached this call) but this particular file was outside the
-    // glob, and there is no server to fall back to. A generic "could not
-    // read this file" would look like a bug; this says exactly why.
+    // Embedding ran but this file was outside the glob and there is no server: say exactly that, or it reads as a bug.
     throw Object.assign(new Error("not embedded"), {
       title: "This file was not embedded.",
       detail: ATLAS.source?.glob
@@ -320,10 +243,7 @@ function srcSyncTabs() {
   $("#tabSource").classList.toggle("on", SRC.open);
 }
 
-/**
- * What SOURCE opens for the current selection, when it is opened from the tab
- * rather than from a specific line.
- */
+/** What SOURCE opens for the current selection when opened from the tab rather than a specific line. */
 function srcSubject() {
   const st = S.pinnedPacket;
   if (st) {
@@ -342,29 +262,17 @@ function srcSubject() {
   return { path: null, line: 0 };
 }
 
-/**
- * The import that justifies a derived hop, if one exists.
- *
- * A hop the tool inferred across a gap has no import to show, and no line is
- * invented for it — that is the honesty contract in the one place it is easiest
- * to break, because a jump-to-line that lands anywhere at all feels like proof.
- */
+/** The import justifying a derived hop, if one exists; an inferred hop gets no invented line, because a jump that lands anywhere feels like proof. */
 function srcHopImport(st) {
   if (!st) return null;
   const e = (edgesFrom.get(st.from) ?? []).find((x) => x.to === st.to && x.line);
   return e ? { path: e.from, line: e.line } : null;
 }
 
-/**
- * A jump-to-line control, or null when there is no server to read from.
- *
- * Null rather than a disabled button: an affordance that cannot work is worse
- * than no affordance, and the SOURCE tab already carries the explanation.
- */
+/** A jump-to-line control, or null when nothing can be read: an affordance that cannot work is worse than none. */
 function srcJump(label, path, line) {
   if (!srcCapable() || !path) return null;
-  // A null label is the in-row form: inside a list of imports the file is
-  // already named by the row, so the chip only has to say which line.
+  // A null label is the in-row form, where the row already names the file and the chip only says which line.
   const text = label === null ? `L${line}` : `${label} ${path.split("/").pop()}${line ? `:${line}` : ""}`;
   const b = el("button", "srcJump", text);
   b.title = `${path}${line ? `:${line}` : ""}`;
@@ -382,16 +290,13 @@ function srcInit() {
   $("#tabInfo").onclick = () => closeSource();
   $("#srcClose").onclick = () => closeSource();
 
-  // Resize by dragging the left edge. Bounded on both sides: narrower than this
-  // is not worth opening, wider leaves nothing of the map to read it against.
+  // Drag the left edge to resize, bounded both ways so the panel stays readable and the map stays visible.
   const grip = $("#srcGrip");
   let sizing = false;
   grip.addEventListener("mousedown", (e) => { sizing = true; e.preventDefault(); });
   window.addEventListener("mousemove", (e) => {
     if (!sizing) return;
-    // A mouseup the window never saw — released outside it, or swallowed by
-    // another handler — would otherwise leave every later mouse move resizing
-    // the panel. `buttons` is the state, not the event, so it recovers.
+    // `buttons` is state, not the event, so a mouseup the window never saw cannot leave every later move resizing.
     if (!e.buttons) { sizing = false; return; }
     const w = clamp(window.innerWidth - e.clientX, 360, Math.round(window.innerWidth * 0.92));
     $("#main").style.setProperty("--src-w", `${w}px`);

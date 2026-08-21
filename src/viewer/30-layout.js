@@ -1,8 +1,6 @@
 /* ════════════════════ layout ════════════════════ */
 let LAYOUT = { nodes: [], districts: [], servicePlates: [], bbox: null };
-// Bumped whenever a drag commits. The raster cache keys on what the static
-// layer LOOKS like, and node count alone cannot see a district that moved
-// without changing size — so the epoch is what tells it something did.
+// Bumped on every committed drag: the raster cache key cannot otherwise see a district that moved without changing size.
 let layoutEpoch = 0;
 
 /** How far a reader has pulled a district, in cells. Absent means unmoved. */
@@ -11,9 +9,7 @@ const districtOffset = (id) => S.districtOffsets.get(id) ?? { dx: 0, dy: 0 };
 function relayout() {
   setDensity(S.density);
   const vis = visibleSet();
-  // Keyed by the district id the payload publishes, and carrying its service
-  // and layer rather than re-splitting the id: a service id may contain the
-  // separator, so parsing the key back apart would be a silent bug.
+  // Carries service and layer rather than re-splitting the id: a service id may contain the separator.
   const plots = new Map();
   for (const n of vis) {
     const k = districtId(n.service, n.layer);
@@ -26,11 +22,7 @@ function relayout() {
   const svcOrder = ATLAS.services.slice().sort((a, b) => a.order - b.order).map(s => s.id);
   const services = svcOrder.filter(s => vis.some(n => n.service === s));
 
-  // How a district packs its own members. The district GRID itself — service
-  // down, layer across — is not an option: those axes are the information
-  // design, and rearranging them would be a different diagram rather than a
-  // different look. What a reader gains from here is aspect: a wide district
-  // reads along the layer axis, a tall one reads down the service axis.
+  // Packing sets a district's aspect only; the service-down/layer-across grid is the information design and is not an option.
   const PACK = { grid: 1, wide: 1.9, tall: 0.5 }[S.packing] ?? 1;
   const cols = (n) => Math.max(1, Math.round(Math.sqrt(n) * PACK) || 1);
   const rowsOf = (n) => Math.ceil(n / cols(n));
@@ -85,9 +77,7 @@ function relayout() {
     };
   }).filter(Boolean);
 
-  // `ids` is what tells an overlay or a packet whether a node is on the map at
-  // all: a node selected from the panel may have been filtered out since, and
-  // its cached faces would still be sitting on it from an earlier layout.
+  // `ids` is how an overlay or packet tells a node is still on the map; stale cached faces outlive a filter change.
   LAYOUT = {
     nodes: vis, districts, servicePlates, bbox: null,
     ids: new Set(vis.map(n => n.id)),
@@ -99,25 +89,16 @@ function relayout() {
   staticDirty = true;
 }
 
-/**
- * Everything that depends on the camera angle and nothing that depends on the
- * layout. Rotating re-runs this; it does not repack districts or move a single
- * block. Hit testing needs no counterpart because it inverse-transforms to
- * world space and ray-casts these same polygons.
- */
+/** Camera-angle work only: rotating re-runs this and repacks nothing. Hit testing ray-casts these same polygons. */
 function reproject() {
   const vis = LAYOUT.nodes;
 
-  // Depth sort generalizes: order by projected ground depth, ties broken by
-  // projected x. At 45° both reduce to the gx+gy / gx ordering they replace.
+  // Depth sort by projected ground depth, ties broken by projected x, so it holds at any yaw.
   vis.sort((a, b) =>
     depthOf(a.gx, a.gy) - depthOf(b.gx, b.gy) ||
     screenXOf(a.gx, a.gy) - screenXOf(b.gx, b.gy));
 
-  // A face is drawn when it turns toward the camera, decided by the sign of its
-  // projected area rather than by which quadrant the yaw is in. The quadrant
-  // test only ever worked for a four-sided footprint aligned to the axes; this
-  // one is total, so an eight-sided or stepped block is not a special case.
+  // Facing is the sign of the projected area, not a yaw quadrant test, so eight-sided and stepped blocks are not special cases.
   const facesCamera = (poly) => {
     let a = 0;
     for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -138,14 +119,12 @@ function reproject() {
       const z0 = h * prism.z0, z1 = h * prism.z1;
       const ring = prism.pts.map(([dx, dy]) => [gx + dx, gy + dy]);
 
-      // Sides first, then the cap: within one prism that is already
-      // back-to-front, and the prisms themselves are listed bottom-up.
+      // Sides then cap is already back-to-front within a prism, and prisms are listed bottom-up.
       for (let i = 0; i < ring.length; i++) {
         const [ax, ay] = ring[i], [bx, by] = ring[(i + 1) % ring.length];
         const quad = [P(ax, ay, z1), P(bx, by, z1), P(bx, by, z0), P(ax, ay, z0)];
         if (!facesCamera(quad)) continue;
-        // Two shades so adjacent walls read apart, keyed to which way the wall
-        // runs rather than to a fixed left/right that a rotation invalidates.
+        // Shade keys off which way the wall runs, not a fixed left/right that rotating would invalidate.
         faces.push({ pts: quad, shade: Math.abs(bx - ax) > Math.abs(by - ay) ? -0.42 : -0.22 });
       }
       faces.push({ pts: ring.map(([x, y]) => P(x, y, z1)), shade: 0, cap: true });
@@ -155,9 +134,7 @@ function reproject() {
     n.top = P(gx + 0.5, gy + 0.5, h);
   }
 
-  // Accumulated, not spread. `Math.min(...pts)` passes one argument per point —
-  // eight per node — and blows the argument limit into a RangeError somewhere
-  // around 8k nodes, which is a crash on exactly the repos worth drawing.
+  // Accumulated, not spread: `Math.min(...pts)` hits the argument limit and throws RangeError around 8k nodes.
   let bbox = null;
   if (vis.length) {
     bbox = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
@@ -172,9 +149,7 @@ function reproject() {
       }
     }
   }
-  // Plates are part of the picture, so they are part of what the camera frames.
-  // Without them a row whose plate reaches past its tallest block gets cropped,
-  // and so does the tab hanging off that plate's corner.
+  // Plates extend the bbox, or a row whose plate reaches past its tallest block gets cropped.
   if (bbox) {
     for (const p of LAYOUT.servicePlates) {
       for (const [gx, gy] of [[p.x0, p.y0], [p.x1, p.y0], [p.x1, p.y1], [p.x0, p.y1]]) {
@@ -191,26 +166,14 @@ function reproject() {
 }
 
 
-/**
- * The rectangle a district would occupy if it were pulled to `off`.
- *
- * `d`'s own rect already carries its current offset, since relayout() applied
- * it, so this is the delta from there rather than from the computed position.
- */
+/** The rect a district would occupy at `off`; `d`'s rect already carries its current offset, so this is a delta. */
 function districtRectAt(d, off) {
   const cur = districtOffset(d.id);
   const sx = (off.dx - cur.dx) * SPACING, sy = (off.dy - cur.dy) * SPACING;
   return { x0: d.x0 + sx, y0: d.y0 + sy, x1: d.x1 + sx, y1: d.y1 + sy };
 }
 
-/**
- * Would this drop land on top of a neighbour?
- *
- * Districts are allowed to be rearranged, not to be stacked: two districts on
- * the same cells put two blocks on one lattice point, and the depth sort has no
- * answer for that. A refused drop springs back, which is a smaller thing to
- * explain than a map that quietly draws one block over another.
- */
+/** Districts may be rearranged, never stacked: two on the same cells put two blocks on one lattice point and the depth sort has no answer. */
 function districtWouldOverlap(id, off) {
   const me = LAYOUT.districts.find((x) => x.id === id);
   if (!me) return false;
@@ -218,18 +181,11 @@ function districtWouldOverlap(id, off) {
   return LAYOUT.districts.some((o) => o.id !== id && r.x0 < o.x1 && o.x0 < r.x1 && r.y0 < o.y1 && o.y0 < r.y1);
 }
 
-/**
- * Commit a drag. Returns false, and moves nothing, if the drop overlaps.
- *
- * buildPackets() is not optional: a packet's arc is frozen from its endpoints'
- * projected tops when the packet is built, so a district that moves without it
- * leaves every flow arc pointing at where the district used to be.
- */
+/** Commit a drag, or return false and move nothing if the drop overlaps. Relayout rebuilds packets, whose arcs are frozen at build time. */
 function moveDistrict(id, cells) {
   const cur = districtOffset(id);
   const next = { dx: cur.dx + cells.dx, dy: cur.dy + cells.dy };
-  // A drag that ended where it started is a click with a wobble in it. Bumping
-  // the epoch for it would re-rasterise the whole city to draw the same picture.
+  // A drag that ended where it started is a wobbly click; bumping the epoch would re-raster the city for the same picture.
   if (next.dx === cur.dx && next.dy === cur.dy) return true;
   if (districtWouldOverlap(id, next)) return false;
   if (next.dx === 0 && next.dy === 0) S.districtOffsets.delete(id);

@@ -6,15 +6,7 @@ function selectStep(st) {
   renderInspect();
 }
 
-/**
- * Enter a flow from a node that lies on it.
- *
- * Two details are what make this feel like it understood the question rather
- * than merely being wired up. It opens at *this node's* hop, not hop 1 — you
- * came from somewhere, and the tool knows where. And the node you came from
- * stays selected, so it keeps its silhouette through the trace and you never
- * lose the thing you were asking about.
- */
+/** Enter a flow from a node on it, opening at that node's hop rather than hop 1 and keeping it selected. */
 function enterFlow(flowId, fromId) {
   const f = flowById.get(flowId);
   if (!f) return;
@@ -38,14 +30,11 @@ function renderInspect() {
   const b = $("#insBody");
   b.innerHTML = "";
 
-  // A lit finding owns the panel until you click past it — into one of its own
-  // evidence rows, or onto a block on the map. Both of those set `selected`,
-  // and the map keeps the highlight while you read what you clicked.
+  // A lit finding owns the panel until something sets `selected`, which is any click past it.
   const finding = S.selected || S.pinnedPacket ? null : findSelected();
   if (finding) { renderFinding(b, finding); return; }
 
-  // The composer owns the panel in the request view, until you click a packet
-  // or a block — both of which are questions about the path it just played.
+  // The composer owns the request view's panel until a packet or block asks about the path it played.
   if (viewKind(S.view) === "request" && !S.pinnedPacket && !S.selected) { renderComposer(b); return; }
 
   if (S.pinnedPacket) {
@@ -56,9 +45,7 @@ function renderInspect() {
     const dl = el("dl", "kv");
     const add = (k, v) => { dl.append(el("dt", null, k), el("dd", null, v)); };
     add("KIND", st.kind);
-    // A derived hop carries how it was justified. The canvas already says it in
-    // weight and dash; spelling it out is what turns "that line looks thinner"
-    // into a fact you can quote.
+    // The canvas says certainty in weight and dash; spelling it out makes it quotable.
     if (st.certainty) add("CERTAINTY", CERTAINTY_LABEL[st.certainty] ?? st.certainty);
     add("FROM", byId.get(st.from)?.name ?? st.from);
     add("TO", byId.get(st.to)?.name ?? st.to);
@@ -69,9 +56,7 @@ function renderInspect() {
       const pre = el("pre", "sample", JSON.stringify(st.sample, null, 2));
       b.append(pre);
     }
-    // The hop's justifying import, when there is one. An inferred hop crossed a
-    // gap in the import graph and has no line to open — so it is offered no
-    // button, rather than one that lands somewhere plausible.
+    // An inferred hop crossed a gap in the import graph and has no line to open, so it gets no button at all.
     const justifies = srcHopImport(st);
     const hop = justifies && srcJump("⤷ IMPORT IN", justifies.path, justifies.line);
     if (hop) b.append(hop);
@@ -104,15 +89,12 @@ function renderInspect() {
 
   const n = byId.get(S.selected);
   if (!n) {
-    // Names the current view by its own label rather than a hardcoded one: a
-    // config can rename any view, and prose pointing at a button that does not
-    // exist is worse than prose that says less.
+    // The view's own label, since a config can rename any view.
     const here = viewById.get(S.view)?.label ?? "this view";
     b.append(el("div", "hint", `Choose a block in the map, a district on the left, or click a moving packet. The packets follow real relationships — imports in ${here}, curated call order in a flow view.`));
     return;
   }
 
-  // Eyebrow, title, meta — what kind of thing, what it is called, how big.
   b.append(el("div", "eyebrow", (layerById.get(n.layer)?.label ?? n.layer).toUpperCase()));
   b.append(el("div", "title", n.name));
   if (n.kind === "file") {
@@ -122,8 +104,7 @@ function renderInspect() {
   }
   b.append(el("div", "path", n.id));
   const dl = el("dl", "kv");
-  // `why` is the rule that placed this node. Showing it is what turns "the tool
-  // put my file in the wrong column" into a config edit instead of a bug report.
+  // `why` is the rule that placed this node, which makes a misclassification a config edit rather than a bug report.
   const add = (k, v, why) => {
     const dd = el("dd", null, v);
     if (why) dd.append(el("div", "why", why));
@@ -141,8 +122,7 @@ function renderInspect() {
   if (n.subject) add("COVERS", byId.get(n.subject)?.name ?? n.subject);
   b.append(dl);
 
-  // Read the thing itself. An endpoint opens the file at the line that declares
-  // the route; a file opens at its top; a test offers the file it covers.
+  // An endpoint opens at its route line, a file at its top, a test at what it covers.
   const ep = n.kind === "endpoint" ? srcEndpoint(n.id) : null;
   for (const jump of [
     ep ? srcJump("⤷ ROUTE IN", ep.definedIn, ep.line) : null,
@@ -160,9 +140,7 @@ function renderInspect() {
     b.append(el("div", "note" + (n.coverage === "none" ? " warn" : ""), `COVERAGE: ${n.coverage.toUpperCase()} — ${txt}`));
   }
 
-  // TRAVELLED BY is a control, not a label: it is the way from *a thing* to
-  // *what happens to that thing*. Absent when nothing passes through, which is
-  // most nodes — an empty section reads as a broken panel, not as an honest one.
+  // Absent rather than empty when no flow passes through: an empty section reads as a broken panel.
   if (n.travelledBy?.length) {
     b.append(el("h3", null, "TRAVELLED BY"));
     const w = el("div");
@@ -192,8 +170,7 @@ function renderInspect() {
       const t = byId.get(e[key]);
       const r = el("div", "row mini");
       r.append(el("span", "nm", t?.name ?? e[key]), el("span", "sub", e.kind));
-      // The import statement lives in the edge's `from` file, whichever
-      // direction this list is reading the edge from.
+      // The import statement lives in the edge's `from` file, whichever direction this list reads it.
       const jump = srcJump(null, e.line ? e.from : null, e.line);
       if (jump) r.append(jump);
       r.onclick = () => { S.selected = e[key]; S.pinnedPacket = null; renderInspect(); };

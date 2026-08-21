@@ -3,28 +3,12 @@ const cv = $("#cv"), ctx = cv.getContext("2d");
 const off = document.createElement("canvas"), octx = off.getContext("2d");
 let staticDirty = true, W = 0, H = 0, DPR = 1;
 
-/**
- * The static layer — plates, districts, ambient edges, blocks, labels — is
- * cached in WORLD space, not screen space.
- *
- * Screen-space caching was worth nothing: panning changes the screen position
- * of every pixel, so the cache was invalidated on every drag frame and the
- * whole city was redrawn at 60 Hz. In world space a pan is a different blit
- * offset and costs one drawImage.
- *
- * Zoom still changes the rasterisation, so the cache is rendered at a quantized
- * scale — a mip level — and re-rendered only when the zoom crosses a bucket.
- * Between buckets the blit scales the bitmap, at most ~13% off true size.
- */
+/** The static layer caches in WORLD space, so a pan is a blit offset rather than a full re-raster; zoom re-renders only when it crosses a mip bucket. */
 const CACHE = { key: "", scale: 0, x0: 0, y0: 0, w: 1, h: 1 };
 const MAX_CACHE_SIDE = 8192;   // hard limit on the backing store, per side
-// And a total-area budget. The per-side limit alone still permits a square
-// 8192x8192 store — 268 MB — which on a small machine is a failed allocation
-// rather than a slow frame. `deviceMemory` is a browser hint, in GB.
+// Area budget too: the per-side limit alone permits a 268 MB store, which is a failed allocation on a small machine.
 const MAX_CACHE_PIXELS = ((globalThis.navigator?.deviceMemory ?? 8) >= 8 ? 32 : 8) * 1e6;
-// Slack for labels and plate tabs, which are drawn in SCREEN px and therefore
-// cover more world px the further out you are: a fixed world-space pad crops
-// exactly the long service tab at exactly the zoom you first see it at.
+// Slack for labels and plate tabs, drawn in screen px and so covering more world px the further out you are.
 const CACHE_PAD = 220;         // world px at 1:1, scaled below
 
 /** Third-octave buckets: a re-render every ~26% of zoom, not every frame. */
@@ -42,9 +26,7 @@ function resize() {
 /** Everything that changes what the static layer looks like, but not where it sits. */
 function cacheKey() {
   const o = S.opts;
-  // Selection and hover are deliberately NOT here. They used to be, which made
-  // clicking a block re-rasterise the entire city and made a hover state
-  // unaffordable at any frame rate. They are drawn in the live pass instead.
+  // Selection and hover are deliberately absent: they belong to the live pass, or a click would re-raster the whole city.
   return [
     S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, S.isolate,
     S.shape, S.packing, S.density, S.ground, LAYOUT.nodes.length, layoutEpoch,
@@ -65,9 +47,7 @@ const same = (p) => p;
 /** One block, in whatever space `map` puts it — world for the raster, screen for the overlay. */
 function drawBlock(x, n, map, lw) {
   const base = colorOf(n);
-  // Already ordered back-to-front by reproject(), and already filtered to the
-  // faces that turn toward the camera — so this draws whatever the shape is
-  // without knowing which shape it is.
+  // reproject() already ordered and culled the faces, so this draws any shape without knowing which.
   for (const f of n.faces) {
     quad(x, f.pts.map(map), shade(base, f.shade), alpha(THEME.edge, f.cap ? .58 : .45), lw);
   }
@@ -82,13 +62,7 @@ function dimOf(n) {
   return false;
 }
 
-/**
- * The projected corner of a plate that `better` prefers.
- *
- * Which corner is nearest, or leftmost, depends on the camera angle, so a tab
- * cannot be pinned to a fixed one. Picking it per plate is what keeps the
- * labels outside the blocks through a full rotation.
- */
+/** The plate corner `better` prefers; which corner is nearest or leftmost depends on yaw, so it cannot be pinned. */
 function cornerOf(p, better) {
   let best = null;
   for (const [gx, gy] of [[p.x0, p.y0], [p.x1, p.y0], [p.x1, p.y1], [p.x0, p.y1]]) {
@@ -98,12 +72,7 @@ function cornerOf(p, better) {
   return best;
 }
 
-/**
- * A label on a leader line back to the corner it names.
- *
- * Anchoring beats floating: an unanchored district title drifts into the blocks
- * as soon as the layout changes, which it does on every filter and every toggle.
- */
+/** A label on a leader line back to the corner it names, so it cannot drift into the blocks when the layout changes. */
 function tab(x, at, dx, dy, text, px) {
   x.save();
   x.globalAlpha = 0.55;
@@ -117,14 +86,7 @@ function tab(x, at, dx, dy, text, px) {
   x.fillText(text, at.x + dx + (dx < 0 ? -px(3) : px(3)), at.y + dy + (dy > 0 ? px(3) : 0));
 }
 
-/**
- * The ground plane, in world space and under everything.
- *
- * It does three jobs: it stops the blocks reading as floating, it gives the
- * only depth cue a flat-shaded axonometric view has, and it gives the eye a
- * fixed reference during a pan. Stepped by the layout's own grid unit, so the
- * lines run through the block origins instead of near them.
- */
+/** The ground plane: the only depth cue a flat-shaded axonometric view has, stepped by the layout's own grid unit so lines run through block origins. */
 function drawGrid(x, ext, px) {
   if (!S.ground || !LAYOUT.servicePlates.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -138,10 +100,7 @@ function drawGrid(x, ext, px) {
   x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
 
   x.save();
-  // Faint on purpose: the grid is the ground, and it must never compete with
-  // the blocks standing on it. The order that has to hold, lightest first, is
-  // grid << plate < block fill < block stroke — on the old cream ground .22
-  // read as texture, on white it read as a second set of edges.
+  // Faint on purpose; the order that must hold, lightest first, is grid << plate < block fill < block stroke.
   x.strokeStyle = alpha(THEME.plate, .11);
   x.lineWidth = px(1);
   x.beginPath();
@@ -155,8 +114,7 @@ function drawGrid(x, ext, px) {
   }
   x.stroke();
 
-  // Fade to the ground colour toward the edges, so the grid never competes with
-  // the city and never announces where the layout happens to stop.
+  // Fade to the ground colour at the edges, so the grid never announces where the layout happens to stop.
   const c = project((x0 + x1) / 2, (y0 + y1) / 2, 0);
   const r = Math.max(ext.w, ext.h) / 2;
   const fade = x.createRadialGradient(c.x, c.y, r * 0.25, c.x, c.y, r);
@@ -167,11 +125,7 @@ function drawGrid(x, ext, px) {
   x.restore();
 }
 
-/**
- * World extent to cache: the blocks, the plates under them, and slack for text.
- * Memoized — it only moves on relayout, rotation or a mip change, but the veil
- * passes ask for it every frame.
- */
+/** World extent to cache, memoized: it moves only on relayout, rotation or a mip change, but the veil passes ask every frame. */
 let extentMemo = { key: null, ext: null };
 function cacheExtent() {
   const key = `${layoutEpoch}|${S.yaw}|${mipScale(S.zoom)}`;
@@ -199,8 +153,7 @@ function computeExtent() {
 
 function drawStatic() {
   const ext = cacheExtent();
-  // Fit the backing store to the budget rather than the wish: a very large repo
-  // at a very high zoom would otherwise ask for a canvas no browser will give.
+  // Fit the backing store to the budget: a large repo at a high zoom would ask for a canvas no browser gives.
   const wanted = mipScale(S.zoom);
   const bySide = MAX_CACHE_SIDE / (Math.max(ext.w, ext.h) * DPR);
   const byArea = Math.sqrt(MAX_CACHE_PIXELS / Math.max(1, ext.w * ext.h * DPR * DPR));
@@ -216,8 +169,7 @@ function drawStatic() {
   const m = scale * DPR;
   octx.setTransform(m, 0, 0, m, -ext.x0 * m, -ext.y0 * m);
 
-  // Screen-space sizes have to be divided back out, since the transform scales
-  // strokes and glyphs along with geometry.
+  // Screen-space sizes divide back out, since the transform scales strokes and glyphs with the geometry.
   const px = (v) => v / scale;
   const zf = scale;                      // the zoom this raster is drawn for
 
@@ -229,9 +181,7 @@ function drawStatic() {
   for (const p of LAYOUT.servicePlates) {
     quad(octx, [project(p.x0, p.y0, 0), project(p.x1, p.y0, 0), project(p.x1, p.y1, 0), project(p.x0, p.y1, 0)],
       alpha(THEME.plate, .075), alpha(THEME.plate, .16), px(1));
-    // Anchored to the plate's leftmost corner and leaning further left, so the
-    // service name leaves the blocks alone. The old caption sat on the far
-    // corner, which at this camera angle is behind them.
+    // Anchored to the plate's leftmost corner and leaning further left, so the service name leaves the blocks alone.
     octx.save();
     octx.fillStyle = alpha(INK, .62);
     octx.font = `600 ${px(clamp(11 * zf, 8, 15))}px ${FONT}`;
@@ -243,8 +193,7 @@ function drawStatic() {
     const dim = S.focusDistrict && S.focusDistrict !== d.id;
     quad(octx, [project(d.x0, d.y0, 0), project(d.x1, d.y0, 0), project(d.x1, d.y1, 0), project(d.x0, d.y1, 0)],
       alpha(THEME.plate, dim ? .05 : .13), alpha(THEME.plate, .2), px(1));
-    // On the NEAREST corner, and below it: everything the district contains is
-    // drawn behind that corner, so a tab there cannot be overdrawn.
+    // On the nearest corner and below it: everything the district contains draws behind there, so the tab cannot be overdrawn.
     if (zf > 0.3) {
       octx.save();
       octx.fillStyle = alpha(INK, dim ? .28 : .55);
@@ -255,9 +204,7 @@ function drawStatic() {
     }
   }
 
-  // Ambient edges sit on the ground, under the blocks. Bucketed by style so the
-  // stroke state is set once per bucket instead of once per edge — with a
-  // save()/restore() pair each, that was the single hottest loop here.
+  // Bucketed by style so stroke state is set once per bucket, not once per edge — the hottest loop here.
   if (!playsFlow(S.view)) {
     const buckets = new Map();
     for (const e of LAYOUT.edges) {
@@ -295,8 +242,7 @@ function drawStatic() {
   }
   octx.globalAlpha = 1;
 
-  // Labels in a second pass, nearest first, so a foreground block never paints
-  // over a label and colliding labels drop out instead of turning to mush.
+  // Labels in a second pass, nearest first, so colliding labels drop out instead of turning to mush.
   const showLabels = S.opts.labels && zf >= 0.55;
   const size = clamp(10 * zf, 8, 13);
   const taken = [];
@@ -316,8 +262,7 @@ function drawStatic() {
   octx.font = `${px(size)}px ${FONT}`;
   octx.fillStyle = alpha(INK, .92);
 
-  // The selected node no longer gets a special case here: its label is part of
-  // the live overlay, so it survives labels being off and zoomed past.
+  // No special case for the selected node: its label is live overlay, so it survives labels being off.
   for (let i = LAYOUT.nodes.length - 1; showLabels && i >= 0; i--) {
     const n = LAYOUT.nodes[i];
     if (dimOf(n)) continue;
@@ -344,32 +289,7 @@ function drawArc(x, arc, style, alpha) {
   x.restore();
 }
 
-/**
- * How sure the tool is that a hop happens, in line weight and dash.
- *
- * derive.mjs grades every hop of a derived path `wired` (a mount registration
- * the scan actually read), `imported` (a real import edge runs the same way) or
- * `inferred` (a gap — nothing in the graph justifies it). All three used to
- * draw identically while the flow blurb promised dotted for the gaps, so a
- * guess read exactly like a proof. That is the one thing the honesty contract
- * forbids.
- *
- * Weight and dash carry it, never colour: colour is already spoken for by the
- * step's kind (request vs response vs io), and the palette lives in the payload
- * theme, not here. Certainty is a second channel over the top of it — thick and
- * solid for proven, hairline and dotted for admitted guesswork — so the two
- * readings survive together.
- *
- * Opacity only trims, and is deliberately the weakest of the three. A step that
- * is not the current one already draws at 0.16, and much below that it stops
- * being drawn at all against a dark ground. An invisible hop reads as a path
- * that does not have that hop — which makes the map look SURER than it is, the
- * honesty contract failing backwards. A guess has to stay legible enough to be
- * doubted.
- *
- * A curated flow step has no certainty and is returned its table style
- * untouched.
- */
+/** Certainty rides on weight and dash, never colour (kind owns colour) and barely on opacity: an invisible hop would read as a path without that hop, making the map look surer than it is. */
 const CERTAINTY_STYLE = {
   wired:    { wMul: 1.55, aMul: 1,    dash: null },
   imported: { wMul: 1,    aMul: 0.94, dash: null },
@@ -395,14 +315,7 @@ function drawDiamond(x, p, r, fill) {
   x.closePath(); x.fillStyle = fill; x.fill();
 }
 
-/**
- * Where an alt-drag would drop the district, drawn in the LIVE pass.
- *
- * Same reason selection and hover live here: a drag changes on every mouse
- * move, and baking it into the world cache would re-rasterise the city per
- * frame. A refused drop is drawn in the error colour rather than just springing
- * back, so "nothing happened" is never the whole of the feedback.
- */
+/** The drop preview draws live, since a drag changes per mouse move; a refused drop is coloured, so "nothing happened" is never the whole feedback. */
 function drawDragGhost() {
   const d = S.dragDistrict && LAYOUT.districts.find((x) => x.id === S.dragDistrict);
   if (!d) return;
@@ -429,15 +342,7 @@ function drawDragGhost() {
   ctx.restore();
 }
 
-/**
- * Convex hull of a point set, monotone chain.
- *
- * A block in axonometric projection silhouettes to a hexagon whose vertices are
- * six of its eight projected corners. There is a closed form, but it has to
- * case on which quadrant the camera is in; a hull is total at every yaw for the
- * same dozen lines. It runs for the one or two nodes an overlay touches, never
- * per node per frame.
- */
+/** Convex hull, monotone chain: total at every yaw, unlike a closed form that must case on the camera quadrant, and run only for the nodes an overlay touches. */
 function hullOf(pts) {
   const p = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
   const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
@@ -452,38 +357,19 @@ function hullOf(pts) {
   return half(p).slice(0, -1).concat(half(p.reverse()).slice(0, -1));
 }
 
-/**
- * The block's ground footprint — the widest prism in the shape, at z=0, which
- * is what the eye reads as the thing standing on the plate.
- */
+/** The block's ground footprint: the widest prism in the shape, at z=0. */
 function footprintOf(n) {
   const shape = SHAPES[S.shape] ?? SHAPES.block;
   const widest = shape.prisms.reduce((a, b) => (b.pts.length >= a.pts.length && b.z0 <= a.z0 ? b : a));
   return widest.pts.map(([dx, dy]) => project(n.gx + dx, n.gy + dy, 0));
 }
 
-/**
- * The outline of whatever was actually drawn. Taken from the face list rather
- * than from a rectangle assumed around the node, so the selection ring cannot drift
- * away from the shape under it.
- */
+/** The outline of what was actually drawn, taken from the face list, so the selection ring cannot drift off the shape. */
 function silhouetteOf(n) {
   return hullOf(footprintOf(n).concat(n.faces.flatMap((f) => f.pts)));
 }
 
-/**
- * The flow trace, as a veil over the cached city rather than a second raster.
- *
- * The dim tiers live in the static layer, so easing them there would
- * re-rasterise the whole map every frame. Veiling the viewport and redrawing
- * what should stay bright costs one fillRect and a handful of blocks, and the
- * ease comes free — which matters, because the transition is what tells you the
- * map changed rather than reloaded.
- *
- * Not everything dims equally. The grid comes back at full strength so the
- * frame survives; off-path blocks drop to the veil; off-path labels and codes
- * are simply not redrawn, because dimmed text is unreadable rather than quiet.
- */
+/** The trace is a veil plus the bright blocks redrawn, not a second raster: dimming inside the static layer would re-raster every frame. */
 let veil = 0;
 
 function drawTrace() {
@@ -494,8 +380,7 @@ function drawTrace() {
   ctx.fillRect(0, 0, W, H);
   ctx.globalAlpha = 1;
 
-  // The grid, redrawn in world space through the live transform — the same
-  // function the raster uses, so the two can never disagree.
+  // The same grid function the raster uses, through the live transform, so the two can never disagree.
   ctx.save();
   ctx.setTransform(DPR * S.zoom, 0, 0, DPR * S.zoom, DPR * S.panX, DPR * S.panY);
   ctx.globalAlpha = veil * 0.8;
@@ -520,21 +405,7 @@ function drawTrace() {
   ctx.restore();
 }
 
-/**
- * Selection, hover and flow membership, drawn AFTER the city is blitted.
- *
- * Two reasons it lives here and not in the static layer. It is state, and state
- * changes on every interaction — baking it into the world cache meant one click
- * re-rasterised everything. And an overlay is allowed to ignore the painter's
- * algorithm: a silhouette chewed up by the block in front of it is
- * depth-realistic and illegible, and legibility wins here and only here.
- *
- * Selection gets the full silhouette AND a footprint ring on the ground,
- * because the top face is barely a third of a tall block's area and much less
- * of a short one's. The ring is what makes a one-storey block as legible as a
- * tower. Hover gets a lighter silhouette and no ring, so the two never read the
- * same.
- */
+/** Drawn after the blit, not baked into the cache: state changes per interaction, and an overlay may ignore the painter's algorithm to stay legible. */
 function drawOverlay() {
   const pick = (id) => (id && LAYOUT.ids.has(id) ? byId.get(id) : null);
   const sel = pick(S.selected);
@@ -548,9 +419,7 @@ function drawOverlay() {
     ctx.globalAlpha = 1;
     quad(ctx, silhouetteOf(sel).map(toScreen), null, THEME.accent, 2);
 
-    // The name on a chip rather than a haloed string: at this size the halo is
-    // what the static layer uses to survive a busy background, and the overlay
-    // has one solid colour available that nothing else on the map uses.
+    // A chip rather than a halo: the overlay has one solid colour nothing else on the map uses.
     const s = toScreen(sel.top);
     ctx.font = `600 11px ${FONT}`;
     ctx.textAlign = "center";
@@ -575,8 +444,7 @@ function draw() {
   const o = toScreen({ x: CACHE.x0, y: CACHE.y0 });
   ctx.drawImage(off, 0, 0, off.width, off.height, o.x, o.y, CACHE.w * S.zoom, CACHE.h * S.zoom);
   drawTrace();
-  // Before the overlay, after the city: a finding veils the map, and the
-  // selection ring has to stay legible on top of the veil.
+  // After the city, before the overlay, so the selection ring stays legible on top of a finding's veil.
   drawFindings();
   drawLive();
   drawDragGhost();
@@ -637,12 +505,7 @@ function draw() {
   }
 }
 
-/**
- * Everything a frame's appearance depends on that is NOT already in cacheKey().
- * Compared against the last frame so a still map costs a string instead of a
- * full redraw. Both veils are in here, so an easing transition keeps drawing
- * without needing a flag of its own.
- */
+/** Everything a frame's appearance depends on beyond cacheKey(); comparing it to last frame is what lets a still map cost a string instead of a redraw, and both veils are in it so an ease keeps drawing. */
 function frameSig() {
   const r = S.request?.live;
   return `${cacheKey()}|${W}x${H}|${S.zoom}|${S.panX}|${S.panY}|${S.selected}|${S.hover}|${S.finding}|${S.dragDistrict}|${S.dragCells.dx},${S.dragCells.dy}|${veil.toFixed(3)}|${findVeil.toFixed(3)}|${r ? `${r.status},${r.ms}` : ""}`;
@@ -653,17 +516,14 @@ let lastSig = null;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  // Eased, not cut: the transition is what says the map changed rather than
-  // reloaded. Nothing else in the frame depends on it, so it never invalidates.
-  // Nothing to veil when the map holds only the flow already.
+  // Eased, not cut: the transition is what says the map changed rather than reloaded.
   const target = playsFlow(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
   veil += (target - veil) * Math.min(1, dt * 7);
   easeFindings(dt);
   const playing = (S.running || S.stepBudget > 0) && (runners.length || ambient.length);
   if (S.running || S.stepBudget > 0) advance(dt);
 
-  // A still map draws nothing. Packet motion is the one thing frameSig cannot
-  // see, so it is asked for separately; everything else changes the signature.
+  // A still map draws nothing; packet motion is the one thing frameSig cannot see, so it is asked for separately.
   const sig = frameSig();
   if (playing || staticDirty || sig !== lastSig) {
     lastSig = sig;

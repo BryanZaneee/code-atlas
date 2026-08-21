@@ -4,36 +4,13 @@ const HW = TW / 2;                      // half-width of a ground cell, in scree
 const K = TH / TW;                      // 0.5 — the vertical squash, held fixed
 const YAW0 = Math.PI / 4;               // the classic isometric angle
 const YAW_STEP = Math.PI / 12;          // 15° per keypress
-// The iso diamond is always 2:1 no matter how the grid is arranged, so the only
-// lever on legibility is total cell count. Blocks are 1 cell; SPACING leaves the
-// remainder as the gap, and it must stay > 1 or footprints overlap and the
-// depth sort stops being exact.
-//
-// These are a density preset, not constants — `setDensity()` below writes them
-// from the payload's table, and `relayout()` calls it before it reads them.
+// Density preset, written by setDensity(); must stay > 1 or footprints overlap and the depth sort stops being exact.
 let SPACING = 1.5, GUT_LAYER = 2, GUT_SVC = 2.5;
 
-// The floor under any spacing a preset or a config can ask for. Below 1 a
-// block's footprint spills out of its own cell, the painter's-order depth sort
-// stops being exact, and hit testing starts disagreeing with what was drawn —
-// a map you can click on and be lied to by. Clamped rather than validated:
-// a too-tight atlas is a preference, a wrong one is a bug.
+// Below 1 a footprint spills out of its cell and hit testing starts disagreeing with what was drawn.
 const SPACING_MIN = 1.05;
 
-/**
- * Block shapes, as a list of prisms.
- *
- * One shape is a stack of extruded footprints: `pts` is a convex polygon in the
- * unit cell, `z0`/`z1` are fractions of the block's height. A plain box is one
- * prism over the whole cell; a stepped form is three, each inset a little more.
- * Generalising to prisms rather than special-casing each silhouette is what
- * keeps hit testing, the selection hull and the renderer reading the SAME
- * geometry — three places that fall out of agreement the moment a shape is
- * drawn from anything but the faces the picker tests.
- *
- * Footprints stay inside the unit cell on purpose: SPACING > 1 is what makes
- * the depth sort exact, and a shape wider than its cell would break it.
- */
+/** Block shapes as stacked prisms; `pts` never leaves the unit cell, or the depth sort breaks. One geometry for renderer, picker and hull. */
 const inset = (m) => [[m, m], [1 - m, m], [1 - m, 1 - m], [m, 1 - m]];
 const ngon = (k, r) => Array.from({ length: k }, (_, i) => {
   const a = (i / k) * Math.PI * 2 + Math.PI / k;
@@ -53,10 +30,7 @@ const SHAPES = {
 };
 const SHAPE_IDS = Object.keys(SHAPES);
 
-// Everything below comes from the payload. Canvas cannot read CSS custom
-// properties, so the viewer needs real values in JS — but it must not be the
-// place they are DEFINED, or the tool ends up knowing one repository's palette
-// and one repository's view names. See src/model/chrome.mjs.
+// Canvas cannot read CSS custom properties, so these arrive from the payload; they are defined in src/model/chrome.mjs, never here.
 let THEME = ATLAS.theme;
 let INK = THEME.ink, BG = THEME.bg;
 const FONT = THEME.font;
@@ -75,12 +49,7 @@ const EDGE_STYLE = THEME.edgeStyle;
 const PACKET_COLOR = THEME.packetColor;
 const COVER_TINT = THEME.coverTint;
 
-/**
- * Dark is a delta over the base palette, not a second one: only the scalars
- * flip, and everything mixed from them at an alpha follows. Nothing here
- * touches the DOM, because this file runs before there is one — the caller
- * sets `data-theme` and marks the raster dirty.
- */
+/** Dark is a delta over the base palette. Touches no DOM: the caller sets `data-theme` and marks the raster dirty. */
 function applyTheme(mode) {
   THEME = mode === "dark" ? { ...ATLAS.theme, ...ATLAS.theme.dark } : ATLAS.theme;
   INK = THEME.ink;
@@ -91,8 +60,6 @@ const VIEWS = ATLAS.views;
 const viewById = new Map(VIEWS.map(v => [v.id, v]));
 const viewKind = (id) => viewById.get(id)?.kind ?? "structure";
 const isFlowView = (id) => viewKind(id) === "flow";
-// The request view plays a single armed path the same way a flow view plays
-// one of its own — isolation, dimming, packet building and stepping all key
-// off this, not off "flow", so the composer gets that machinery for free.
+// Isolation, dimming, packets and stepping key off this rather than "flow", so the request view gets that machinery too.
 const playsFlow = (id) => isFlowView(id) || viewKind(id) === "request";
 

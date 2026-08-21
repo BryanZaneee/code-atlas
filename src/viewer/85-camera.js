@@ -1,8 +1,5 @@
 /* ════════════════════ camera ════════════════════ */
-/**
- * `pad` leaves room for what the bounding box does not contain: the plate tabs
- * lean outside their own plate, and a cropped label is worse than a smaller map.
- */
+/** `pad` leaves room for what the bbox does not contain, such as plate tabs leaning outside their own plate. */
 function fitBox(b, pad = 0.94, reserveLeft = 0) {
   if (!b) return;
   const bw = Math.max(1, b.x1 - b.x0), bh = Math.max(1, b.y1 - b.y0);
@@ -12,12 +9,7 @@ function fitBox(b, pad = 0.94, reserveLeft = 0) {
   S.panY = H / 2 - ((b.y0 + b.y1) / 2) * S.zoom;
 }
 
-/**
- * A service tab hangs off the left of its plate in SCREEN space, so no amount
- * of world-space bounding box accounts for it — at a low zoom the same label is
- * many more world units wide. The frame reserves the measured width instead,
- * which is why the longest service name is not the one that gets cropped.
- */
+/** Service tabs hang off the plate in screen space, which no world-space bbox can cover, so the measured label width is reserved instead. */
 function fitView() {
   octx.font = `600 11px ${FONT}`;
   let reserve = 0;
@@ -25,9 +17,7 @@ function fitView() {
   fitBox(LAYOUT.bbox, 0.94, reserve ? reserve + 24 : 0);
 }
 function focusOn(d) {
-  // Accumulated rather than spread, for the same reason the bounding box is:
-  // a district with thousands of members would otherwise blow the argument
-  // limit on the way to framing itself.
+  // Accumulated, not spread: a district with thousands of members would blow the argument limit on the way to framing itself.
   if (!d.blocks.length) return;
   const b = { x0: Infinity, x1: -Infinity, y0: Infinity, y1: -Infinity };
   for (const n of d.blocks) {

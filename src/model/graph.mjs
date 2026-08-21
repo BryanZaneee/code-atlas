@@ -1,26 +1,8 @@
-/**
- * Import extraction and graph construction.
- *
- * This is the seam CLAUDE.md calls load-bearing: everything language-specific
- * happens inside an adapter, and everything from "the edge list exists" onward
- * is language-agnostic and lives here or in src/model/.
- *
- * Ordering is load-bearing too. Nodes follow the sorted path order and edges
- * follow node order, which is what makes two runs of the same input produce
- * byte-identical output — and therefore what makes a golden diff meaningful.
- */
+/** Import extraction and graph construction; node/edge order is sorted so output stays byte-identical. */
 import path from "node:path";
 import { adapterFor } from "../adapters/index.mjs";
 
-/**
- * The language a file is written in, from its extension.
- *
- * This used to be a three-way test with markdown as the else branch, which was
- * true only while the kept set was `.ts .py .sql .md`. Widen the keep pattern and
- * every unrecognised extension silently becomes prose: a Rust or JSX file gets
- * counted as documentation and drops out of `fileCount` and `lineCount`
- * entirely. Anything unknown is code we cannot name, not prose.
- */
+/** Language by extension; anything unknown falls back to "src" (code we cannot name), never to prose. */
 const LANGS = [
   [/\.tsx?$/, "ts"], [/\.[cm]?jsx?$/, "js"], [/\.py$/, "py"], [/\.go$/, "go"],
   [/\.rs$/, "rs"], [/\.rb$/, "rb"], [/\.java$/, "java"], [/\.kt$/, "kt"],
@@ -33,9 +15,7 @@ export function langOf(p) {
 }
 
 export function extractImports(ctx) {
-  // `unresolvedSpecs` is collected rather than warned about one line at a time:
-  // an import the tool could not place is a diagnostic, and a repository whose
-  // adapter is missing produces thousands of them. `atlas scan` prints them.
+  // Unplaceable imports are collected, not warned per line; `atlas scan` prints them.
   const stats = { resolved: 0, unresolved: 0, external: 0, unresolvedSpecs: [] };
   const imports = new Map();
 
@@ -44,21 +24,14 @@ export function extractImports(ctx) {
     ctx.progress?.("parse", `${++done}/${ctx.paths.length}`);
     const internal = new Set();
     const external = new Set();
-    // The line an import edge is drawn from, keyed by target id. A target can
-    // be imported on several lines of the same file; the adapter yields
-    // matches sorted by source position (see each adapter's `withLines`), so
-    // the first time an id reaches here is deterministically its earliest
-    // import — first occurrence in file order wins, and later lines for the
-    // same target are ignored rather than overwriting it.
+    // Import line by target id; adapters yield in source order, so first write wins.
     const lines = new Map();
     const adapter = adapterFor(p);
 
     for (const imp of adapter?.extractImports(ctx.src.get(p), p, ctx) ?? []) {
       const r = adapter.resolve(p, imp.spec, ctx, imp.symbols);
       if (r.kind === "internal") {
-        // ids is an array so one specifier can name many files — a barrel
-        // re-export is the case that shows up here first. Every id from one
-        // specifier shares that specifier's line.
+        // One specifier can name many files (barrel re-export); all share its line.
         for (const id of r.ids) {
           if (id === p) continue;
           internal.add(id);
@@ -84,8 +57,7 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
   const unclassified = [];
 
   for (const p of ctx.paths) {
-    // Provenanced: the rule that placed this file travels with it into the
-    // payload, so a misclassification is a config edit rather than a bug report.
+    // Provenanced: the placing rule travels into the payload, so misclassification is a config edit.
     const placed = layerOf(p);
     const svc = serviceOf(p);
     if (!placed.matched) unclassified.push(p);
@@ -167,9 +139,7 @@ export function buildEdges(nodes, { imports, endpoints, flows = [], extraEdges =
     if (!imp) continue;
     for (const t of imp.internal) {
       if (n.layer === "test") push(n.id, t, t === n.subject ? "test:subject" : "test:exercises");
-      // Only an "import" edge carries a line — it is the one kind this loop
-      // draws directly from an import statement; test edges reuse the same
-      // internal set but are not what jump-to-line means to open.
+      // Only "import" edges carry a line: they alone come straight from an import statement.
       else push(n.id, t, "import", { line: imp.lines.get(t) });
     }
     if (n.subject) push(n.id, n.subject, "test:subject");
@@ -190,28 +160,14 @@ export function buildEdges(nodes, { imports, endpoints, flows = [], extraEdges =
   return { edges, nodeIds };
 }
 
-/**
- * A short, stable name for a district: first letter of the service, then the
- * first letter of the layer that is still free.
- *
- * Two characters is the whole point — it is legible at any zoom and it never
- * collides with a neighbour's label, so nothing ever has to be dropped. It is
- * assigned per district and not per file deliberately: a repo draws hundreds of
- * file blocks, and hundreds of two-character codes are not a mapping anyone
- * learns. See PLAN.md, "The visual system".
- *
- * Preferring letters that actually occur in the layer name keeps the code
- * readable (`api/service` -> `AS`) before it falls back to brute force, and the
- * caller assigns in sorted id order so adding a file cannot reshuffle the rest.
- */
+/** Two-character district code: service initial plus a free layer letter. See PLAN.md "The visual system". */
 function codeFor(service, layer, taken) {
   const head = (service.match(/[a-z]/i)?.[0] ?? "x").toUpperCase();
   for (const c of (layer + "abcdefghijklmnopqrstuvwxyz0123456789").toUpperCase()) {
     if (!/[A-Z0-9]/.test(c)) continue;
     if (!taken.has(head + c)) return head + c;
   }
-  // 36 districts under one service letter, all colliding. Unreachable in
-  // practice, but a code is not allowed to be undefined.
+  // 36 colliding districts under one service letter: unreachable, but a code may not be undefined.
   return head + String(taken.size % 10);
 }
 
@@ -222,9 +178,7 @@ export function buildDistricts(nodes, layers) {
     const gid = `${n.service}/${n.layer}`;
     let g = byGid.get(gid);
     if (!g) {
-      // parentId is the district-hierarchy field PLAN.md ships ahead of the
-      // nested layout that consumes it: adding it now means that rewrite does
-      // not also break the payload contract.
+      // parentId ships ahead of the nested layout that consumes it, so that rewrite is not a contract break.
       g = { id: gid, service: n.service, layer: n.layer, parentId: n.service, code: "", label: layers.find((l) => l.id === n.layer)?.label ?? n.layer, members: [] };
       byGid.set(gid, g);
       districts.push(g);
@@ -232,9 +186,7 @@ export function buildDistricts(nodes, layers) {
     g.members.push(n.id);
   }
 
-  // Codes are assigned in sorted id order while the array keeps its own order:
-  // first-appearance order is deterministic for one input but moves when a file
-  // is added, and a code that moves is worse than no code at all.
+  // Assign in sorted id order, not appearance order, so adding a file cannot reshuffle codes.
   const taken = new Set();
   for (const g of [...districts].sort((a, b) => a.id.localeCompare(b.id))) {
     g.code = codeFor(g.service, g.layer, taken);

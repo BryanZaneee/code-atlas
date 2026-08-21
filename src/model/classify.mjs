@@ -1,19 +1,4 @@
-/**
- * Layer and service classification, with provenance.
- *
- * Every node records WHY it landed where it did — the rule that placed it, by
- * index and description. INSPECT shows it. That is the single cheapest thing
- * that makes a heuristic tool trustworthy: it turns "the tool put my file in
- * the wrong column" from a bug report into a config edit.
- *
- * Rules are data, not code, so a config can reorder or replace them without
- * the tool growing a branch for anybody's directory layout.
- *
- *   { layer, exts, dirs, names, nameRe, re, why }
- *
- * A rule matches if EVERY primitive it declares matches. First match wins, so
- * order is significant and is the config's to decide.
- */
+/** Layer and service classification. Rules are data `{layer, exts, dirs, names, nameRe, re, why}`; every primitive must match, first match wins. */
 
 /** Does one rule match this path? */
 function matches(rule, p, name, segments) {
@@ -37,11 +22,7 @@ function describe(rule) {
   return parts.join(" + ") || "always";
 }
 
-/**
- * Layer for a path. Total by construction: a path that matches no rule gets
- * the fallback, and says so. "Everything landed in tooling because no rule
- * matched" is a legible failure; a blank screen is not.
- */
+/** Layer for a path. Total: an unmatched path gets the fallback, and says so. */
 export function classifyLayer(p, rules, fallback = "tooling") {
   const name = p.split("/").pop() ?? "";
   const segments = p.split("/").slice(0, -1);
@@ -50,8 +31,7 @@ export function classifyLayer(p, rules, fallback = "tooling") {
       return { layer: rule.layer, why: `matched rule #${i + 1} — ${describe(rule)}`, matched: true };
     }
   }
-  // Directory-derived fallback: a directory name that IS a layer id is a better
-  // guess than giving up, and it is what makes an unconfigured repo legible.
+  // A directory named after a layer id beats giving up; it is what makes an unconfigured repo legible.
   const known = new Set(rules.map((r) => r.layer));
   const fromDir = segments.findLast((d) => known.has(d));
   if (fromDir) {
@@ -60,14 +40,7 @@ export function classifyLayer(p, rules, fallback = "tooling") {
   return { layer: fallback, why: "no rule matched, no layer-named directory", matched: false };
 }
 
-/**
- * Service for a path. **Total**: the returned id always exists in `services`.
- *
- * This is failure mode #1 in PLAN.md. The prototype returned "other" for
- * anything outside a known root, "other" was not in the services list, the
- * viewer filters by service, and every node vanished — with no checkbox left to
- * bring them back. A flat single-package repo rendered as a blank screen.
- */
+/** Service for a path. Total: the returned id always exists in `services`, or the viewer filters every node away. */
 export function makeServiceOf(services) {
   const roots = services
     .filter((s) => s.root)
@@ -85,17 +58,7 @@ export function makeServiceOf(services) {
   };
 }
 
-/**
- * The same guarantee, enforced at the payload rather than at the classifier.
- *
- * `makeServiceOf` is total, but a config may supply its own `serviceOf`, and a
- * hand-written one is free to return an id it never declared — which is exactly
- * how the prototype produced a blank screen. Rather than overrule it (and move
- * files into a service the author did not choose), declare the id it used: the
- * nodes stay where the config put them and the view gains the checkbox that was
- * missing. Synthesized entries are marked, so a reader can tell which rows the
- * config asked for and which the tool had to add.
- */
+/** Declare any service id a custom `serviceOf` used but never listed, so its files keep a checkbox instead of vanishing. */
 export function reconcileServices(services, nodes, warn = () => {}) {
   const known = new Set(services.map((s) => s.id));
   const missing = [...new Set(nodes.map((n) => n.service).filter((s) => s && !known.has(s)))];

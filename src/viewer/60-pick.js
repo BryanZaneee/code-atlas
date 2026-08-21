@@ -20,22 +20,14 @@ function pickNode(sx, sy) {
   for (let i = LAYOUT.nodes.length - 1; i >= 0; i--) {
     const n = LAYOUT.nodes[i];
     if (dimOf(n)) continue;
-    // The same polygons the renderer drew. If these ever diverge, the map
-    // becomes a lie you can click on: the thing under the cursor and the thing
-    // that answers are different nodes.
+    // The same polygons the renderer drew; if these diverge the map becomes a lie you can click on.
     for (const f of n.faces) if (inPoly(w.x, w.y, f.pts)) return n;
   }
   return null;
 }
 
 
-/**
- * The district under the cursor, by the same quad `drawStatic` fills for it.
- *
- * Blocks are not consulted: a district is grabbed with alt held, so there is
- * nothing to disambiguate against, and having to find bare plate to grab would
- * make a dense district the hardest one to move.
- */
+/** The district under the cursor, by the same quad `drawStatic` fills; blocks are not consulted, since alt-drag has nothing to disambiguate against. */
 function pickDistrict(sx, sy) {
   const w = toWorld({ x: sx, y: sy });
   for (const d of LAYOUT.districts) {

@@ -33,8 +33,7 @@ function buildPackets() {
     }
   }
 
-  // Ambient packets are drawn above the veil and would be the brightest thing
-  // on a map that is trying to point at four blocks. A lit finding stops them.
+  // Ambient packets draw above the veil, so a lit finding stops them rather than being outshone.
   if (S.opts.ambient && !playsFlow(S.view) && !findSelected()) {
     const pool = LAYOUT.edges.filter(e => e.kind === "import" || e.kind.startsWith("test:"));
     const n = Math.min(90, pool.length);
@@ -47,12 +46,7 @@ function buildPackets() {
   }
 }
 
-/**
- * Where in the flow the animation currently is, in words.
- *
- * Written when the step changes rather than every frame: it is DOM, and the
- * whole reason the dimming is drawn on canvas is that per-frame DOM is not free.
- */
+/** The current step in words, written on step change rather than per frame because it is DOM. */
 function renderCaption() {
   const bar = $("#caption");
   const r = runners[0];
