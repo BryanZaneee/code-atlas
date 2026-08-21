@@ -300,8 +300,12 @@ one person holds it all and not fine in a README written for strangers.*
       **relative-dot imports**, which the old letter-anchored pattern could not
       match at all. Config still wins outright wherever it is given, so a
       configured repository's payload cannot move underneath it
-- [x] `src/adapters/generic.mjs` — no edges, still renders; now also the
-      documented skeleton a new language is copied from
+- [x] A language with no adapter still renders — **as `adapterFor()` returning
+      null, not as a `generic.mjs`.** The planned file was never built and the
+      tick used to name it anyway. Null is the whole behaviour: no edges, and
+      `atlas scan` reports the files it could not read as a coverage answer
+      rather than dropping them silently. The skeleton a new language is copied
+      from lives in `docs/adapters.md`, against `fixtures/hostile-go/`
 - [x] Import line numbers recorded; comment/string blanking before extraction
       — held on the extraction result until Phase 7 needed them, then promoted
       to `edges[].line` as an additive field, so no `schemaVersion` bump

@@ -351,7 +351,7 @@ Regex, not AST — under-reports, quantified by the conformance fixtures. File-l
 
 ## Explicitly deferred
 
-Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (`generic.mjs` still renders them) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
+Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (a language with no adapter still renders, with no edges and a coverage line in `atlas scan`) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
 
 **A desktop shell** stays deferred until after v1.0, as a separate package.
 
