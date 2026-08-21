@@ -2,7 +2,7 @@
 
 const DEFAULT_HINTS = {
   structure:
-    "Rows are services, columns are architectural layers. Building height is file length. Click a district to open it and list its files.",
+    "Rows are services, columns are architectural layers. Block height is file length. Click a district to open it and list its files.",
   flow:
     "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
   tests:

@@ -1,14 +1,4 @@
-/* ════════════════════ live mode ════════════════════
- *
- * The only observed facts on this map: a status code and an end-to-end
- * duration. The path they sit next to is still modelled, and #ovWarn says so.
- *
- * A non-2xx halts at hop 1 rather than animating a journey that did not finish.
- * NO PER-HOP TIMINGS, EVER: `ms / steps.length` reads reasonably in a diff and
- * is a fabrication, since no internal hop is ever watched. test/live-view.test.mjs
- * asserts no step object grows a timing field, to make writing that line fail.
- * The proxy returns no response body, so there is none to render.
- */
+/* Live mode: only the status and end-to-end duration are observed, a non-2xx halts at hop 1, and no step ever grows a per-hop timing field (test/live-view.test.mjs asserts that structurally). */
 
 /** What the server told the page about live mode, or nothing on a built file. */
 const LIVE = {
@@ -153,8 +143,7 @@ async function liveSend() {
     label: `${ep.method} ${url}`,
     steps: played,
     derived: !!flow.derived,
-    // On the armed path, never per-step: a step knowing about a response is the
-    // first move toward a step carrying a time.
+    // On the armed path, never per-step: a step knowing about a response is one edit away from carrying a time.
     live: result,
   };
   S.pinnedPacket = null;
@@ -166,10 +155,7 @@ async function liveSend() {
 function drawLive() {
   const r = S.request?.live;
   if (!r) return;
-  // The endpoint id rides on the armed path, keeping this to S, LAYOUT
-  // and the render primitives — all of which live in files every harness
-  // loads — so a partial module list cannot turn a draw call into a
-  // ReferenceError pointing at neither file.
+  // The endpoint id rides on the armed path, keeping this to S, LAYOUT and render primitives that every harness loads.
   const n = LAYOUT.nodes.find((x) => x.id === S.request.endpointId);
   if (!n?.top) return;
 
@@ -179,9 +165,7 @@ function drawLive() {
   ctx.globalAlpha = 1;
   quad(ctx, silhouetteOf(n).map(toScreen), null, col, 2);
 
-  // The label says what was observed and only that: a status and a duration.
-  // A truncated or timed-out read has a number that is not a round trip, so it
-  // says so in words instead of printing one.
+  // Only what was observed: a truncated or timed-out read says so in words rather than printing a non-round-trip number.
   const text = r.error ? r.error
     : r.truncated ? `${r.status} · truncated at 1 MB`
     : `${r.status} · ${r.ms}ms`;
@@ -195,14 +179,7 @@ function drawLive() {
   ctx.fillText(text, s.x, s.y - 33);
 }
 
-/**
- * The request as a shell command, without sending it.
- *
- * Prints `$VAR` rather than a token, which is the whole point: the value has
- * never been in this page when the server is injecting it, and the command is
- * still runnable in a shell that has the variable. Built from the target and
- * the composed path, so what it shows is what the proxy would actually send.
- */
+/** The request as a shell command, printing `$VAR` rather than a token and built from the target and composed path, so it matches what the proxy would send. */
 function liveCurl() {
   const ep = REQ.endpoint;
   const url = reqUrl();
