@@ -82,7 +82,7 @@ of the districts around it.
 
 | field | type | tier | notes |
 | --- | --- | --- | --- |
-| `schemaVersion` | int | stable | `1` |
+| `schemaVersion` | int | stable | `2` |
 | `suiteCount` | int | stable | distinct test-suite kinds found (unit/integration/…) |
 | `repo` | string | stable | basename of the scanned directory |
 | `ref` | string | stable | the ref as requested, not resolved |
