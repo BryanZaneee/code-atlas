@@ -567,6 +567,32 @@ invented. MOCK is the default and the mode is always named on screen.*
 
 ---
 
+## Phase 10 — Open-source packaging
+
+The phase the milestone table marked done and this file never wrote down. Its
+gate is in PLAN.md; the boxes are recorded here so "done" means the same thing
+it does for every other phase.
+
+- [x] `README.md` — what the tool is, the three commands, how to read the map,
+      the calibration numbers, and the limitations stated up front rather than
+      discovered
+- [x] `LICENSE` — MIT
+- [x] `CONTRIBUTING.md` — how to run the suite, what a phase commit looks like,
+      and the two rules a patch is most likely to break (nothing target-specific
+      in `src/`, goldens re-baselined deliberately)
+- [x] `docs/payload-schema.md` — the payload is a public contract, so it is
+      documented field by field with a stability tier
+- [x] `docs/adapters.md` — the documented contribution surface, with a worked
+      Go adapter
+- [x] `docs/config.md` — every config key, and the precedence chain
+- [x] **Gate:** a reader who has never seen the repo goes from `git clone` to a
+      rendered atlas of **their own** project using only the README, on a repo
+      with no config — walked against a repository the tool had not seen
+- [x] `package.json` ships what the docs link to (`examples/`, `CONTRIBUTING.md`)
+      and carries `repository`/`homepage`/`bugs`
+
+---
+
 ## Open findings
 
 Raised by the quality sweep, verified against the code, and deliberately not

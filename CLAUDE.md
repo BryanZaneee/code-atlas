@@ -206,12 +206,13 @@ derivation when Phase 5 lands; nothing implements them yet.
 **Where things live:**
 
 ```
-src/adapters/  ts · py · index            language knowledge, and the only place for it
+src/adapters/  ts · py · index · lex       language knowledge, and the only place for it
+src/config/    defaults · load · detect · init   precedence: defaults < detected < file < flag
 src/scan/      source · walk              acquire a ref, walk the tree
-src/model/     graph · classify · endpoints · mounts · derive · tests · metrics · chrome
-src/build/     build · assemble           the pipeline, and the single-file viewer
+src/model/     graph · classify · endpoints · mounts · derive · tests · metrics · findings · chrome
+src/build/     build · assemble · embed   the pipeline, and the single-file viewer
 src/cli/       report · progress          terminal output; reads a finished payload
-src/serve/     server                     loopback viewer + read-only source
+src/serve/     server · proxy             loopback viewer, read-only source, live proxy
 src/viewer/    00-… 90-…                  concatenated, in filename order
 ```
 

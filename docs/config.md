@@ -152,6 +152,25 @@ helper-registered routes are skipped and counted rather than guessed at.
 | `python.internal` | RegExp | modules that **must** exist in-repo; failing to place one is `unresolved`, not "some package we do not scan" |
 | `python.barrels` | string[] | `__init__.py` re-export barrels; consumers point at the module that defines the symbol |
 
+## Views
+
+`views` sets the order, titles and hint copy of the view strip. A view is
+**data**, and `kind` is what the viewer branches on — never the id:
+
+| kind | what it shows |
+| --- | --- |
+| `structure` | every node, filtered by the sidebar toggles |
+| `flow` | only the nodes and edges named by this view's curated flows |
+| `tests` | test edges and the coverage tint |
+| `request` | compose a request against one endpoint and play its modelled path |
+| `findings` | the whole map, with one finding's evidence lit and the rest dimmed |
+
+The viewer used to hardcode four view ids and branch on two of them by name,
+which meant a repo whose flows were called anything else silently lost its flow
+views. One flow view is created per distinct `flows[].view`, so curating a flow
+adds a view without touching the tool. Supplying a `views` array with matching
+ids overrides any of it.
+
 ## Theme
 
 `theme` overrides the palette. It is merged **per branch**, so replacing one
@@ -171,6 +190,11 @@ edge kind does not drop the other eleven.
 | `legend` | object | legend rows per view kind; each row *names* a key in the tables above rather than repeating a colour, so the legend cannot drift from the map |
 | `dark` | object | the dark theme, as a **delta** over the keys above |
 | `density` | object | how much air sits between districts and services. See below |
+
+Canvas cannot read CSS custom properties, so the viewer needs real colour values
+in JavaScript. These tables are the single definition: the legend is generated
+from them rather than hand-written, which is what stops a legend row and the
+thing it labels drifting apart.
 
 ### `theme.density`
 

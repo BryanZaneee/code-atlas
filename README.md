@@ -137,7 +137,7 @@ so turning one off can never turn the other off.
 
 **The rest of the furniture.** The isometric floor is the ground grid. Each
 service sits on a plate with a tab naming it; each service-and-layer cell is a
-district with a two-letter code. Thin static lines are import edges. Moving
+district with a two-character code. Thin static lines are import edges. Moving
 diamonds are packets: ambient ones drift along imports to show the graph is
 alive, and sequenced ones play a request path in order.
 

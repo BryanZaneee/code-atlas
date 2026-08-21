@@ -34,8 +34,9 @@ expected to read it, so it is versioned from the first release.
 
 ## Vocabulary
 
-The map's two axes are **service down, layer across**, and every noun below
-names something you can point at on it.
+The four terms this document uses. CLAUDE.md carries the full table, including
+the ones only the viewer needs (prism, ground plate, ground grid, packing,
+density). The map's two axes are **service down, layer across**.
 
 | term | what it is | drawn as |
 | --- | --- | --- |
@@ -230,6 +231,25 @@ is mounted as a router, where the method lives in code this tool does not
 follow. `atlas scan` prints them grouped by file. The list is **not** part of
 the payload — it rides on the returned array as a non-index property, which
 `JSON.stringify` ignores.
+
+**Two route sources are framework convention rather than a repo's own layout.**
+File-based routing: a `route.ts`/`page.tsx` under a directory tree named `app`
+*is* the route, with `(parens)` directories contributing no URL segment and
+`[param]` becoming `:param`. And param normalization: `:id` and `{id}` are two
+frameworks' syntax for one logical parameter and collapse to a single node.
+
+**A router the file names something else is admitted on evidence, not
+resemblance.** The default rules key on a receiver ending in `router`/`app`/
+`server`, which is not fussiness — `axios.post("/orders")` is an outbound call,
+and matching any receiver would make every HTTP client a phantom endpoint. A
+differently-named router is picked up only if `Router` arrived by import or as a
+member of something, and it is dropped again if the name is reassigned
+afterwards, since `let x = Router(); x = axios.create()` makes the declaration a
+lie by the time the calls run. Both guards fail toward finding nothing, which is
+the direction this extractor is allowed to be wrong in. The scan runs over
+comment-blanked source for the same reason: a note reading `const orders =
+Router()` above dead code was enough to turn an unrelated `orders.get(...)` into
+a phantom endpoint.
 
 ## `flows`
 
