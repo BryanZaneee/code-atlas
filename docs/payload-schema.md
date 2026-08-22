@@ -240,7 +240,7 @@ frameworks' syntax for one logical parameter and collapse to a single node.
 
 **A router the file names something else is admitted on evidence, not
 resemblance.** The default rules key on a receiver ending in `router`/`app`/
-`server`, which is not fussiness — `axios.post("/orders")` is an outbound call,
+`server`, which is not fussiness. `axios.post("/orders")` is an outbound call,
 and matching any receiver would make every HTTP client a phantom endpoint. A
 differently-named router is picked up only if `Router` arrived by import or as a
 member of something, and it is dropped again if the name is reassigned

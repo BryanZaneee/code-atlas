@@ -35,7 +35,7 @@ adapter whose `extensions` match, so the list order is the tie-break.
 | `extractImports(text, from, ctx)` | → `[{ spec, symbols?, kind, line }]`, in source order. One entry per import *site*, not per unique specifier |
 | `resolve(from, spec, ctx, symbols)` | → `{ kind, ids }` where `kind` is `"internal"`, `"external"` or `"unresolved"` |
 | `blankComments(text)` | → text of the **same length**, comments replaced by spaces, ordinary quoted strings left intact |
-| `importBindings(text)` | → `[{ spec, localNames: Set, symbols? }]` — which local names each import binds |
+| `importBindings(text)` | → `[{ spec, localNames: Set, symbols? }]`: which local names each import binds |
 | `testSubject(path)` | → the source path a test at `path` conventionally covers, by naming convention alone |
 
 ### The three lexing members
@@ -46,7 +46,7 @@ way, and one of them was a live bug: Python files were blanked with the
 TypeScript blanker, which does not know `#`, so a commented-out route was
 extracted as a real endpoint.
 
-**`blankComments(text)` must preserve length, newlines and offsets** — every
+**`blankComments(text)` must preserve length, newlines and offsets.** Every
 line number and match index downstream is computed against the result. Blank a
 comment to spaces, not to nothing. Leave ordinary quoted strings alone: that is
 where a route path lives. Language constructs that are really comments (a Python
@@ -58,7 +58,7 @@ which is how path derivation narrows a route file's many imports down to the
 ones one endpoint actually uses, and how a mount chain finds the module a router
 symbol came from. Return one entry per import site.
 
-**`testSubject(path)`** is a naming-convention guess and nothing more —
+**`testSubject(path)`** is a naming-convention guess and nothing more:
 `test/x.test.ts` → `src/x.ts`. Guessing wrong is safe: the caller checks the
 result against the real file set and falls back to token scoring, so return your
 convention's answer without verifying it.

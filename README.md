@@ -15,28 +15,43 @@ Reading a repo file-by-file doesn't build a mental model of it. What's missing i
 
 ## Quickstart
 
-No install needed — run it straight from this checkout with Node ≥ 20:
+Install it once, then run it anywhere:
 
 ```bash
-# from this directory, point it at any repo on your machine
-node bin/atlas.mjs build --repo /path/to/your/repo --out atlas.html
-open atlas.html   # or just double-click the file
+npm install -g code-atlas
+cd /path/to/your/repo
+atlas
 ```
 
-That's the whole thing: one HTML file, self-contained, no server required.
+That maps the repository you are standing in and opens it in your browser. It
+reads your working tree, not your last commit, so uncommitted work shows up.
 
-To browse with live source reading instead (jump from a node to the file
-that produced it), run the local server and open the URL it prints:
+Or run it without installing anything:
 
 ```bash
-node bin/atlas.mjs serve --repo /path/to/your/repo --open
+npx code-atlas
 ```
 
-`serve` binds to `127.0.0.1` only and is read-only on your repo — nothing it
-does can write to or modify the code it maps. No config file is required for
-either command; without one, atlas detects services and layers on its own.
-Run `node bin/atlas.mjs init --repo /path/to/your/repo` first if you want a
-starter config to hand-tune instead of relying on detection.
+Either way the result is one self-contained HTML file. No server, no build step,
+nothing to host. Send it to someone and it opens.
+
+If a lot of your files land in the UNSORTED column, atlas offers to write a
+starter config for you before it finishes. Say yes, edit the file it names, and
+run `atlas` again.
+
+To read source alongside the map, jumping from a node to the file that produced
+it, start the local viewer instead:
+
+```bash
+atlas serve --open
+```
+
+`serve` binds to `127.0.0.1` only, and every command except `atlas init` is
+read-only on your repository. No config file is required; without one, atlas
+detects your services and layers on its own.
+
+Node 20 or newer. To work on atlas itself, clone it and use `node bin/atlas.mjs`
+in place of `atlas`.
 
 ## What is real and what is modeled
 
@@ -351,6 +366,86 @@ and will not invent.
 addresses, and hostnames are never resolved, so `myapp.local` will not work and
 `127.0.0.1:3000` will. Checking a name and then connecting to it leaves a window
 where the name can move, and refusing is the safer side of that trade.
+
+## Stretch goals
+
+None of this is built. It is written down so the shape of the project is legible
+before you open an issue asking for one of them.
+
+### Editor and IDE integration
+
+Atlas already does the reading half of what an editor does. Click a block and the
+SOURCE panel shows the real file, syntax highlighted; click an endpoint and it
+opens the file at the line the route is declared on. What it does not do is edit,
+and that is a decision rather than a gap: `atlas init` is the only command
+allowed to write into a repository atlas maps, and the code viewer is read-only
+on purpose. The useful direction is a handoff to your real editor, not a worse
+copy of one inside a canvas.
+
+- [ ] **Open in your editor.** A control on every block and endpoint that fires
+      `vscode://file/<path>:<line>`, with equivalents for Cursor, Zed and the
+      JetBrains family. Atlas stays read-only and your editor does the editing.
+      Smallest item here and probably the most useful.
+- [ ] **A VS Code extension** that hosts the viewer as a panel, so the map sits
+      beside the code instead of in a browser tab. A separate package, for the
+      same reason a desktop shell would be: the core stays a CLI that writes one
+      file.
+- [ ] **Watch mode.** `atlas serve --watch` rebuilds as files change, so the map
+      keeps up with a refactor instead of going stale behind it.
+- [ ] **Deep links into the map.** A URL that opens an atlas already focused on a
+      district, a node or a finding, so a map can be cited in a review.
+
+### Distribution
+
+- [x] `atlas` with no arguments maps the repository you are standing in, reads
+      the working tree rather than HEAD, and opens the result.
+- [x] Offers to write a starter config when most files match no layer rule.
+- [ ] **Publish to npm** as `code-atlas`. The package is ready; publishing needs
+      an account with rights to the name.
+- [ ] **A GitHub Action** that builds an atlas per pull request and attaches it,
+      so a reviewer can see the shape of a change rather than only its diff.
+- [ ] **Homebrew formula**, for people who would rather not install a global
+      npm package.
+
+### Rendering
+
+- [ ] **A WebGL renderer.** No longer deferred. `relayout()` and `reproject()`
+      already emit plain world-space geometry that the draw functions consume, so
+      this is a swap at one seam rather than a rewrite. Taking on three.js or a
+      shader library is a dependency decision, so it gets discussed first.
+- [ ] **Nested districts.** The payload already carries `parentId`; the layout
+      that would use it does not exist.
+- [ ] **Persisted layouts.** Districts can be dragged today, and the arrangement
+      dies with the tab.
+
+### Languages
+
+The adapter contract is wide enough that a new language needs no change in
+`src/model/`. `docs/adapters.md` carries a worked example and ROADMAP.md has the
+detail on each of these.
+
+- [ ] **Go.** Furthest along: a fixture already exists, and a Go import naming a
+      package rather than a file is the case the contract was shaped around.
+- [ ] **Java and Kotlin.** Wildcard imports are the same shape as a Go package.
+- [ ] **Ruby.** Two resolution modes, like Python, so copy that adapter.
+- [ ] **Rust.** The hard one, named here so nobody starts with it.
+
+### Not planned
+
+Listed because they get asked for, and a no that is written down is kinder than
+one you discover after building something.
+
+Real tracing, OpenTelemetry, or per-hop timings. AST parsing and call-graph
+analysis. Editing your code from the map. Search inside the code viewer.
+Collections, environments or scripting in the request composer. Multi-repo or
+multi-commit diffing.
+
+The first and the third are the load-bearing ones. This tool draws observed
+facts and modelled inferences in the same picture, and the only rule holding
+that together is that the second never gets to look like the first. A per-hop
+number would break it, because nothing here ever watches a request cross an
+internal hop. If a request amounts to "like Postman" or "like VS Code", the
+answer is no.
 
 ## Contributing
 

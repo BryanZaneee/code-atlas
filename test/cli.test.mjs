@@ -145,3 +145,34 @@ test("live flags on a command that cannot use them warn rather than fail", (t) =
   assert.ok(JSON.parse(r.stdout).nodes.length, "and the payload is still produced");
 });
 
+/* ════════════════════ bare `atlas` ════════════════════ */
+
+/**
+ * `atlas` with no command is the whole first-run experience, so the two ways it
+ * can go wrong are worth pinning: writing nothing, and blocking on a prompt in a
+ * pipe or CI, where no one is there to answer it.
+ */
+test("bare atlas maps the repo it is standing in and writes an atlas", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+  const out = path.join(dir, "atlas.html");
+  atlas(["--repo", dir, "--out", out, "--ref", "fs"]);
+  assert.ok(existsSync(out), "bare atlas wrote no atlas");
+  assert.ok(readFileSync(out, "utf8").includes("<canvas"), "the atlas is not a viewer");
+});
+
+test("bare atlas never blocks on a prompt when nothing is watching", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+  // stdin closed and stdio piped is exactly CI. A prompt here would hang the
+  // build forever rather than fail it, which is the worse failure of the two.
+  const r = spawnSync(process.execPath, [ATLAS, "--repo", dir, "--out", path.join(dir, "a.html"), "--ref", "fs"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!r.signal, `bare atlas hung and was killed by ${r.signal}`);
+  assert.ok(!/Write atlas\.config\.mjs/.test(r.stderr), "prompted with no TTY attached");
+});
+
+test("--help still explains itself, and exits 0", () => {
+  const help = atlas(["--help"]);
+  assert.match(help, /^atlas\s+map the repo you are in/m);
+  assert.match(help, /atlas <command>/);
+});

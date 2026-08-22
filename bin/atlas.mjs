@@ -13,6 +13,7 @@ import { loadConfig } from "../src/config/load.mjs";
 import { listen } from "../src/serve/server.mjs";
 import { resolveTarget, makeLive } from "../src/serve/proxy.mjs";
 import { spawn } from "node:child_process";
+import { createInterface } from "node:readline/promises";
 
 // Draws nothing unless stderr is a terminal, so a redirect or a pipe is untouched.
 const progress = makeProgress(process.stderr);
@@ -25,7 +26,8 @@ const die = (msg) => {
   process.exit(1);
 };
 
-const USAGE = `atlas <command> [options]
+const USAGE = `atlas                          map the repo you are in, and open it
+atlas <command> [options]
 
   build      scan a repository and write a self-contained HTML atlas
   scan       what the scanner found, and what it could not
@@ -100,11 +102,22 @@ const { values, positionals } = parseArgs({
   },
 });
 
-const command = positionals[0];
-// The exit code follows the question, not the arguments: `--help` succeeded, no command did not.
-if (values.help || !command) {
+if (values.help) {
   process.stdout.write(USAGE);
-  process.exit(values.help ? 0 : 1);
+  process.exit(0);
+}
+
+/**
+ * Bare `atlas` maps the repo you are standing in and opens it. It scans the
+ * WORKTREE, not HEAD: someone who just typed `atlas` wants the code they are
+ * working on, and the default ref would have quietly shown them their last
+ * commit instead.
+ */
+const quickstart = positionals.length === 0;
+const command = quickstart ? "build" : positionals[0];
+if (quickstart) {
+  if (!process.argv.includes("--ref")) values.ref = "worktree";
+  if (!values.json) values.open = true;
 }
 
 const PENDING = {};
@@ -237,6 +250,51 @@ async function run() {
   const out = path.resolve(values.out);
   writeFileSync(out, assemble(payload));
   warn(`atlas: wrote ${out} (${(statSync(out).size / 1024).toFixed(0)} KB)`);
+  if (values.open) openBrowser(pathToFileURL(out).href);
+
+  await offerConfig(payload, diagnostics);
+}
+
+/**
+ * The one question worth asking, and only when the answer would change the map:
+ * a repo where many files matched no layer rule renders as a tall UNSORTED
+ * column, and a starter config is what fixes it. Silent unless a person is
+ * watching a terminal, so scripts and pipes are never blocked on stdin.
+ */
+async function offerConfig(payload, diagnostics) {
+  if (!quickstart || values.json) return;
+  if (!process.stdin.isTTY || !process.stderr.isTTY) return;
+  if (values.config || existsSync(path.join(repo, "atlas.config.mjs"))) return;
+
+  const files = payload.nodes.filter((n) => n.kind === "file");
+  const unsorted = files.filter((n) => n.layer === "unsorted").length;
+  if (!files.length || unsorted / files.length < 0.25) return;
+
+  const pct = Math.round((unsorted / files.length) * 100);
+  warn("");
+  warn(`atlas: ${pct}% of files matched no layer rule, so they are stacked in UNSORTED.`);
+  warn("       A starter config names your services and columns and fixes that.");
+  // The atlas is already written by the time we ask, so nothing that happens to
+  // the prompt is worth failing the run over: a closed stdin or a Ctrl-C reads
+  // as "no" rather than as a stack trace over a build that succeeded.
+  let answer = "";
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    answer = (await rl.question("       Write atlas.config.mjs? [y/N] ")).trim().toLowerCase();
+  } catch {
+    warn("");
+  } finally {
+    rl.close();
+  }
+  if (answer !== "y" && answer !== "yes") {
+    warn("atlas: skipped — run `atlas init` later, or see docs/config.md");
+    return;
+  }
+  const { text, services, fileCount } = starterConfig(repo);
+  const file = path.join(repo, "atlas.config.mjs");
+  writeFileSync(file, text);
+  warn(`atlas: wrote ${file} — ${services.length} service(s) over ${fileCount} files`);
+  warn("atlas: edit it, then run `atlas` again");
 }
 
 /** Best-effort only — `--open` is a convenience, not something worth failing serve over. */

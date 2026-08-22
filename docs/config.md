@@ -155,7 +155,7 @@ helper-registered routes are skipped and counted rather than guessed at.
 ## Views
 
 `views` sets the order, titles and hint copy of the view strip. A view is
-**data**, and `kind` is what the viewer branches on — never the id:
+**data**, and `kind` is what the viewer branches on, never the id:
 
 | kind | what it shows |
 | --- | --- |
