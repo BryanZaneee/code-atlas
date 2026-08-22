@@ -47,6 +47,19 @@ never "and walk `node_modules`" — and forgetting to restate the defaults is bo
 silent and expensive: a worktree scan then walks every dependency ever installed.
 Your patterns are appended to the defaults and de-duplicated by source.
 
+The one exception runs the other way. `--include-vendor` (or `includeVendor:
+true`) *subtracts* the vendor half of the default list — `node_modules`,
+`vendor/`, `site-packages`, virtualenvs, `__pycache__` — so a reader who asked
+to see their dependencies gets them, marked `vendor: true` and switchable off
+again in the viewer's OPTIONS. Build output, `.git` and lockfiles are in the
+other half and stay excluded whatever the flags say: they are not somebody
+else's source, they are this repo's code already drawn once, or not code at all.
+
+It is off by default for a reason worth stating plainly: a mid-size repository
+has tens of thousands of vendored files, and drawing them makes the map
+unreadable. Turn it on to answer a question about a dependency, not to look at
+the whole city.
+
 ### `services`
 
 ```js

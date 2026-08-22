@@ -94,6 +94,7 @@ of the districts around it.
 | `nodeCount` `fileCount` `lineCount` `edgeCount` `docCount` `endpointCount` `testCount` | int | stable | `fileCount`/`lineCount` count code files only, excluding markdown |
 | `coverDirect` `coverIndirect` `coverNone` | int | stable | node counts per coverage state |
 | `packageCount` | int | stable | distinct external packages across all nodes |
+| `vendorCount` | int | stable | nodes carrying `vendor: true`. `0` unless `--include-vendor` was passed |
 | `unsortedCount` `unresolvedCount` `derivedCount` | int | stable | what the tool could not account for — see below |
 
 ### The map's own coverage
@@ -149,6 +150,7 @@ on some kinds.
 | `note` | string | experimental | datastore nodes only |
 | `why` | string | experimental | endpoint nodes only — which registration rule matched and where its mount prefix came from, e.g. `matched endpoint rule #0 /router\.(get\|post)…/ · prefix "/api" from the mount chain` |
 | `travelledBy` | string[] | experimental | ids of the flows passing through this node. **Absent**, not empty, when no flow does |
+| `vendor` | bool | experimental | somebody else's code, admitted by `--include-vendor`. **Absent**, not `false`, otherwise — a build without the flag serializes exactly as it did before the field existed |
 
 ## `live`
 

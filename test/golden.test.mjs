@@ -45,7 +45,10 @@ const ADDED_TOP = ["views", "theme",
   "findings"];
 const ADDED_META = ["schemaVersion", "acquisition", "suiteCount",
   // phase 2.5: the map's own coverage, so the chrome can state it permanently.
-  "unsortedCount", "unresolvedCount", "derivedCount"];
+  "unsortedCount", "unresolvedCount", "derivedCount",
+  // phase 11: how many blocks on this map are somebody else's code. Zero unless
+  // --include-vendor asked for them, which the prototype had no notion of.
+  "vendorCount"];
 // phase 1: the viewer used to sniff a step's prose for two phrases to decide
 // whether to highlight it; the curated data says so outright now.
 const ADDED_STEP = ["warn"];
@@ -61,6 +64,8 @@ const ADDED_NODE = ["layerWhy", "serviceWhy",
 // phase 2.5: a stable two-character district name, and the district-hierarchy
 // field PLAN.md ships ahead of the layout that consumes it.
 const ADDED_DISTRICT = ["code", "parentId"];
+// phase 11: present only on a node --include-vendor admitted, so absent here.
+const ADDED_NODE_11 = ["vendor"];
 // phase 4: the line a route is declared on, which is what makes Phase 7's
 // jump-to-line possible. Additive — the method, path and definedIn of all 18
 // endpoints must still match the prototype exactly, and they do.
@@ -162,7 +167,7 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   undoJsonLangFix(stripped);
   for (const k of ADDED_TOP) delete stripped[k];
   for (const k of ADDED_META) delete stripped.meta[k];
-  for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];
+  for (const n of stripped.nodes) for (const k of [...ADDED_NODE, ...ADDED_NODE_11]) delete n[k];
   for (const d of stripped.districts) for (const k of ADDED_DISTRICT) delete d[k];
   undoDistrictRename(stripped);
   for (const e of stripped.endpoints) for (const k of ADDED_ENDPOINT) delete e[k];

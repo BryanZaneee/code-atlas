@@ -1,26 +1,27 @@
 /** What the tool believes about a repository it has never seen: true of code in general, never of one repo, and the floor of the precedence chain. */
 
-/** The columns, left to right by `rank`; layers outside the request spine sit past it rather than inside it. */
+/** The columns, left to right by `rank`; layers outside the request spine sit past it rather than inside it.
+    No colour here on purpose: `paintLayers()` in src/model/chrome.mjs fills one from the equal-lightness ramp, by position, so the palette steps evenly instead of drifting the way a hand-picked list does. A config that names a colour still keeps it. */
 const DEFAULT_LAYERS = [
-  { id: "endpoint", label: "ENDPOINT", rank: -1, color: "#d8c98a" },
-  { id: "entry", label: "ENTRY", rank: 0, color: "#c7b57a" },
+  { id: "endpoint", label: "ENDPOINT", rank: -1 },
+  { id: "entry", label: "ENTRY", rank: 0 },
   // Without a UI column, every component in a frontend repo falls to the fallback.
-  { id: "ui", label: "UI", rank: 1, color: "#c2a98d" },
-  { id: "route", label: "ROUTE", rank: 2, color: "#b9a86a" },
-  { id: "middleware", label: "MIDDLEWARE", rank: 3, color: "#b09a72" },
-  { id: "controller", label: "CONTROLLER", rank: 4, color: "#a8a86a" },
-  { id: "service", label: "SERVICE", rank: 5, color: "#8fae74" },
-  { id: "egress", label: "EGRESS", rank: 6, color: "#7fa88c" },
-  { id: "repository", label: "REPOSITORY", rank: 7, color: "#7e9a8a" },
-  { id: "datastore", label: "DATASTORE", rank: 8, color: "#6a8f9f" },
-  { id: "contract", label: "CONTRACT", rank: 9, color: "#8a7e6a" },
-  { id: "util", label: "UTIL", rank: 10, color: "#8c8a76" },
-  { id: "migration", label: "MIGRATION", rank: 11, color: "#6f7a5e" },
-  { id: "tooling", label: "TOOLING", rank: 12, color: "#7d7a63" },
+  { id: "ui", label: "UI", rank: 1 },
+  { id: "route", label: "ROUTE", rank: 2 },
+  { id: "middleware", label: "MIDDLEWARE", rank: 3 },
+  { id: "controller", label: "CONTROLLER", rank: 4 },
+  { id: "service", label: "SERVICE", rank: 5 },
+  { id: "egress", label: "EGRESS", rank: 6 },
+  { id: "repository", label: "REPOSITORY", rank: 7 },
+  { id: "datastore", label: "DATASTORE", rank: 8 },
+  { id: "contract", label: "CONTRACT", rank: 9 },
+  { id: "util", label: "UTIL", rank: 10 },
+  { id: "migration", label: "MIGRATION", rank: 11 },
+  { id: "tooling", label: "TOOLING", rank: 12 },
   // Its own column, because calling unplaceable code "tooling" is a claim the tool cannot support.
-  { id: "unsorted", label: "UNSORTED", rank: 13, color: "#6e6a5e" },
-  { id: "test", label: "TEST", rank: 14, color: "#a87e6a" },
-  { id: "docs", label: "DOCS", rank: 15, color: "#5f6b52" },
+  { id: "unsorted", label: "UNSORTED", rank: 13 },
+  { id: "test", label: "TEST", rank: 14 },
+  { id: "docs", label: "DOCS", rank: 15 },
 ];
 
 /** Layers past the request spine: their ranks are layout positions, not spine positions, so anything reasoning about direction skips them. */
@@ -73,18 +74,29 @@ const DEFAULT_LAYER_RULES = [
 /** Files worth drawing. Wider than the adapters: a language with no adapter still renders structure, sizes and endpoints. */
 export const DEFAULT_KEEP = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|rb|java|kt|php|sql|md)$/;
 
-/** Never worth drawing: dependencies, build output, virtualenvs and lockfiles are not code this repository wrote. */
-export const DEFAULT_EXCLUDE = [
+/** Somebody else's code, vendored into this tree. Split out from the rest because `--include-vendor` lifts exactly these and nothing else — the same list decides what gets drawn and what gets flagged `vendor: true`, so the two can never disagree. */
+export const VENDOR_EXCLUDE = [
   /(^|\/)node_modules\//,
+  /(^|\/)\.(venv|tox)\//,
+  /(^|\/)(venv|env|__pycache__|target|vendor|site-packages)\//,
+];
+
+/** Never worth drawing whatever the flags say: build output is this repo's code already drawn once, and a lockfile is not code at all. */
+export const HARD_EXCLUDE = [
   /(^|\/)\.git\//,
   // Anchored to the root: a deeper `src/build/` is application code sharing the name.
   /^(dist|build|out|coverage)\//,
   /(^|\/)(public|static)\//,
-  /(^|\/)\.(next|nuxt|turbo|svelte-kit|venv|tox|mypy_cache|pytest_cache|ruff_cache)\//,
-  /(^|\/)(venv|env|__pycache__|target|vendor|site-packages)\//,
+  /(^|\/)\.(next|nuxt|turbo|svelte-kit|mypy_cache|pytest_cache|ruff_cache)\//,
   /\.min\.(js|css)$/,
   /(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|uv\.lock|poetry\.lock|Cargo\.lock|go\.sum)$/,
 ];
+
+/** Never worth drawing: dependencies, build output, virtualenvs and lockfiles are not code this repository wrote. */
+export const DEFAULT_EXCLUDE = [...VENDOR_EXCLUDE, ...HARD_EXCLUDE];
+
+/** Is this path somebody else's code? Read after the walk, so a node can say so even when the walk was told to admit it. */
+export const isVendorPath = (p) => VENDOR_EXCLUDE.some((re) => re.test(p));
 
 /** Endpoint rules, as data: the common literal registration forms only, with the receiver required to end in a router-ish word so an outbound `api.get(...)` is not reported as a route. With no `mount`, the prefix comes from the repository's own mount chain. */
 const DEFAULT_ENDPOINT_RULES = [

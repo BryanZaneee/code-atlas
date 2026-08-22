@@ -1,5 +1,6 @@
 /** Import extraction and graph construction; node/edge order is sorted so output stays byte-identical. */
 import path from "node:path";
+import { isVendorPath } from "../config/defaults.mjs";
 import { adapterFor } from "../adapters/index.mjs";
 
 /** Language by extension; anything unknown falls back to "src" (code we cannot name), never to prose. */
@@ -85,6 +86,8 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
       outDeg: 0,
       coverage: null,
       uncovered: false,
+      // Only present when true, so a build without --include-vendor serializes exactly as it did before the field existed.
+      ...(isVendorPath(p) ? { vendor: true } : {}),
     });
   }
 

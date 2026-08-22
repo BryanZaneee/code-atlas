@@ -84,11 +84,14 @@ export function scan({
   embedSource = false,
   embedGlob = null,
   gzipSource = false,
+  includeVendor = false,
   warn = () => {},
   progress = () => {},
 }) {
   // Everything downstream reads one normalized shape, whether the values came from a file, from detection, or from the defaults.
-  let config = loadConfig(userConfig);
+  // `includeVendor` rides in as an override so it outranks a config that named its own excludes — it is a flag the person at the terminal just typed.
+  const flags = includeVendor ? { includeVendor: true } : {};
+  let config = loadConfig(userConfig, { overrides: flags });
   const source = acquire({ repo, ref, fetch, warn });
   try {
     const { all, paths, fileSet, src } = collect(source.dir, { keep: config.keep, exclude: config.exclude });
@@ -97,7 +100,7 @@ export function scan({
     // Detection needs the walk and the walk needs keep/exclude, so the config loads twice; a declared service always wins.
     if (!userConfig?.services) {
       const services = detectServices({ dir: source.dir, all, paths, exclude: config.exclude });
-      if (services) config = loadConfig(userConfig, { detected: { services } });
+      if (services) config = loadConfig(userConfig, { detected: { services }, overrides: flags });
     }
 
     // `dir` and `all` exist for adapters needing a file `keep` never admits into `src`, such as tsconfig.json; everything downstream reads only `paths`/`fileSet`/`src`.
@@ -170,6 +173,7 @@ export function scan({
         coverIndirect: nodes.filter((n) => n.coverage === "indirect").length,
         coverNone: nodes.filter((n) => n.coverage === "none").length,
         packageCount: new Set(nodes.flatMap((n) => n.externals)).size,
+        vendorCount: nodes.filter((n) => n.vendor).length,
         unsortedCount: unclassified.length,
         unresolvedCount: stats.unresolved,
         derivedCount,

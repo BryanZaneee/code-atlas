@@ -50,6 +50,9 @@ build options
                            shareable HTML then contains that source
   --gzip-source           store embedded source gzip-compressed, inflated
                            in the browser (needs --embed-source)
+  --include-vendor        draw node_modules, vendor/ and virtualenvs too.
+                           Off by default: a mid-size repo has tens of
+                           thousands of these and the map stops being legible
 
 serve options
   --port PORT      loopback port to bind         (default: 4173)
@@ -93,6 +96,7 @@ const { values, positionals } = parseArgs({
     "no-fetch": { type: "boolean", default: false },
     strict: { type: "boolean", default: false },
     "gzip-source": { type: "boolean", default: false },
+    "include-vendor": { type: "boolean", default: false },
     port: { type: "string", default: "4173" },
     target: { type: "string" },
     "allow-live": { type: "boolean", default: false },
@@ -186,6 +190,7 @@ async function run() {
       embedSource: embedding,
       embedGlob,
       gzipSource: embedding && values["gzip-source"],
+      includeVendor: values["include-vendor"],
       warn,
       progress,
     });
