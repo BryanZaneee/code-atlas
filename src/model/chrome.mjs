@@ -1,23 +1,24 @@
-/** Views and theme: config-overridable presentation tables the payload ships to the viewer. A view is data, and its `kind` (structure/flow/tests/request/findings) is what the viewer branches on; the legend names keys in these tables so a colour has one definition. */
+/** Views and theme: config-overridable presentation tables the payload ships to the viewer. A view is data, and its `kind` (dataflow/flow/tests/request/findings) is what the viewer branches on; the legend names keys in these tables so a colour has one definition. */
 
 const DEFAULT_HINTS = {
-  structure:
-    "Rows are services, columns are architectural layers. Block height is file length. Click a district to open it and list its files.",
+  // `dataflow` is the structure map with its import packets always running: the city and the traffic on it are one view, because a reader should not have to know they are two.
+  dataflow:
+    "Every file is a block: height and footprint are both file length. Blocks sit in districts — folders by default, or architectural layers — and the diamonds riding the streets are packets on real import edges: one moving from A to B means B reads what A exports. Click a district to open it, a block for its imports and source, a packet mid-flight to read the hop.",
   flow:
     "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
   tests:
-    "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+    "Packets run from each test to what it reaches. Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks: no test reaches them at all.",
   request:
-    "Pick an endpoint and compose a request against it. The payload is synthetic and nothing is sent — this plays the modelled path a request would take, curated first and derived otherwise, with each hop marked by whether an import backs it.",
+    "Pick an endpoint and compose a request against it. Nothing is sent: this plays the path a request would take through the files — curated where a person asserted one, otherwise derived from the import graph, where dotted hops are gaps derivation could not justify.",
   findings:
-    "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
+    "Structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
 };
 
 const DEFAULT_TITLES = {
-  structure: "THE CODEBASE",
+  dataflow: "THE CODEBASE",
   flow: "REQUEST PATH",
   tests: "TEST COVERAGE",
-  request: "COMPOSE A REQUEST",
+  request: "API REQUEST PATH",
   findings: "STRUCTURAL FINDINGS",
 };
 
@@ -25,7 +26,7 @@ export function buildViews(config, flows = [], derived = [], endpoints = []) {
   const flowViews = [...new Set(flows.map((f) => f.view).filter(Boolean))];
 
   const base = [
-    { id: "structure", label: "STRUCTURE", kind: "structure" },
+    { id: "structure", label: "STRUCTURE", kind: "dataflow" },
     ...flowViews.map((id) => ({
       id,
       label: id.toUpperCase(),
@@ -33,11 +34,9 @@ export function buildViews(config, flows = [], derived = [], endpoints = []) {
       // The phase watermark is derived from whether this view's flows carry phases.
       showPhase: flows.some((f) => f.view === id && f.phase),
     })),
-    // Derived paths get their own view, so the strip alone says asserted or inferred.
-    ...(derived.length ? [{ id: "derived", label: "DERIVED PATHS", kind: "flow", derived: true }] : []),
     { id: "tests", label: "TESTS", kind: "tests" },
-    // Conditional: with no HTTP surface there is nothing to compose against, and an empty composer is not a result.
-    ...(endpoints.length ? [{ id: "request", label: "REQUEST", kind: "request" }] : []),
+    // Derived paths have no view of their own: the composer opens on every endpoint's path, so an inferred one is reached by picking the endpoint rather than by picking a second strip button. The caveat moved onto the hop, which is where a reader is actually looking.
+    ...(endpoints.length || derived.length ? [{ id: "request", label: "API REQUEST", kind: "request" }] : []),
     // Unconditional: no findings is a result, and dropping the view would read as "this tool does not check".
     { id: "findings", label: "FINDINGS", kind: "findings" },
   ];
@@ -50,7 +49,7 @@ export function buildViews(config, flows = [], derived = [], endpoints = []) {
     const named = config.views.map((v) => withDefaults({ ...byId.get(v.id), ...v }));
     // A config predating a view should not lose it for not listing it.
     const extra = base.filter(
-      (v) => (v.derived || v.kind === "findings" || v.kind === "request") && !config.views.some((c) => c.id === v.id),
+      (v) => (v.kind === "findings" || v.kind === "request") && !config.views.some((c) => c.id === v.id),
     );
     return [...named, ...extra.map(withDefaults)];
   }

@@ -103,6 +103,29 @@ test("a repo with no endpoints gets no request view", () => {
 });
 
 /**
+ * Four buttons, not seven. Data flow rides in the structure map as import
+ * packets and inferred paths are reached through the composer, so the strip
+ * names the four things a reader actually picks between.
+ */
+test("the strip offers four views, and structure is the one that carries the traffic", () => {
+  const views = buildViews({}, [], [], [{ id: "GET /x" }]);
+  assert.deepEqual(views.map((v) => v.id), ["structure", "tests", "request", "findings"]);
+  assert.equal(views.find((v) => v.id === "structure").kind, "dataflow",
+    "the city and the packets on it are one view, not two");
+  assert.equal(views.some((v) => v.id === "derived"), false,
+    "derived paths lost their own button when the composer took them");
+});
+
+/**
+ * A repo with no HTTP surface can still have inferred paths worth playing, so
+ * the composer appears for either reason — and for neither it stays away.
+ */
+test("derived paths alone are enough to earn the composer", () => {
+  assert.ok(buildViews({}, [], [{ id: "d" }], []).some((v) => v.kind === "request"));
+  assert.equal(buildViews({}, [], [], []).some((v) => v.kind === "request"), false);
+});
+
+/**
  * The golden files pin every colour in the ramp, so the generator has to be a
  * pure function of the length asked for — not of insertion order, a Map, or
  * anything else that could reorder between runs.

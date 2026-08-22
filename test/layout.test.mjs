@@ -34,7 +34,7 @@ function runLayout(atlas) {
     LAYOUT_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     // declared in 50-render.js, which needs a canvas and is not loaded here
     "\nvar staticDirty = false;\nsetYaw(S.yaw);\nrelayout();\n" +
-    "\nglobalThis.scope = { get LAYOUT() { return LAYOUT; }, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES, inPoly, DENSITY_IDS, setDensity, SPACING_MIN, spacingNow: () => SPACING, moveDistrict, resetDistrictOffsets, districtOffset, districtWouldOverlap, pickDistrict, project, toScreen, unproject, epochNow: () => layoutEpoch };\n";
+    "\nglobalThis.scope = { get LAYOUT() { return LAYOUT; }, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES, shapeIdFor, inPoly, groupKeyOf, keyCompare, labelForKey, DENSITY_IDS, setDensity, SPACING_MIN, spacingNow: () => SPACING, moveDistrict, resetOffsets, districtOffset, districtWouldOverlap, pickDistrict, project, toScreen, unproject, epochNow: () => layoutEpoch };\n";
   const ctx = vm.createContext({ ATLAS: atlas, console });
   vm.runInContext(`"use strict";\n${source}`, ctx, { timeout: 60_000 });
   return ctx.scope;
@@ -231,12 +231,25 @@ test("the drawn side faces are the ones facing the camera", () => {
     scope.setYaw((deg * Math.PI) / 180);
     scope.reproject();
     for (const n of scope.LAYOUT.nodes) {
-      const centre = scope.project(n.gx + 0.5, n.gy + 0.5, 0).y;
-      const walls = n.faces.filter((f) => !f.cap);
-      assert.ok(walls.length, `no wall drawn at ${deg}deg`);
-      for (const w of walls) {
-        assert.ok(midY(w) > centre - 1e-9, `a wall was drawn on the far plane at ${deg}deg`);
+      const shape = scope.SHAPES[scope.shapeIdFor(n)];
+      const h = n.h * shape.hs;
+      const base = n.pz ?? 0;
+      // Faces come out prism by prism, each run of walls closed by its own cap,
+      // so counting caps says which prism a wall belongs to — and that is what
+      // gives its base height. Comparing every wall against the floor instead
+      // would read a stepped block's upper storeys as inside out, because their
+      // ground edges legitimately sit above it.
+      let prism = 0, walls = 0;
+      for (const f of n.faces) {
+        if (f.cap) { prism++; continue; }
+        walls++;
+        const z0 = base + h * shape.prisms[prism].z0;
+        const centre = scope.project(n.gx + 0.5, n.gy + 0.5, z0).y;
+        assert.ok(midY(f) > centre - 1e-9,
+          `a wall was drawn on the far plane at ${deg}deg (${scope.shapeIdFor(n)}, storey ${prism})`);
       }
+      assert.ok(walls, `no wall drawn at ${deg}deg`);
+      assert.equal(prism, shape.prisms.length, "every prism caps itself exactly once");
     }
   }
 });
@@ -424,10 +437,10 @@ test("R restores the computed layout exactly", () => {
   scope.moveDistrict(scope.LAYOUT.districts[2].id, { dx: -25, dy: 12 });
   assert.notEqual(scope.LAYOUT.nodes.map((n) => `${n.id}:${n.gx},${n.gy}`).join("|"), before);
 
-  assert.equal(scope.resetDistrictOffsets(), true);
+  assert.equal(scope.resetOffsets(), true);
   assert.equal(scope.LAYOUT.nodes.map((n) => `${n.id}:${n.gx},${n.gy}`).join("|"), before,
     "the computed layout did not come back byte for byte");
-  assert.equal(scope.resetDistrictOffsets(), false, "resetting an unmoved map still claimed to work");
+  assert.equal(scope.resetOffsets(), false, "resetting an unmoved map still claimed to work");
 });
 
 /**
@@ -489,4 +502,87 @@ test("unproject inverts project on the ground plane, at every yaw", () => {
     }
   }
   scope.setYaw(scope.YAW0);
+});
+
+/* ── grouping ───────────────────────────────────────────────────────────────
+   Columns mean one of two things, and the toggle is the whole of the
+   difference: `folder` puts a district where the files sit on disk, `layer`
+   puts it where the classifier says they belong. Everything downstream keys
+   off `groupKeyOf`, so it is the one place worth pinning.                   */
+
+/** A payload with two services — one rooted in a subdirectory, one at the repo root. */
+function grouped() {
+  const p = synthetic(4, 0);
+  p.services = [
+    { id: "api", label: "API", lang: "ts", root: "services/api", order: 0 },
+    { id: "root", label: "ROOT", lang: "ts", root: null, order: 1 },
+  ];
+  p.nodes = [
+    { ...p.nodes[0], id: "services/api/src/routes/a.ts", dir: "services/api/src/routes", service: "api", layer: "route" },
+    { ...p.nodes[1], id: "services/api/src/db/b.ts", dir: "services/api/src/db", service: "api", layer: "repository" },
+    { ...p.nodes[2], id: "services/api/index.ts", dir: "services/api", service: "api", layer: "entry" },
+    { ...p.nodes[3], id: "main.ts", dir: ".", service: "root", layer: "entry" },
+  ];
+  p.layers = [
+    { id: "entry", label: "ENTRY", rank: 0, color: "#111111" },
+    { id: "route", label: "ROUTE", rank: 1, color: "#222222" },
+    { id: "repository", label: "REPOSITORY", rank: 2, color: "#333333" },
+  ];
+  p.edges = [];
+  return p;
+}
+
+test("folder grouping names a district by where the files sit, relative to their service", () => {
+  const scope = runLayout(grouped());
+  scope.S.group = "folder";
+  const key = (id) => scope.groupKeyOf(scope.LAYOUT.nodes.find((n) => n.id === id)
+    ?? { ...grouped().nodes.find((n) => n.id === id) });
+
+  // The service root is stripped: a monorepo columns by src/routes, not by the
+  // prefix every one of its files shares, which would be one column for everything.
+  assert.equal(key("services/api/src/routes/a.ts"), "src/routes");
+  assert.equal(key("services/api/src/db/b.ts"), "src/db");
+  // A file sitting directly in its service root has no subfolder to name.
+  assert.equal(key("services/api/index.ts"), "·");
+  // And a service with no root at all is the repo itself, so `.` reads the same way.
+  assert.equal(key("main.ts"), "·");
+});
+
+test("layer grouping is unchanged by the toggle existing", () => {
+  const scope = runLayout(grouped());
+  scope.S.group = "layer";
+  for (const n of scope.LAYOUT.nodes) assert.equal(scope.groupKeyOf(n), n.layer);
+});
+
+test("columns order by rank in layer mode and alphabetically in folder mode", () => {
+  const scope = runLayout(grouped());
+  scope.S.group = "layer";
+  assert.ok(scope.keyCompare("entry", "repository") < 0, "rank decides, not the alphabet");
+  assert.equal(scope.labelForKey("repository"), "REPOSITORY");
+
+  scope.S.group = "folder";
+  assert.ok(scope.keyCompare("src/db", "src/routes") < 0);
+  // Endpoints have no folder of their own, so they lead rather than sorting
+  // into the middle of the paths under a letter nobody chose.
+  assert.ok(scope.keyCompare("endpoints", "src/db") < 0);
+  assert.equal(scope.labelForKey("src/db"), "src/db", "a path is its own label — upper-casing it would be a different path");
+});
+
+test("switching the axis re-columns the same blocks, and loses none of them", () => {
+  const scope = runLayout(grouped());
+  const ids = () => scope.LAYOUT.nodes.map((n) => n.id).sort();
+
+  scope.S.group = "layer";
+  scope.relayout();
+  const byLayer = scope.LAYOUT.districts.map((d) => d.key).sort();
+  const before = ids();
+
+  scope.S.group = "folder";
+  scope.relayout();
+  const byFolder = scope.LAYOUT.districts.map((d) => d.key).sort();
+
+  assert.deepEqual(ids(), before, "every block survives the switch");
+  assert.notDeepEqual(byFolder, byLayer, "and they are actually columned differently");
+  assert.ok(byFolder.includes("src/routes"));
+  assert.ok(byLayer.includes("route"));
 });

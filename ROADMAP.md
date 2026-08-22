@@ -2,12 +2,14 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status: every phase is complete — 14 of 14.**
+**Status: every phase is complete — 15 of 15.**
 
-One box is open and it is not a phase: Phase 1's 60 fps sustained drag has to be
-measured by a human with the window in front of them, because
-`requestAnimationFrame` is suspended in a backgrounded tab and no harness can
-sample it. Everything else, including every gate, is met and tested.
+Two boxes are open and neither is a phase. Phase 1's 60 fps sustained drag and
+Phase 11's arrival animation both have to be judged by a human with the window
+in front of them, because `requestAnimationFrame` is suspended in a backgrounded
+tab: a harness driving the page sees the arrival advance one frame per forced
+repaint, which looks like blocks failing to draw. Everything else, including
+every gate, is met and tested.
 
 Live mode landed last by design. It is the only part of the tool that opens a
 socket to a running app, it is off unless `--allow-live` is passed, and even
@@ -30,6 +32,7 @@ the only observed things it adds.
 | 8 | Request composer UI | 9 | ● done |
 | 9 | Live proxy mode | — | ● done |
 | 10 | Open-source packaging | — | ● done |
+| 11 | Viewer port: folder districts, four views, authorship | — | ● done |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
 
@@ -663,3 +666,34 @@ and count, not to parse harder at.
 - **v0.1 after Phase 4** — the tool renders any repo. Pull a trimmed README and
   LICENSE forward from Phase 10; everything after is additive.
 - **v1.0 after Phase 10.**
+
+## Phase 11 — Viewer port
+
+The viewer was replaced from a Claude Design draft rather than redesigned in
+place. Same lineage — same class names, ids and function names — so this was a
+port with a mechanical spine, and the work was concentrated where the draft had
+reversed a decision this repo made on purpose.
+
+- [x] Shell replaced: `index.html` + `style.css`, `#atlasRoot` collapsed onto `#app`, the three assembly markers preserved
+- [x] Four views, `structure` carrying kind `dataflow`; DERIVED PATHS folded into the composer
+- [x] Folder districts and the `group by` toggle — `groupKeyOf()` / `keyCompare()` / `labelForKey()`
+- [x] Shelf-packed compaction, deterministic jitter, plates hugging their content
+- [x] Imports routed along the streets, one turn, corridor chosen by cost
+- [x] Shape carries node kind; facade bands; service plinths; cap treatments
+- [x] OKLab identity ramp, generated in `src/model/chrome.mjs` and shipped on the payload
+- [x] Arrival animation, live-pass only, skipped under `prefers-reduced-motion`
+- [x] Top dock (transport + camera), folding sidebar, `? HELP`, onboarding card
+- [x] Both panels collapse; the canvas is re-measured on `transitionend`
+- [x] Palette authoring: four ramps, per-key overrides, SAVE AS…, COPY CONFIG
+- [x] Per-block appearance, NOTES tab, ARRANGE mode, collapse-to-megablock
+- [x] `--include-vendor`, `nodes[].vendor`, `meta.vendorCount`, and the OPTIONS toggle
+- [x] Deliberately **not** ported: the draft's hand-rolled tokenizer (vendored Prism stays), its stubbed `srcServed()`, its stubbed composer send, the Google Fonts link, `support.js`, `atlas-data.js`
+- [ ] Arrival animation judged at full speed by a human — `requestAnimationFrame` is throttled in a backgrounded tab, so no harness can see it
+
+**Gate: met.** Four views load with no console error. A built atlas issues no
+network request. `group by` re-columns the same blocks and does not change their
+colour. Source reads through vendored Prism under `serve` and from
+`--embed-source` on disk. Live mode still sends against a real target and still
+reads `LIVE · STATUS OBSERVED · PATH STILL MODELLED`, with status, duration and
+byte count and no response body. `generic.test.mjs` green; goldens re-baselined
+in the same commits, with the diffs read.

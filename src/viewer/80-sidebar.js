@@ -1,4 +1,4 @@
-/* ════════════════════ sidebar ════════════════════ */
+/* ═══ sidebar ═══ */
 function renderViews() {
   const w = $("#views"); w.innerHTML = "";
   for (const v of VIEWS) {
@@ -7,31 +7,22 @@ function renderViews() {
     w.append(btn);
   }
 }
-
-
-
-/** Which flows the selected node lies on. A class toggle, not a re-render, so the list does not rebuild under the cursor. */
 function markFlowRows() {
   const on = new Set(byId.get(S.selected)?.travelledBy ?? []);
   for (const r of document.querySelectorAll("#list .row[data-flow]")) {
     r.classList.toggle("onpath", on.has(r.dataset.flow));
   }
 }
-
+function swatchFor(layer) {
+  const sw = el("span", "sw");
+  sw.style.background = S.colorMode === "identity" ? layerColorOf(layer) : "transparent";
+  return sw;
+}
 function renderList() {
   const wrap = $("#list"); wrap.innerHTML = "";
   const title = $("#listTitle"), count = $("#listCount");
-
-  if (viewKind(S.view) === "findings") {
-    renderFindingList(wrap, title, count);
-    return;
-  }
-
-  if (viewKind(S.view) === "request") {
-    renderRequestList(wrap, title, count);
-    return;
-  }
-
+  if (viewKind(S.view) === "findings") { renderFindingList(wrap, title, count); return; }
+  if (viewKind(S.view) === "request") { renderRequestList(wrap, title, count); return; }
   if (isFlowView(S.view)) {
     title.textContent = viewById.get(S.view)?.listLabel ?? "PATHS";
     const fs = flowsForView(S.view);
@@ -42,7 +33,6 @@ function renderList() {
     all.onclick = () => { S.activeFlow = "__all__"; relayout(); renderList(); fitView(); renderCaption(); syncControls(); };
     wrap.append(all);
     for (const f of fs) {
-      // A real <button>, so it is focusable, keyboard-reachable and announced as a control.
       const r = el("button", "row flow" + (S.activeFlow === f.id ? " sel" : ""));
       r.dataset.flow = f.id;
       r.append(el("span", "mk", "▶"), el("span", "nm", f.label), el("span", "num", f.steps.length));
@@ -53,31 +43,26 @@ function renderList() {
     markFlowRows();
     return;
   }
-
-  title.textContent = "AREAS";
+  title.textContent = S.group === "folder" ? "FOLDERS" : "AREAS";
   const ds = LAYOUT.districts.slice().sort((a, b) =>
     (svcById.get(a.service)?.order ?? 9) - (svcById.get(b.service)?.order ?? 9) ||
-    (layerById.get(a.layer)?.rank ?? 99) - (layerById.get(b.layer)?.rank ?? 99));
+    keyCompare(a.key, b.key));
   count.textContent = ds.length;
-
   const whole = el("div", "row" + (!S.focusDistrict ? " sel" : ""));
   whole.append(el("span", "sw"), el("span", "nm", "whole system"), el("span", "num", LAYOUT.nodes.length));
   whole.querySelector(".sw").style.background = "transparent";
   whole.onclick = () => { S.focusDistrict = null; S.selected = null; renderList(); renderInspect(); fitView(); };
   wrap.append(whole);
-
   let lastSvc = null;
   for (const d of ds) {
     if (d.service !== lastSvc) {
       lastSvc = d.service;
-      // The same heading class the findings list uses, rather than an inline style in two places.
       wrap.append(el("div", "hint grp", (svcById.get(d.service)?.label ?? d.service).toUpperCase()));
     }
     const r = el("div", "row" + (S.focusDistrict === d.id ? " sel" : ""));
-    // The tint drops out in `mono` and the code still names the district, which is why a code ships at all.
-    const cd = el("span", "cd", d.code ?? "");
-    if (S.colorMode === "identity") cd.style.borderColor = layerById.get(d.layer)?.color ?? THEME.layerFallback;
-    r.append(cd, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.blocks.length));
+    const sw = el("span", "sw");
+    sw.style.background = S.colorMode === "identity" && d.blocks[0] ? colorOf(d.blocks[0]) : "transparent";
+    r.append(sw, el("span", "nm", d.label.toLowerCase()), el("span", "num", d.blocks.length));
     r.onclick = () => {
       S.focusDistrict = S.focusDistrict === d.id ? null : d.id;
       S.selected = null; S.pinnedPacket = null;
@@ -87,22 +72,16 @@ function renderList() {
     wrap.append(r);
   }
 }
-
-/** Services as disclosures over their districts, ordered by `order` so the panel and the map agree. */
 function renderServices() {
   const w = $("#svc"); w.innerHTML = "";
   const services = ATLAS.services.slice().sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
-
   for (const s of services) {
-    const files = ATLAS.nodes.filter((x) => x.service === s.id && x.kind === "file");
+    const files = ATLAS.nodes.filter((x) => x.service === s.id && x.kind === "file" && (!x.vendor || S.opts.vendor));
     if (!files.length) continue;
-
     const det = el("details", "svc");
     if (S.openServices.has(s.id)) det.open = true;
     det.ontoggle = () => det.open ? S.openServices.add(s.id) : S.openServices.delete(s.id);
-
     const sum = el("summary");
-    // The checkbox sits in the summary so a service switches off without opening; stopping the click keeps one gesture doing one thing.
     const cb = el("input"); cb.type = "checkbox"; cb.checked = S.services.has(s.id);
     cb.onclick = (e) => e.stopPropagation();
     cb.onchange = () => {
@@ -111,17 +90,13 @@ function renderServices() {
     };
     sum.append(cb, el("span", "nm", s.label), el("span", "num", files.length));
     det.append(sum);
-
     const inner = el("div", "svcBody");
-    const districts = [...new Set(files.map((f) => f.layer))]
-      .sort((a, b) => (layerById.get(a)?.rank ?? 99) - (layerById.get(b)?.rank ?? 99));
-    for (const L of districts) {
-      const members = files.filter((f) => f.layer === L);
-      const id = districtId(s.id, L);
+    const keys = [...new Set(files.map((f) => groupKeyOf(f)))].sort(keyCompare);
+    for (const key of keys) {
+      const members = files.filter((f) => groupKeyOf(f) === key);
+      const id = districtId(s.id, key);
       const r = el("div", "row mini" + (S.focusDistrict === id ? " sel" : ""));
-      const cd = el("span", "cd", codeByDistrict.get(id) ?? "");
-      if (S.colorMode === "identity") cd.style.borderColor = layerById.get(L)?.color ?? THEME.layerFallback;
-      r.append(cd, el("span", "nm", (layerById.get(L)?.label ?? L).toLowerCase()), el("span", "num", members.length));
+      r.append(swatchFor(members[0].layer), el("span", "nm", labelForKey(key).toLowerCase()), el("span", "num", members.length));
       r.onclick = () => {
         S.focusDistrict = S.focusDistrict === id ? null : id;
         S.selected = null; S.pinnedPacket = null;
@@ -135,32 +110,22 @@ function renderServices() {
     w.append(det);
   }
 }
-
 function renderStats() {
   const m = ATLAS.meta;
   $("#bRepo").textContent = m.repo;
-  $("#bRef").textContent = `${m.ref} @ ${m.commit} · ${m.generatedAt}`;
   const kind = viewKind(S.view);
-  // Severity counts lead, because a strip that clips has to clip the least important thing on it.
   const sevCount = (sev) => FINDINGS.filter((f) => !f.muted && f.severity === sev).length;
   const rows = kind === "findings"
-    ? [
-        ["ERROR", fmt(sevCount("error"))], ["WARNING", fmt(sevCount("warning"))],
-        ["INFO", fmt(sevCount("info"))], ["MUTED", fmt(FINDINGS.filter((f) => f.muted).length)],
-        ["SOURCE FILES", fmt(m.fileCount)], ["LINKS", fmt(m.edgeCount)],
-      ]
+    ? [["ERROR", fmt(sevCount("error"))], ["WARNING", fmt(sevCount("warning"))],
+       ["INFO", fmt(sevCount("info"))], ["MUTED", fmt(FINDINGS.filter((f) => f.muted).length)],
+       ["SOURCE FILES", fmt(m.fileCount)], ["LINKS", fmt(m.edgeCount)]]
     : kind === "tests"
-    ? [
-        ["TEST FILES", fmt(m.testCount)], ["SUITES", fmt(m.suiteCount)],
-        ["DIRECT", fmt(m.coverDirect)], ["INDIRECT", fmt(m.coverIndirect)],
-        ["NO TEST REACHES", fmt(m.coverNone)], ["LINKS", fmt(m.edgeCount)],
-      ]
-    : [
-        // The caveat leads the strip: the row clips, and a clipped caveat is none.
-        ["DERIVED · UNMAPPED", `${fmt(m.derivedCount)} · ${fmt(m.unsortedCount)}`],
-        ["NODES", fmt(m.nodeCount)], ["SOURCE FILES", fmt(m.fileCount)], ["LINES", fmt(m.lineCount)],
-        ["LINKS", fmt(m.edgeCount)], ["ENDPOINTS", fmt(m.endpointCount)], ["TESTS", fmt(m.testCount)],
-      ];
+    ? [["TEST FILES", fmt(m.testCount)], ["SUITES", fmt(m.suiteCount)],
+       ["DIRECT", fmt(m.coverDirect)], ["INDIRECT", fmt(m.coverIndirect)],
+       ["NO TEST REACHES", fmt(m.coverNone)], ["LINKS", fmt(m.edgeCount)]]
+    : [["DERIVED · UNMAPPED", `${fmt(m.derivedCount)} · ${fmt(m.unsortedCount)}`],
+       ["NODES", fmt(m.nodeCount)], ["SOURCE FILES", fmt(m.fileCount)], ["LINES", fmt(m.lineCount)],
+       ["LINKS", fmt(m.edgeCount)], ["ENDPOINTS", fmt(m.endpointCount)], ["TESTS", fmt(m.testCount)]];
   const w = $("#stats"); w.innerHTML = "";
   for (const [k, v] of rows) {
     const d = el("div", "stat");
@@ -168,9 +133,7 @@ function renderStats() {
     w.append(d);
   }
 }
-
 function renderLegend() {
-  // Rows name a theme key rather than repeating a colour, keyed by view kind with the default as fallback, so the legend cannot drift.
   const rows = THEME.legend[viewKind(S.view)] ?? THEME.legend.default ?? [];
   const w = $("#legend"); w.innerHTML = "";
   for (const r of rows) {
@@ -179,10 +142,9 @@ function renderLegend() {
       ?? (r.swatch ? PACKET_COLOR[r.swatch] : null)
       ?? (r.tint ? COVER_TINT[r.tint] : null)
       ?? (r.sev ? THEME.findingSeverity?.[r.sev] : null)
-      ?? (r.layer ? layerById.get(r.layer)?.color : null)
+      ?? (r.layer ? layerColorOf(r.layer) : null)
       ?? THEME.layerFallback;
     const g = el("div", "lg");
-    // Severity is a stroke on the map, so the legend shows a stroke rather than a swatch that matches nothing.
     const line = r.edge || r.sev;
     const mark = el(line ? "i" : "u");
     if (line) { mark.style.borderTopColor = color; if (style?.dash || r.dash) mark.className = "dash"; }
@@ -192,8 +154,6 @@ function renderLegend() {
   }
   const right = el("div", "lg");
   right.style.marginLeft = "auto";
-  // `srcBadgeText()` is the single place that decides served/embedded/neither, so the legend only repeats that answer.
   right.append(el("span", ATLAS.source ? "warn" : null, srcBadgeText()));
   w.append(right);
 }
-

@@ -29,8 +29,8 @@ import { scanFixture, requireCorpus, scanTaxvault } from "./helpers.mjs";
  */
 const MODULES = [
   "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
-  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "72-source.js",
-  "75-findings.js", "79-live.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
+  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
+  "75-findings.js", "79-live.js", "80-sidebar.js", "82-palette.js", "85-camera.js", "88-interact.js",
 ];
 
 function fakeContext(counts) {
@@ -43,6 +43,10 @@ function fakeContext(counts) {
       canvas: { width: 0, height: 0 },
       measureText: (t) => ({ width: String(t).length * 6 }),
       createRadialGradient: () => ({ addColorStop: noop }),
+      // The face gradient and the clip the glass material uses; both are pure
+      // appearance, but the renderer calls them per block, so the stub answers.
+      createLinearGradient: () => ({ addColorStop: noop }),
+      clip: noop,
       setTransform: noop,
       drawImage: noop,
       fillRect: () => counts.fillRect++,
@@ -310,6 +314,11 @@ test("the highlight is a veil over the map, not a filter of it", async () => {
   for (let i = 0; i < 60; i++) scope.easeFindings(0.016);
   assert.ok(scope.veil() > 0.8, "the veil eases in rather than cutting");
 
+  // Warm the static raster first, then count. Imports route along the streets as
+  // rounded corners now, so the world layer strokes curves of its own — counting
+  // across both passes would measure the city, not the highlight. The second
+  // draw blits the cached raster and runs only the live pass.
+  scope.draw();
   scope.counts.arcs.length = 0;
   scope.draw();
   // One curve per implicated edge, and no others.
@@ -337,6 +346,9 @@ test("a muted finding is drawn dashed rather than not drawn", async () => {
   scope.setView("findings");
   scope.selectFinding(target.id);
   for (let i = 0; i < 60; i++) scope.easeFindings(0.016);
+  // Warm the static raster: the world layer strokes its own curves for the
+  // import streets, so counting across both passes measures the city too.
+  scope.draw();
   scope.counts.arcs.length = 0;
   scope.draw();
 
@@ -472,8 +484,12 @@ test("a repository with a hundred findings renders, and a cycle draws as a ring"
   for (let i = 0; i < 60; i++) scope.easeFindings(0.016);
 
   for (const id of cycle.evidence.nodes) assert.ok(scope.LAYOUT.ids.has(id), `${id} is not lit`);
+  // Warm the static raster: the world layer strokes its own curves for the
+  // import streets, so counting across both passes measures the city too.
+  scope.draw();
   scope.counts.arcs.length = 0;
   scope.draw();
+
   // Both directions drawn, which is the whole difference between a cycle and
   // two files that happen to be near each other.
   assert.equal(scope.counts.arcs.length, cycle.evidence.edges.length);

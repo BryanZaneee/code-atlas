@@ -60,7 +60,9 @@ function derivedFlows(endpoints, nodes) {
     out.push({
       id: `derived:${e.id}`,
       label: e.id,
-      view: "derived",
+      // No `view`: derived paths lost their own strip button when the composer
+      // started opening on every endpoint's path. They are reached by picking
+      // the endpoint, and `derived: true` is what still marks them inferred.
       derived: true,
       blurb: "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       steps: steps.map((s) => ({

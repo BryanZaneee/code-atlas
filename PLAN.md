@@ -384,6 +384,7 @@ Reordered from the original: **perf moved into Phase 1**, because the `RangeErro
 | **8** | Request composer UI | Compose → `SEND (MODELED)` animates the derived path with substituted values; curated-vs-derived badge visible on canvas; `[+ CURATE THIS]` output pastes into a config and validates |
 | **9** | Live mode | Real 200 + latency from a running Shuttrr; 401 halts at hop 1 and says so; proxy refuses `path:"http://example.com/"`, refuses non-loopback target, 403s without `--allow-live`; no token in stderr or `outerHTML` |
 | **10** | Open-source packaging | README, LICENSE, CONTRIBUTING, `docs/{payload-schema,adapters,config}.md`. Gate: a reader who has never seen the repo goes from `git clone` to a rendered atlas of **their own** project using only the README, on a repo with no config. |
+| **11** | **Viewer port**: folder districts and the `group by` toggle, shelf-packed compaction, imports routed along streets, service plinths, facade bands, kind-carrying shapes, the OKLab identity ramp in the payload, arrival animation, top dock, folding sidebar, `? HELP`, onboarding, palette authoring, per-block appearance, notes, ARRANGE, megablock collapse, `--include-vendor` | Four views, not seven. A built atlas makes **no network request** — checked on the built HTML, because the design it came from linked a webfont. Live mode still sends and still says `LIVE · STATUS OBSERVED · PATH STILL MODELLED`. `generic.test.mjs` green. Goldens re-baselined with the diff read. |
 
 ## Limitations (stated up front, and in the README)
 
@@ -417,6 +418,35 @@ dependency to make one target repo work.
 renderer rewrite displacing the scanner work, and the scanner work is now largely
 done. The seam it protected still exists and is still the plan. Adopting three.js
 or paper-shaders is a dependency decision and goes through the rule above.
+
+**Folders, from never drawn to the default axis.** The old rule said a directory
+decides a block's layer and service and then plays no further part, and the
+reasoning was good: grouping by the job a file does says something the file tree
+cannot, and two files that sit together on disk landing in different districts is
+the map working. What it did not survive was contact with readers. The first
+question anyone asks of a map of their own repository is *where is the thing I
+was just editing*, and a map with no answer to that is a diagram of the tool's
+opinion rather than of the code. Both axes now ship and `group by` switches
+between them; layer stays the block's colour in either, so the architectural
+read is never actually lost — it moves from position to hue. What did not
+change: nothing nests, and a deep path is one column named `a/b/c`, not three.
+The rule this replaces was about not building a folder *tree*, and that part
+still holds.
+
+**Seven views to four.** DATA FLOW was a separate view of the same city with the
+packets turned on; API FLOW was the composer without the composing. Both were
+buttons that asked a reader to know a distinction before they had seen either
+side of it. Import packets now run in STRUCTURE by default and an inferred path
+is reached by picking its endpoint in API REQUEST. The caveat moved with it:
+`derived: true` is on the flow and the canvas still says so, which is the part
+the honesty contract actually requires. Fewer buttons, same claims.
+
+**Layer colours, from a hand-picked list to a generated ramp.** Eighteen hex
+values chosen by eye drift in lightness, so a column read as more important than
+its neighbour for no reason anyone intended. They are mixed in OKLab at equal
+lightness now, stepped by hue, and generated in `src/model/chrome.mjs` so the
+payload still carries the finished colour and a config can still name its own.
+The viewer picks from what it is given; it does not compute a palette.
 
 **The honesty contract, from four UI rules to one idea.** Exact button strings,
 mandated badge placement and a banned synonym were pinning the interface without

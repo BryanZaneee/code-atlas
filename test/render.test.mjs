@@ -37,6 +37,10 @@ function fakeContext(counts) {
       canvas: { width: 0, height: 0 },
       measureText: (t) => ({ width: t.length * 6 }),
       createRadialGradient: () => ({ addColorStop: noop }),
+      // The face gradient and the drop shadow: both are pure appearance, but the
+      // renderer calls them per block, so the stub has to answer.
+      createLinearGradient: () => ({ addColorStop: noop }),
+      clip: noop,
       setTransform: noop,
       drawImage: () => counts.drawImage++,
       fillRect: noop,
@@ -83,7 +87,7 @@ function runRenderer(atlas) {
     const _draw = draw;
     draw = function () { __counts.draw++; return _draw.apply(this, arguments); };
     globalThis.scope = {
-      S, draw, frame, buildPackets, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, get LAYOUT() { return LAYOUT; }, stepStyle, counts: __counts, moveDistrict, resetDistrictOffsets,
+      S, draw, frame, buildPackets, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, get LAYOUT() { return LAYOUT; }, stepStyle, counts: __counts, moveDistrict, resetOffsets,
       wrap: () => { drawStatic = function () { __counts.drawStatic++; return _drawStatic.apply(this, arguments); }; },
     };
     `;
@@ -279,7 +283,7 @@ function derivedPayload() {
   const p = payload(40);
   const id = (i) => p.nodes[i].id;
   const flow = {
-    id: "derived:x", label: "GET /x", view: "derived", derived: true,
+    id: "derived:x", label: "GET /x", derived: true,
     steps: [
       { from: id(0), to: id(1), kind: "request", certainty: "wired", inferred: false },
       { from: id(1), to: id(2), kind: "request", certainty: "imported", inferred: false },
@@ -292,7 +296,8 @@ function derivedPayload() {
 }
 
 test("a derived hop draws how sure it is, not only what kind it is", () => {
-  const scope = runRenderer(derivedPayload());
+  const atlas = derivedPayload();
+  const scope = runRenderer(atlas);
   const base = scope.EDGE_STYLE.request;
   const graded = (certainty) => scope.stepStyle({ kind: "request", certainty });
   const wired = graded("wired"), imported = graded("imported"), inferred = graded("inferred");
@@ -317,7 +322,10 @@ test("a derived hop draws how sure it is, not only what kind it is", () => {
 
   // And the renderer has to actually ask. Reading it off the canvas is the half
   // that fails if someone drops the call and keeps the table.
-  scope.S.view = "derived";
+  // A derived path is armed through the composer now — there is no DERIVED view
+  // to switch to, so the test arms it the same way a reader would.
+  scope.S.view = "request";
+  scope.S.request = atlas.derivedFlows[0];
   scope.relayout();
   scope.counts.arcs.length = 0;
   scope.draw();
@@ -388,8 +396,8 @@ test("a drop that changes nothing does not re-render", () => {
 
 const BADGE_MODULES = [
   "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
-  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "72-source.js",
-  "75-findings.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
+  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
+  "75-findings.js", "80-sidebar.js", "82-palette.js", "85-camera.js", "88-interact.js",
 ];
 
 function fakeBadgeElement() {
@@ -457,7 +465,7 @@ function badgePayload() {
   const p = payload(20);
   const id = (i) => p.nodes[i].id;
   const derived = {
-    id: "derived:x", label: "GET /x", view: "derived", derived: true,
+    id: "derived:x", label: "GET /x", derived: true,
     steps: [{ from: id(0), to: id(1), kind: "request", certainty: "inferred", inferred: true }],
   };
   const curated = {

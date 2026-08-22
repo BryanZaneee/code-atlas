@@ -239,7 +239,10 @@ function closeSource() {
 }
 
 function srcSyncTabs() {
-  $("#tabInfo").classList.toggle("on", !SRC.open);
+  // Three tabs now, not two: INFO and NOTES share the "reader is not in SOURCE"
+  // state, so which of them is lit comes from S.insTab rather than from SRC.
+  $("#tabInfo").classList.toggle("on", !SRC.open && S.insTab === "info");
+  $("#tabNotes").classList.toggle("on", !SRC.open && S.insTab === "notes");
   $("#tabSource").classList.toggle("on", SRC.open);
 }
 
@@ -287,7 +290,8 @@ function srcInit() {
     tab.title = SRC_STATIC_COPY;
   }
   tab.onclick = () => { const s = srcSubject(); openSource(s.path, s.line); };
-  $("#tabInfo").onclick = () => closeSource();
+  $("#tabInfo").onclick = () => { S.insTab = "info"; closeSource(); renderInspect(); srcSyncTabs(); };
+  $("#tabNotes").onclick = () => { S.insTab = "notes"; closeSource(); renderInspect(); srcSyncTabs(); };
   $("#srcClose").onclick = () => closeSource();
 
   // Drag the left edge to resize, bounded both ways so the panel stays readable and the map stays visible.

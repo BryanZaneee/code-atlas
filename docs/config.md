@@ -172,11 +172,17 @@ helper-registered routes are skipped and counted rather than guessed at.
 
 | kind | what it shows |
 | --- | --- |
-| `structure` | every node, filtered by the sidebar toggles |
+| `dataflow` | every node, filtered by the sidebar toggles, with import packets running on the edges. The default `structure` view's kind |
 | `flow` | only the nodes and edges named by this view's curated flows |
 | `tests` | test edges and the coverage tint |
-| `request` | compose a request against one endpoint and play its modelled path |
+| `request` | compose a request against one endpoint and play its modelled path — curated where one was asserted, derived otherwise |
 | `findings` | the whole map, with one finding's evidence lit and the rest dimmed |
+
+There is no `derived` kind. Inferred paths used to have a strip button of their
+own; they are reached through the composer now, which opens on every endpoint's
+path, and `derived: true` on the flow is what still marks one inferred. A config
+that named a `derived` view keeps whatever it named — nothing is dropped — but
+the tool no longer generates one.
 
 The viewer used to hardcode four view ids and branch on two of them by name,
 which meant a repo whose flows were called anything else silently lost its flow
@@ -203,6 +209,17 @@ edge kind does not drop the other eleven.
 | `legend` | object | legend rows per view kind; each row *names* a key in the tables above rather than repeating a colour, so the legend cannot drift from the map |
 | `dark` | object | the dark theme, as a **delta** over the keys above |
 | `density` | object | how much air sits between districts and services. See below |
+| `ramps` `rampLabels` | object | the identity palettes the viewer's PALETTE panel offers, as ordered colour lists. Four ship (`atlas` `blueprint` `earth` `okabe`), mixed in OKLab at equal lightness and sized to your layer list |
+| `blockShadow` `faceGradient` `glow` | bool | material switches — appearance the renderer turns on or off, not colours |
+| `gridAlpha` | number | how far the ground grid sits under the city |
+| `shadow` `sheen` | string / string[] | the drop shadow, and the three stops of the `liquid glass` material's highlight |
+
+A layer with no `color` is painted from the `atlas` ramp by its position in
+`layers`, so the palette steps evenly instead of drifting the way a hand-picked
+hex list does. Naming a `color` on a layer still wins. The viewer's `COPY
+CONFIG` button emits exactly this block for whatever palette you edited on
+screen, which is how a colour you liked in the viewer becomes one the build
+ships.
 
 Canvas cannot read CSS custom properties, so the viewer needs real colour values
 in JavaScript. These tables are the single definition: the legend is generated

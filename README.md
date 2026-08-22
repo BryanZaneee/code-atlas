@@ -106,18 +106,26 @@ detects otherwise), `--ref REF` (git ref, or `worktree` / `fs`; default `HEAD`),
 
 ## Features
 
-**Views.** STRUCTURE for the shape of the codebase, TESTS for what the suite
-actually reaches, FINDINGS for eight structural checks drawn on the map rather
-than listed beside it, REQUEST for composing a request against an endpoint, and
-one view per curated flow plus DERIVED PATHS for the ones the tool inferred.
-Curated and derived paths never share a view, because a reader has to be able to
-tell an asserted path from an inferred one without inspecting a field.
+**Views.** Four, plus one per curated flow. STRUCTURE is the codebase with its
+import traffic running on it; TESTS is what the suite actually reaches; API
+REQUEST composes a request against an endpoint and plays the path it would take;
+FINDINGS draws eight structural checks on the map rather than listing them beside
+it. A path the tool inferred is always marked as inferred — on the hop, in the
+panel and on the canvas — because a reader has to be able to tell an asserted
+path from a derived one without inspecting a field.
 
-**The map.** Services are rows, layers are columns, file length is height. Pan,
-cursor-anchored zoom, rotation, click-to-inspect, text filter, service toggles,
-animated packets with pause and single-step, and districts a reader can drag by
-hand. Every block records the rule that placed it, so a misclassification is a
-config edit rather than a bug report.
+**The map.** Services are rows and **folders are columns**, or layers are, if you
+flip `group by` in the sidebar — the same blocks re-columned, keeping their
+colour, which is always the layer. File length is both height and footprint. Pan,
+cursor-anchored zoom, rotation, click-to-inspect, search, service toggles,
+animated packets with pause and single-step, and blocks and districts a reader
+can drag onto new cells. Every block records the rule that placed it, so a
+misclassification is a config edit rather than a bug report.
+
+**Make it yours.** Four identity palettes and a colour picker per layer, with
+COPY CONFIG to emit the theme block that makes your choice permanent. A note per
+file, kept in your browser. Per-block colour, shape and size. Collapse a district
+to a single block when you want the shape without the detail.
 
 **Reading the code.** `atlas serve` adds a SOURCE tab that opens the file behind
 a block at the line that matters: an endpoint's registration, an import, a test's
@@ -180,11 +188,14 @@ directly. **FINDINGS** veils the map and lights only the blocks and edges one
 finding names, in place: it does not re-pack the map, because a finding answers
 *where* and moving things would delete the answer.
 
-**Flow views** are different: entering one **isolates** the path and re-packs it
-into its own districts, because seeing a path alone is what makes it readable.
-Curated paths and derived paths never share a view, so you can always tell from
-the strip alone whether a person asserted what you are watching or the tool
-inferred it. **REQUEST** is the composer, below.
+**API REQUEST** is the composer, below. Arming a path **isolates** it and re-packs
+it into its own districts, because seeing a path alone is what makes it readable.
+Whether a person asserted that ordering or the tool inferred it from imports is
+said in the panel heading, on every hop, and on the canvas — a derived path can
+never be mistaken for an observed one, which is the whole point.
+
+**Flow views** appear one per distinct `flows[].view` in your config, for paths
+you have curated by hand.
 
 ## The eight structural checks
 

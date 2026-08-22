@@ -104,36 +104,28 @@
   "views": [
     {
       "title": "THE CODEBASE",
-      "hint": "Rows are services, columns are architectural layers. Block height is file length. Click a district to open it and list its files.",
+      "hint": "Every file is a block: height and footprint are both file length. Blocks sit in districts — folders by default, or architectural layers — and the diamonds riding the streets are packets on real import edges: one moving from A to B means B reads what A exports. Click a district to open it, a block for its imports and source, a packet mid-flight to read the hop.",
       "id": "structure",
       "label": "STRUCTURE",
-      "kind": "structure"
-    },
-    {
-      "title": "REQUEST PATH",
-      "hint": "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
-      "id": "derived",
-      "label": "DERIVED PATHS",
-      "kind": "flow",
-      "derived": true
+      "kind": "dataflow"
     },
     {
       "title": "TEST COVERAGE",
-      "hint": "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+      "hint": "Packets run from each test to what it reaches. Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks: no test reaches them at all.",
       "id": "tests",
       "label": "TESTS",
       "kind": "tests"
     },
     {
-      "title": "COMPOSE A REQUEST",
-      "hint": "Pick an endpoint and compose a request against it. The payload is synthetic and nothing is sent — this plays the modelled path a request would take, curated first and derived otherwise, with each hop marked by whether an import backs it.",
+      "title": "API REQUEST PATH",
+      "hint": "Pick an endpoint and compose a request against it. Nothing is sent: this plays the path a request would take through the files — curated where a person asserted one, otherwise derived from the import graph, where dotted hops are gaps derivation could not justify.",
       "id": "request",
-      "label": "REQUEST",
+      "label": "API REQUEST",
       "kind": "request"
     },
     {
       "title": "STRUCTURAL FINDINGS",
-      "hint": "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
+      "hint": "Structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
       "id": "findings",
       "label": "FINDINGS",
       "kind": "findings"
@@ -1070,7 +1062,6 @@
     {
       "id": "derived:GET /api/users",
       "label": "GET /api/users",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1128,7 +1119,6 @@
     {
       "id": "derived:GET /api/users/:id",
       "label": "GET /api/users/:id",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1186,7 +1176,6 @@
     {
       "id": "derived:POST /api/users",
       "label": "POST /api/users",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1244,7 +1233,6 @@
     {
       "id": "derived:GET /health",
       "label": "GET /health",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1267,7 +1255,6 @@
     {
       "id": "derived:POST /jobs",
       "label": "POST /jobs",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [

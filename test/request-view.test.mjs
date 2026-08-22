@@ -30,8 +30,8 @@ import { scanFixture, FIXTURE_DIR } from "./helpers.mjs";
 
 const MODULES = [
   "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
-  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "72-source.js",
-  "75-findings.js", "78-request.js", "79-live.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
+  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
+  "75-findings.js", "78-request.js", "79-live.js", "80-sidebar.js", "82-palette.js", "85-camera.js", "88-interact.js",
 ];
 
 function fakeContext() {
@@ -42,6 +42,10 @@ function fakeContext() {
       canvas: { width: 0, height: 0 },
       measureText: (t) => ({ width: String(t).length * 6 }),
       createRadialGradient: () => ({ addColorStop: noop }),
+      // The face gradient and the clip the glass material uses; both are pure
+      // appearance, but the renderer calls them per block, so the stub answers.
+      createLinearGradient: () => ({ addColorStop: noop }),
+      clip: noop,
       setTransform: noop, drawImage: noop, fillRect: noop, clearRect: noop,
       save: noop, restore: noop, beginPath: noop, closePath: noop,
       moveTo: noop, lineTo: noop, arc: noop, quadraticCurveTo: noop,

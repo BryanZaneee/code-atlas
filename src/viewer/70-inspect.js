@@ -1,12 +1,9 @@
-/* ════════════════════ inspect panel ════════════════════ */
-
+/* ═══ inspect panel ═══ */
 function selectStep(st) {
   S.pinnedPacket = st;
   S.selected = st.to;
   renderInspect();
 }
-
-/** Enter a flow from a node on it, opening at that node's hop rather than hop 1 and keeping it selected. */
 function enterFlow(flowId, fromId) {
   const f = flowById.get(flowId);
   if (!f) return;
@@ -24,19 +21,14 @@ function enterFlow(flowId, fromId) {
   renderInspect();
   renderCaption();
 }
-
 function renderInspect() {
   markFlowRows();
   const b = $("#insBody");
   b.innerHTML = "";
-
-  // A lit finding owns the panel until something sets `selected`, which is any click past it.
+  if (S.insTab === "notes") { renderNotes(b); return; }
   const finding = S.selected || S.pinnedPacket ? null : findSelected();
   if (finding) { renderFinding(b, finding); return; }
-
-  // The composer owns the request view's panel until a packet or block asks about the path it played.
   if (viewKind(S.view) === "request" && !S.pinnedPacket && !S.selected) { renderComposer(b); return; }
-
   if (S.pinnedPacket) {
     const st = S.pinnedPacket;
     const f = flowById.get(st.flowId) ?? (S.request?.id === st.flowId ? S.request : null);
@@ -45,7 +37,6 @@ function renderInspect() {
     const dl = el("dl", "kv");
     const add = (k, v) => { dl.append(el("dt", null, k), el("dd", null, v)); };
     add("KIND", st.kind);
-    // The canvas says certainty in weight and dash; spelling it out makes it quotable.
     if (st.certainty) add("CERTAINTY", CERTAINTY_LABEL[st.certainty] ?? st.certainty);
     add("FROM", byId.get(st.from)?.name ?? st.from);
     add("TO", byId.get(st.to)?.name ?? st.to);
@@ -53,29 +44,46 @@ function renderInspect() {
     if (st.note) b.append(el("div", "note" + (st.warn ? " warn" : ""), st.note));
     if (st.sample) {
       b.append(el("h3", null, "PACKET PAYLOAD (SYNTHETIC)"));
-      const pre = el("pre", "sample", JSON.stringify(st.sample, null, 2));
-      b.append(pre);
+      b.append(el("pre", "sample", JSON.stringify(st.sample, null, 2)));
     }
-    // An inferred hop crossed a gap in the import graph and has no line to open, so it gets no button at all.
     const justifies = srcHopImport(st);
     const hop = justifies && srcJump("⤷ IMPORT IN", justifies.path, justifies.line);
     if (hop) b.append(hop);
-
     const back = el("button", null, "← CLEAR PACKET");
     back.style.marginTop = "9px";
     back.onclick = () => { S.pinnedPacket = null; renderInspect(); };
     b.append(back);
     return;
   }
-
   if (S.focusDistrict && !S.selected) {
     const d = LAYOUT.districts.find(x => x.id === S.focusDistrict);
     if (d) {
-      b.append(el("div", "title", `${svcById.get(d.service)?.label ?? d.service}`));
-      b.append(el("div", "path", `${d.label.toLowerCase()} · ${d.blocks.length} files`));
+      b.append(el("div", "eyebrow", (svcById.get(d.service)?.label ?? d.service).toUpperCase()));
+      b.append(el("div", "title", d.label));
+      b.append(el("div", "path", `${d.blocks.length} file${d.blocks.length === 1 ? "" : "s"}`));
       const dl = el("dl", "kv");
       dl.append(el("dt", null, "LINES"), el("dd", null, fmt(d.blocks.reduce((a, n) => a + n.loc, 0))));
       b.append(dl);
+      b.append(el("h3", null, "SHAPE"));
+      const rowS = el("div");
+      const cur = S.shapeByDistrict.get(d.id) ?? "auto";
+      for (const idd of ["auto", ...SHAPE_IDS]) {
+        const t = el("span", "tag act", idd === "auto" ? "auto" : SHAPES[idd].label.toLowerCase());
+        if (cur === idd) { t.style.background = "var(--accent)"; t.style.color = "var(--bg)"; }
+        t.onclick = () => {
+          if (idd === "auto") S.shapeByDistrict.delete(d.id);
+          else S.shapeByDistrict.set(d.id, idd);
+          reproject(); buildPackets(); staticDirty = true; renderInspect();
+        };
+        rowS.append(t);
+      }
+      b.append(rowS);
+      b.append(el("div", "hint", "Overrides the map-wide shape for just this district."));
+      const col = el("button", null, d.collapsed ? "◧ EXPAND DISTRICT" : "▣ COLLAPSE TO MEGABLOCK");
+      col.style.marginTop = "8px";
+      col.onclick = () => toggleCollapse(d.id);
+      b.append(col);
+      b.append(el("div", "hint", "One block, height is the district's total lines — the module-level read. Double-clicking the plate does the same."));
       b.append(el("h3", null, "FILES"));
       for (const n of d.blocks.slice().sort((a, x) => x.loc - a.loc)) {
         const r = el("div", "row mini");
@@ -86,15 +94,12 @@ function renderInspect() {
       return;
     }
   }
-
   const n = byId.get(S.selected);
   if (!n) {
-    // The view's own label, since a config can rename any view.
     const here = viewById.get(S.view)?.label ?? "this view";
     b.append(el("div", "hint", `Choose a block in the map, a district on the left, or click a moving packet. The packets follow real relationships — imports in ${here}, curated call order in a flow view.`));
     return;
   }
-
   b.append(el("div", "eyebrow", (layerById.get(n.layer)?.label ?? n.layer).toUpperCase()));
   b.append(el("div", "title", n.name));
   if (n.kind === "file") {
@@ -104,7 +109,6 @@ function renderInspect() {
   }
   b.append(el("div", "path", n.id));
   const dl = el("dl", "kv");
-  // `why` is the rule that placed this node, which makes a misclassification a config edit rather than a bug report.
   const add = (k, v, why) => {
     const dd = el("dd", null, v);
     if (why) dd.append(el("div", "why", why));
@@ -121,15 +125,12 @@ function renderInspect() {
   if (n.testKind) add("SUITE", n.testKind);
   if (n.subject) add("COVERS", byId.get(n.subject)?.name ?? n.subject);
   b.append(dl);
-
-  // An endpoint opens at its route line, a file at its top, a test at what it covers.
   const ep = n.kind === "endpoint" ? srcEndpoint(n.id) : null;
   for (const jump of [
     ep ? srcJump("⤷ ROUTE IN", ep.definedIn, ep.line) : null,
     n.kind === "file" ? srcJump("⤷ READ", n.id, 0) : null,
     n.subject ? srcJump("⤷ COVERS", n.subject, 0) : null,
   ]) if (jump) b.append(jump);
-
   if (n.note) b.append(el("div", "note", n.note));
   if (n.coverage) {
     const txt = {
@@ -139,30 +140,27 @@ function renderInspect() {
     }[n.coverage];
     b.append(el("div", "note" + (n.coverage === "none" ? " warn" : ""), `COVERAGE: ${n.coverage.toUpperCase()} — ${txt}`));
   }
-
-  // Absent rather than empty when no flow passes through: an empty section reads as a broken panel.
   if (n.travelledBy?.length) {
     b.append(el("h3", null, "TRAVELLED BY"));
     const w = el("div");
     for (const id of n.travelledBy) {
       const f = flowById.get(id);
       if (!f) continue;
-      const chip = el("span", "tag act", f.label);
-      chip.onclick = () => enterFlow(id, n.id);
-      w.append(chip);
+      const c = el("span", "tag act", f.label);
+      c.onclick = () => enterFlow(id, n.id);
+      w.append(c);
     }
     b.append(w);
   }
-
   if (n.externals?.length) {
     b.append(el("h3", null, "EXTERNAL PACKAGES"));
     const w = el("div");
     n.externals.forEach(x => w.append(el("span", "tag", x)));
     b.append(w);
   }
-
   const outs = (edgesFrom.get(n.id) ?? []).filter(e => e.kind !== "test:exercises");
   const ins = (edgesTo.get(n.id) ?? []).filter(e => e.kind !== "test:exercises");
+  renderAppearance(b, n);
   const list = (title, arr, key) => {
     if (!arr.length) return;
     b.append(el("h3", null, `${title} (${arr.length})`));
@@ -170,7 +168,6 @@ function renderInspect() {
       const t = byId.get(e[key]);
       const r = el("div", "row mini");
       r.append(el("span", "nm", t?.name ?? e[key]), el("span", "sub", e.kind));
-      // The import statement lives in the edge's `from` file, whichever direction this list reads it.
       const jump = srcJump(null, e.line ? e.from : null, e.line);
       if (jump) r.append(jump);
       r.onclick = () => { S.selected = e[key]; S.pinnedPacket = null; renderInspect(); };
@@ -181,4 +178,3 @@ function renderInspect() {
   list("IMPORTS / CALLS", outs, "to");
   list("USED BY", ins, "from");
 }
-

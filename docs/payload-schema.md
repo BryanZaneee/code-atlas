@@ -25,8 +25,8 @@ expected to read it, so it is versioned from the first release.
 | `endpoints` | array | stable | the HTTP surface |
 | `flows` | array | experimental | curated request flows — hand-authored in config |
 | `derivedFlows` | array | experimental | flows this tool inferred. **Separate from `flows` on purpose**: a reader has to be able to tell an asserted path from an inferred one without inspecting a field |
-| `views` | array | stable | which views the strip offers, derived from the flows present |
-| `theme` | object | stable | every colour and style table the viewer draws with |
+| `views` | array | stable | which views the strip offers. `kind` is what the viewer branches on: `dataflow` (the city, with import packets running on it), `flow`, `tests`, `request`, `findings`. There is no `derived` view — an inferred path is reached through the composer, and `derivedFlows[].derived` is what marks it inferred |
+| `theme` | object | stable | every colour and style table the viewer draws with, including `ramps` — the four built-in identity palettes, mixed in OKLab and sized to the layer list. Canvas cannot read a CSS custom property, so a colour the map draws is defined here and nowhere else |
 | `districts` | array | stable | one per `service/layer` pair that has blocks — the cells of the map, where a service row crosses a layer column |
 | `findings` | array | experimental | structural findings over the graph — cycles, layering violations, and the rest of `src/model/findings.mjs`'s eight checks |
 | `source` | object | experimental | **present only when built with `--embed-source`** — the scanned repository's own text, baked in. See [`source`](#source) |
@@ -41,16 +41,20 @@ density). The map's two axes are **service down, layer across**.
 | term | what it is | drawn as |
 | --- | --- | --- |
 | **block** | one source file | an extruded solid; height is file length |
-| **district** | one service crossed with one layer | a district plate with a two-character code tab, holding its blocks |
+| **district** | one service crossed with one column — a folder or a layer | a district plate holding its blocks, named on a leader line |
 | **service** | a row of the map | a service plate spanning that row's districts |
-| **layer** | a column of the map, ordered by `rank` | the column axis; it has no plate of its own |
+| **layer** | the classified job a file does, ordered by `rank` | a column when the viewer groups by layer; the block's fill colour either way |
 
-**Folders are not drawn.** A directory has no visual unit. `nodes[].dir` and the
-`dirs:` matcher in layer rules are read to *decide* a block's layer and service,
-and after that the directory tree plays no part in the picture. Files that sat
-together on disk routinely land in different districts, and that is the map
-working rather than failing: it groups by the job a file does, not by where it
-was filed.
+**Folders are one of the two across axes, and the viewer's default.** A district
+is one service crossed with one *column*, and the viewer's `group by` control
+decides what a column means: the file's folder (default) or its classified
+layer. `nodes[].dir` and `nodes[].layer` are both in the payload for that
+reason, and the payload itself takes no side — `districts[]` is always built on
+`layer`, because that is the grouping a consumer can compute without the
+viewer's state. A viewer re-columning by folder is a presentation choice made
+from `dir`, not a second districting the payload ships.
+
+Nothing nests either way: a deep path is one column named `a/b/c`, not three.
 
 ## `services`
 

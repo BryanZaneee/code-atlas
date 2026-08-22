@@ -210,13 +210,20 @@ test("meta carries the fields later phases added", async (t) => {
   // rather than letting the config lose it by not knowing to list it. On this
   // target that means curated and derived paths sit in the same strip, which is
   // the only way to compare what a person asserted against what was inferred.
-  // Phase 5 appends FINDINGS to a config that predates it for the same reason
-  // Phase 6 appends DERIVED PATHS: a config cannot lose a view by not having
-  // known to list it. Unlike the derived view it is unconditional — a clean
-  // repository has a result to show, and hiding the view would make "checked,
-  // found nothing" look like "never checked".
-  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived", "request", "findings"]);
-  assert.equal(payload.views.find((v) => v.id === "derived").derived, true);
+  // Phase 5 appends FINDINGS to a config that predates it, and Phase 8 API
+  // REQUEST, for the same reason: a config cannot lose a view by not having
+  // known to list it. FINDINGS is unconditional — a clean repository has a
+  // result to show, and hiding the view would make "checked, found nothing"
+  // look like "never checked".
+  //
+  // There is no DERIVED PATHS entry any more. Phase 11 folded inferred paths
+  // into the composer, which opens on every endpoint's path; a derived one is
+  // reached by picking the endpoint, and `derived: true` on the flow is what
+  // still marks it inferred. This target's own curated views are untouched,
+  // which is the half that matters: dropping a built-in view must not disturb
+  // a config's.
+  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "request", "findings"]);
+  assert.ok(payload.derivedFlows.every((f) => f.derived), "an inferred path still says so on the flow");
   assert.equal(payload.views.find((v) => v.id === "findings").kind, "findings");
   assert.ok(payload.derivedFlows.length > 0, "endpoints exist, so derived paths should too");
   // Curated data keeps its exact shape: derivation never writes into `flows`.
