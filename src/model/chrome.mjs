@@ -57,21 +57,91 @@ export function buildViews(config, flows = [], derived = [], endpoints = []) {
   return base.map(withDefaults);
 }
 
+/* ── the identity ramp ───────────────────────────────────────────────────────
+   Equal-lightness fills stepped by hue, mixed in OKLab so the steps are
+   perceptually even rather than even in sRGB — the reason a hand-picked hex
+   list drifts in lightness and this one does not. It lives here and not in the
+   viewer for the standing reason: canvas cannot read a custom property, so the
+   payload is the single place a colour is defined, and config still overrides.
+   The viewer indexes into these lists to colour by language or district; the
+   values it indexes are always these.                                        */
+
+const lin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+const gam = (c) => (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const h2 = (v) => Math.round(clamp01(v) * 255).toString(16).padStart(2, "0");
+
+function oklabToHex(L, a, bb) {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * bb;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * bb;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * bb;
+  const l = l_ ** 3, m = m_ ** 3, s = s_ ** 3;
+  const r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  const g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  const b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+  return `#${h2(gam(clamp01(r)))}${h2(gam(clamp01(g)))}${h2(gam(clamp01(b)))}`;
+}
+
+const oklch = (L, C, hDeg) =>
+  oklabToHex(L, C * Math.cos((hDeg * Math.PI) / 180), C * Math.sin((hDeg * Math.PI) / 180));
+
+/** Okabe-Ito: the one preset that is not generated, because it is a fixed set chosen for colour-vision deficiency and interpolating it would undo that. */
+const OKABE = ["#e69f00", "#56b4e9", "#009e73", "#d9c531", "#0072b2", "#d55e00", "#cc79a7", "#8a8f98"];
+
+/** One ramp as an ordered list of `n` colours. Deterministic in `n`: the golden files pin these. */
+export function rampColors(preset, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (preset === "okabe") out.push(OKABE[i % OKABE.length]);
+    else if (preset === "blueprint") out.push(oklch(0.6 + (i / Math.max(1, n - 1)) * 0.24, 0.03, 250));
+    else if (preset === "earth") out.push(oklch(0.74, 0.058, 34 + (i / n) * 110));
+    else out.push(oklch(0.745, 0.086, (84 + (i * 360) / n) % 360));
+  }
+  return out;
+}
+
+export const RAMP_LABELS = {
+  atlas: "atlas ramp",
+  blueprint: "neutral blueprint",
+  earth: "muted earth",
+  okabe: "okabe-ito",
+};
+
+/** Every built-in ramp at the length this repo's layer list needs. Floored at 8 so a small repo still gets a ramp wide enough to colour by language or district. */
+export function buildRamps(layerCount) {
+  const n = Math.max(8, layerCount);
+  return Object.fromEntries(Object.keys(RAMP_LABELS).map((k) => [k, rampColors(k, n)]));
+}
+
+/** Layer fills from the `atlas` ramp, indexed by the layer's own position in the list. A layer whose config already names a colour keeps it. */
+export function paintLayers(layers) {
+  const ramp = rampColors("atlas", Math.max(8, layers.length));
+  return layers.map((l, i) => (l.color ? l : { ...l, color: ramp[i % ramp.length] }));
+}
+
 export const DEFAULT_THEME = {
-  ink: "#16181a",
-  // White, not cream: line art reads cleanest over the brightest ground.
-  bg: "#ffffff",
+  ink: "#10131c",
+  // A cool paper rather than white: the blocks carry the light, so the ground has to sit below them instead of competing.
+  bg: "#eef1f6",
   // A literal stack: canvas ignores var(--mono).
   font: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-  layerFallback: "#8a8a8a",
+  layerFallback: "#8a8f98",
   // The state channel's one colour: state writes to stroke, ring and badge, never to fill. See PLAN.md "The visual system".
-  accent: "#2563eb",
+  accent: "#2b4bff",
   // The two greys every plate, outline, halo and watermark is mixed from, at an alpha.
-  plate: "#78828a",
-  edge: "#11151a",
+  plate: "#6e7c96",
+  edge: "#0d1220",
   // The block face in `mono`; the two vertical faces are shaded down from it.
-  face: "#ffffff",
-  packetLabel: "#1c1e1f",
+  face: "#f8fafd",
+  packetLabel: "#141a2c",
+  // Material switches the renderer, not the palette: `blockShadow`, `faceGradient` and `glow` are on/off per theme, and `gridAlpha` is how far the ground grid sits under the city.
+  blockShadow: true,
+  faceGradient: true,
+  glow: true,
+  gridAlpha: 0.15,
+  shadow: "rgba(10,14,26,.12)",
+  /** The `liquid glass` material's highlight, as three stops down the lit face. Here rather than in the renderer for the same reason every other colour is: canvas cannot read a custom property, so the payload is the one place a colour is written. */
+  sheen: ["rgba(255,255,255,.5)", "rgba(255,255,255,.06)", "rgba(255,255,255,0)"],
 
   edgeStyle: {
     import:           { c: "#6f7358", w: 1,   a: 0.16, dash: null },
@@ -105,14 +175,18 @@ export const DEFAULT_THEME = {
 
   /** The dark theme as a delta: only the scalars flip, and everything mixed from them follows. */
   dark: {
-    ink: "#e8eaec",
-    bg: "#0e1011",
-    layerFallback: "#7b7f83",
-    accent: "#5b8dff",
-    plate: "#98a2a9",
-    edge: "#e4e8ec",
-    face: "#333a3f",
-    packetLabel: "#e8eaec",
+    ink: "#e6e9f5",
+    bg: "#0a0d16",
+    layerFallback: "#5f6a8c",
+    accent: "#6ea8ff",
+    plate: "#8b97b8",
+    edge: "#dfe6ff",
+    face: "#252c42",
+    packetLabel: "#e6e9f5",
+    gridAlpha: 0.18,
+    shadow: "rgba(0,0,0,.38)",
+    // Weaker on a near-black ground: the light-theme sheen blows out to a white smear.
+    sheen: ["rgba(255,255,255,.26)", "rgba(255,255,255,.04)", "rgba(255,255,255,0)"],
     // Lightened rather than re-hued: a deep red disappears into a near-black ground.
     findingSeverity: { error: "#ff6b5e", warning: "#f0a03c", info: "#79b8d0" },
     liveStatus: { ok: "#5fd08a", client: "#f0a03c", server: "#ff6b5e" },
@@ -137,6 +211,14 @@ export const DEFAULT_THEME = {
       { edge: "sql", label: "SQL / CACHE" },
       { swatch: "request", label: "PACKET — CLICK TO INSPECT" },
     ],
+    // The structure map now runs its import packets by default, so the strip has to say what a moving diamond means before a reader asks.
+    dataflow: [
+      { edge: "import", label: "IMPORT — OBSERVED" },
+      { edge: "http", label: "CROSS-SERVICE HTTP" },
+      { edge: "coupling", label: "SHARED-DB COUPLING" },
+      { edge: "sql", label: "SQL / CACHE" },
+      { swatch: "import", label: "PACKET — CLICK TO INSPECT" },
+    ],
     // Every row names the severity in words as well as in colour.
     findings: [
       { sev: "error", label: "ERROR" },
@@ -154,12 +236,15 @@ export const DEFAULT_THEME = {
   },
 };
 
-/** Shallow-merge per branch: overriding one edge kind must not drop the rest. */
-export function buildTheme(config) {
+/** Shallow-merge per branch: overriding one edge kind must not drop the rest. `layerCount` sizes the ramps, which is why it is a parameter rather than read off a global. */
+export function buildTheme(config, layerCount = 0) {
   const t = config.theme ?? {};
   return {
     ...DEFAULT_THEME,
     ...t,
+    // Shipped, not generated in the viewer: the payload stays the one place a colour is defined, and the PALETTE panel indexes into these.
+    ramps: { ...buildRamps(layerCount), ...t.ramps },
+    rampLabels: { ...RAMP_LABELS, ...t.rampLabels },
     edgeStyle: { ...DEFAULT_THEME.edgeStyle, ...t.edgeStyle },
     packetColor: { ...DEFAULT_THEME.packetColor, ...t.packetColor },
     coverTint: { ...DEFAULT_THEME.coverTint, ...t.coverTint },

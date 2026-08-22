@@ -140,15 +140,25 @@
     }
   ],
   "theme": {
-    "ink": "#16181a",
-    "bg": "#ffffff",
+    "ink": "#10131c",
+    "bg": "#eef1f6",
     "font": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
-    "layerFallback": "#8a8a8a",
-    "accent": "#2563eb",
-    "plate": "#78828a",
-    "edge": "#11151a",
-    "face": "#ffffff",
-    "packetLabel": "#1c1e1f",
+    "layerFallback": "#8a8f98",
+    "accent": "#2b4bff",
+    "plate": "#6e7c96",
+    "edge": "#0d1220",
+    "face": "#f8fafd",
+    "packetLabel": "#141a2c",
+    "blockShadow": true,
+    "faceGradient": true,
+    "glow": true,
+    "gridAlpha": 0.15,
+    "shadow": "rgba(10,14,26,.12)",
+    "sheen": [
+      "rgba(255,255,255,.5)",
+      "rgba(255,255,255,.06)",
+      "rgba(255,255,255,0)"
+    ],
     "edgeStyle": {
       "import": {
         "c": "#6f7358",
@@ -257,14 +267,21 @@
       "server": "#b3261e"
     },
     "dark": {
-      "ink": "#e8eaec",
-      "bg": "#0e1011",
-      "layerFallback": "#7b7f83",
-      "accent": "#5b8dff",
-      "plate": "#98a2a9",
-      "edge": "#e4e8ec",
-      "face": "#333a3f",
-      "packetLabel": "#e8eaec",
+      "ink": "#e6e9f5",
+      "bg": "#0a0d16",
+      "layerFallback": "#5f6a8c",
+      "accent": "#6ea8ff",
+      "plate": "#8b97b8",
+      "edge": "#dfe6ff",
+      "face": "#252c42",
+      "packetLabel": "#e6e9f5",
+      "gridAlpha": 0.18,
+      "shadow": "rgba(0,0,0,.38)",
+      "sheen": [
+        "rgba(255,255,255,.26)",
+        "rgba(255,255,255,.04)",
+        "rgba(255,255,255,0)"
+      ],
       "findingSeverity": {
         "error": "#ff6b5e",
         "warning": "#f0a03c",
@@ -319,6 +336,28 @@
           "label": "PACKET — CLICK TO INSPECT"
         }
       ],
+      "dataflow": [
+        {
+          "edge": "import",
+          "label": "IMPORT — OBSERVED"
+        },
+        {
+          "edge": "http",
+          "label": "CROSS-SERVICE HTTP"
+        },
+        {
+          "edge": "coupling",
+          "label": "SHARED-DB COUPLING"
+        },
+        {
+          "edge": "sql",
+          "label": "SQL / CACHE"
+        },
+        {
+          "swatch": "import",
+          "label": "PACKET — CLICK TO INSPECT"
+        }
+      ],
       "findings": [
         {
           "sev": "error",
@@ -360,6 +399,54 @@
           "label": "NONE — NO TEST REACHES IT"
         }
       ]
+    },
+    "ramps": {
+      "atlas": [
+        "#c6a86c",
+        "#9cb77d",
+        "#6ebea8",
+        "#69bad1",
+        "#91ace4",
+        "#bc9ed6",
+        "#d896b0",
+        "#dc9a84"
+      ],
+      "blueprint": [
+        "#738292",
+        "#7d8c9c",
+        "#8797a7",
+        "#92a1b2",
+        "#9cacbd",
+        "#a7b7c8",
+        "#b1c2d3",
+        "#bccdde"
+      ],
+      "earth": [
+        "#cd9e93",
+        "#caa08c",
+        "#c6a386",
+        "#c1a682",
+        "#baaa81",
+        "#b1ad82",
+        "#a8b086",
+        "#9fb38c"
+      ],
+      "okabe": [
+        "#e69f00",
+        "#56b4e9",
+        "#009e73",
+        "#d9c531",
+        "#0072b2",
+        "#d55e00",
+        "#cc79a7",
+        "#8a8f98"
+      ]
+    },
+    "rampLabels": {
+      "atlas": "atlas ramp",
+      "blueprint": "neutral blueprint",
+      "earth": "muted earth",
+      "okabe": "okabe-ito"
     }
   },
   "nodes": [

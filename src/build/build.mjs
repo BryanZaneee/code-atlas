@@ -8,7 +8,7 @@ import { readSuites, subjectOf, FIXTURE } from "../model/tests.mjs";
 import { deriveCoverage } from "../model/metrics.mjs";
 import { derivePaths } from "../model/derive.mjs";
 import { deriveFindings } from "../model/findings.mjs";
-import { buildViews, buildTheme } from "../model/chrome.mjs";
+import { buildViews, buildTheme, paintLayers } from "../model/chrome.mjs";
 import { embedSourceFiles } from "./embed.mjs";
 import { loadConfig } from "../config/load.mjs";
 import { detectServices } from "../config/detect.mjs";
@@ -180,9 +180,10 @@ export function scan({
       },
       // Total by payload: whatever placed a node, its service is in this list.
       services: reconcileServices(config.services, nodes, warn),
-      layers: config.layers,
+      // Painted from the ramp here rather than in the viewer, so the colour a reader sees is in the payload and in the golden.
+      layers: paintLayers(config.layers),
       views: buildViews(config, config.flows ?? [], derived, endpoints),
-      theme: buildTheme(config),
+      theme: buildTheme(config, config.layers.length),
       nodes,
       edges,
       endpoints,
