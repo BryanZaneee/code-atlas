@@ -22,6 +22,7 @@ import ts from "../src/adapters/ts.mjs";
 import py from "../src/adapters/py.mjs";
 import go from "../src/adapters/go.mjs";
 import rb from "../src/adapters/rb.mjs";
+import jvm from "../src/adapters/jvm.mjs";
 import { FIXTURE_DIR } from "./helpers.mjs";
 
 /** A fixture scanned the way the pipeline scans one, with the adapter prepared. */
@@ -323,3 +324,72 @@ test("a require inside a string is not an import", () => {
 });
 
 conform(rb, rbCtx, EXPECT_RB);
+
+// ---------------------------------------------------------------- Java / Kotlin
+
+const jvmCtx = fixture("hostile-java", jvm);
+
+/**
+ * Java and Kotlin share one adapter because they share the one thing that
+ * matters: `import a.b.C` names a TYPE, and the file holding it is the package
+ * directory plus the class name, under whatever source root the build tool put
+ * on the path. Nothing declares that root — no tsconfig, no go.mod — so it is
+ * inferred the way `py.mjs` infers `sys.path`.
+ *
+ * Two rows carry the interesting cases. `com.example.store.*` is a wildcard, so
+ * it names the package and resolves to both files in that directory — Go's
+ * one-specifier-many-files shape a second time, and the reason `ids` is an
+ * array. `com.example.store.Row.EMPTY` is a static member import, so the type
+ * is one segment up from where the specifier stops.
+ *
+ * Note that the Kotlin file resolves into `.java` files: a source root is a
+ * source root, and the two languages compile against each other. An adapter
+ * that indexed only its own extension would have missed every one of those.
+ *
+ * The fixture carries a Java text block and a Kotlin raw string, each holding
+ * a line that reads exactly like an import, plus both comment forms.
+ */
+const EXPECT_JVM = {
+  "src/main/java/com/example/Widget.java": [
+    { spec: "java.util.List", kind: "static", resolved: { kind: "external", ids: ["java.util"] } },
+    { spec: "com.example.store.Row", kind: "static",
+      resolved: { kind: "internal", ids: ["src/main/java/com/example/store/Row.java"] } },
+    // A static member: the type is one segment up.
+    { spec: "com.example.store.Row.EMPTY", kind: "static",
+      resolved: { kind: "internal", ids: ["src/main/java/com/example/store/Row.java"] } },
+  ],
+  "src/main/java/com/example/store/Row.java": [],
+  "src/main/java/com/example/store/Table.java": [],
+  "src/main/kotlin/com/example/Report.kt": [
+    // One specifier, every file in the package.
+    { spec: "com.example.store.*", kind: "static",
+      resolved: { kind: "internal", ids: ["src/main/java/com/example/store/Row.java", "src/main/java/com/example/store/Table.java"] } },
+    { spec: "com.example.Widget", kind: "static",
+      resolved: { kind: "internal", ids: ["src/main/java/com/example/Widget.java"] } },
+    { spec: "kotlin.collections.List", kind: "static", resolved: { kind: "external", ids: ["kotlin.collections"] } },
+  ],
+  "src/test/java/com/example/WidgetTest.java": [
+    { spec: "org.junit.jupiter.api.Test", kind: "static", resolved: { kind: "external", ids: ["org.junit"] } },
+    { spec: "com.example.Widget", kind: "static",
+      resolved: { kind: "internal", ids: ["src/main/java/com/example/Widget.java"] } },
+  ],
+};
+
+test("every file in fixtures/hostile-java/ is covered by the expectation table", () => {
+  const covered = new Set(Object.keys(EXPECT_JVM));
+  const missing = jvmCtx.paths.filter((p) => !covered.has(p));
+  assert.deepEqual(missing, [], "a fixture file with no row in EXPECT_JVM — add one or it isn't being conformance-checked");
+});
+
+test("source roots come from the layout, and the test tree is one of them", () => {
+  assert.deepEqual(jvmCtx.jvm.roots, ["src/main/kotlin", "src/main/java", "src/test/java"]);
+});
+
+test("Kotlin's `as` binds the alias, and a wildcard binds nothing nameable", () => {
+  const bound = jvm.importBindings(jvmCtx.src.get("src/main/kotlin/com/example/Report.kt"));
+  const by = new Map(bound.map((b) => [b.spec, [...b.localNames]]));
+  assert.deepEqual(by.get("com.example.Widget"), ["W"]);
+  assert.ok(!by.has("com.example.store.*"), "a wildcard import bound a local name");
+});
+
+conform(jvm, jvmCtx, EXPECT_JVM);
