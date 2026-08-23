@@ -198,9 +198,24 @@ alive, and sequenced ones play a request path in order.
 | `Q` `E` | rotate 15° |
 | `R` | reset the camera **and** put every dragged district back |
 | `Space` | play / pause the flow |
-| `←` `→` | step one hop |
-| `Esc` | close the reader, else clear the selection, packet, finding or armed request |
+| `⌘K` / `Ctrl-K` | go to a file, district, endpoint or finding by name |
+| `←` `→` | step one hop while a path is playing |
+| `↑` `↓` `←` `→` | otherwise, move the selection to the next block that way |
+| `[` `]` | previous / next view |
+| `Enter` | open the selected block's source |
+| `Alt-←` `Alt-→` | back and forward through where you have been |
+| `Esc` | close the palette, else the reader, else clear the selection, packet, finding or armed request |
 | click | inspect a block, a district, or a moving packet |
+| hover a source line | a `→` appears where an import resolved; click it to follow |
+
+**Everything above is reachable without the mouse**, which is the point of the
+palette: `⌘K`, type part of a name, `Enter`. If the block you pick is filtered
+out, collapsed into a megablock or in a service you switched off, the jump turns
+that back on first — landing on something invisible is not landing on it.
+
+What this is deliberately not: an editor. No text editing, and no full-text
+search across your source — the palette matches names. The reasoning is in
+PLAN.md under "Decisions reversed".
 
 ## The views
 

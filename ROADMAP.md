@@ -2,8 +2,8 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status: 18 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
-are what comes after it; 12, 13 and 14 are done.
+**Status: 19 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
+are what comes after it; only 16, the desktop shell, is left.
 
 Two boxes have been open since before v1.1 and neither is a phase. Phase 1's
 60 fps sustained drag and Phase 11's arrival animation both have to be judged by
@@ -37,7 +37,7 @@ the only observed things it adds.
 | 12 | Sweep: dead code, one fake browser, named stages | — | ● done |
 | 13 | `atlas map` — the isometric atlas in a terminal | — | ● done |
 | 14 | Adapters: Go, Ruby, Java/Kotlin, Rust | — | ● done |
-| 15 | IDE affordances in the viewer | 16 | ○ not started |
+| 15 | IDE affordances in the viewer | 16 | ● done |
 | 16 | `desktop/` — an Electron shell | — | ○ not started |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
@@ -841,21 +841,36 @@ import block, a require inside a string literal, a text block, an inline `mod`.
 *Opens with a PLAN.md edit, not a code edit: the "like VS Code, the answer is no"
 guard gets narrowed, in writing, with the reasoning.*
 
-- [ ] PLAN.md reversal — what the guard protected against was becoming an
+- [x] PLAN.md reversal — what the guard protected against was becoming an
       **editor**. The narrowed rule that stays binding: read-only, no text
       editing, no full-text search across source. Name-based navigation is in;
-      grep-the-repo is not
-- [ ] Split `initInteraction()` (246 lines, and it owns a sidebar control it has
-      no business owning) into keyboard, pointer and controls
-- [ ] Command palette on Cmd/Ctrl-K — file, district, endpoint, finding
-- [ ] Keyboard navigation — move the selection between blocks, Enter to inspect,
-      Esc to clear, `[`/`]` to cycle views
-- [ ] Go-to-definition along import edges from the source panel
-- [ ] Back/forward history and open-file tabs in the inspect panel
-- [ ] Breadcrumb: service › district › file
+      grep-the-repo is not, and a source index is where the line sits
+- [x] `initInteraction()` split into `initKeyboard` / `initPointer` /
+      `initControls`, 246 lines down to 23 / 106 / 120. The sidebar's filter box
+      moved to `80-sidebar.js`, which owns the list it narrows
+- [x] `goTo()` in `86-navigate.js` — the one navigation primitive, and the
+      reason this phase is not eight separate features. It **reveals before it
+      selects**: switches the service back on, expands the megablock, lifts an
+      isolating view, and only then moves the camera
+- [x] Command palette on Cmd/Ctrl-K over files, districts, endpoints and
+      findings, with subsequence matching
+- [x] Keyboard navigation — arrows move the selection in **screen** space, since
+      the map rotates and "up" has to mean up on the display; `[`/`]` walk the
+      view strip; `Enter` opens source
+- [x] Go-to-definition: a `→` on any source line carrying a resolved import,
+      read off the edge list so it is never offered where resolution failed. The
+      inspector's IMPORTS rows route through `goTo` for the same reason
+- [x] Back/forward history, capped at 50, abandoning the forward trail on a new
+      jump the way a browser does
+- [x] Breadcrumb: service › district › file, hung off `renderInspect` rather
+      than off each of the places that set `S.selected`
+- [x] `test/navigate.test.mjs` — 18 tests, including the three reveal cases and
+      "every view is reachable with `[` and `]`, wrapping"
 
-**Gate:** every affordance reachable by keyboard alone; `viewer.test.mjs` green;
-a built atlas still issues no network request.
+**Gate: met.** Every affordance reachable by keyboard alone and asserted as
+such. `viewer.test.mjs` green, including the rule that colours are declared only
+in `:root` — which caught a literal `rgba()` in the palette's shadow before it
+landed. 532 tests green.
 
 ---
 
