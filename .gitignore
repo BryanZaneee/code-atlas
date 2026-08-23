@@ -16,3 +16,6 @@ node_modules/
 
 # Design references, kept locally: ~12 MB of screenshots
 IMG/
+
+# Claude Design export the Phase 11 viewer was ported from, kept locally
+Codebase Isometric Visualizer*/
