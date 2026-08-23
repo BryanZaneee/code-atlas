@@ -394,11 +394,18 @@ Regex, not AST — under-reports, quantified by the conformance fixtures. File-l
 
 Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (a language with no adapter still renders, with no edges and a coverage line in `atlas scan`) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
 
-**A desktop shell** stays deferred until after v1.0, as a separate package.
+**A desktop shell** was deferred until after v1.0, as a separate package. v1.1
+shipped, so the deferral's own condition is met and Phase 16 takes it up — in
+`desktop/`, beside the existing tree rather than as a `packages/` rewrite, with
+its own dependencies so the core stays publishable with none.
 
 **WebGL is no longer deferred** (see Decisions reversed). Phase 1 keeps `relayout()`/`reproject()` emitting plain world-space geometry that `draw*` consumes, so a WebGL renderer is a swap rather than a rewrite. No renderer abstraction gets built ahead of that — one seam, not an interface with a single implementation. Nothing is built yet: the viewer is Canvas 2D.
 
-Scope guard: the code viewer is read-only with no search and no editing; the composer has no collections, environments, or scripting. If a request is "like Postman" or "like VS Code", the answer is no.
+Scope guard, narrowed in Phase 15 (see Decisions reversed): the code viewer is
+**read-only, with no text editing and no full-text search across source**; the
+composer has no collections, environments, or scripting. Navigating a map by
+name and by keyboard is in. Becoming an editor is not. If a request is "like
+Postman", the answer is still no.
 
 ## Decisions reversed
 
@@ -454,3 +461,42 @@ making the map more honest — and two of the four governed phases that do not
 exist. What survives: a modelled path must never read as an observed one, and a
 number the tool does not measure is not drawn. How that reads on screen is a
 design question.
+
+**"Like VS Code, the answer is no", from a wall to a line.** The guard was
+written against becoming an *editor*, and that is still right: text editing, a
+file tree, a project-wide search index and a language server are each a different
+product, and each would quietly become the thing this tool is judged as. What the
+guard also blocked, without meaning to, was *navigation* — a command palette, an
+arrow key that moves the selection, a click on an import line that goes to what
+it imports. None of those makes an editor of anything. And the argument that
+retired the no-folders rule applies here word for word: the first thing anyone
+does with a map of their own repository is look for the file they were just
+editing, and a map that answers slowly is a map they stop opening.
+
+So the line moved rather than coming down. **Read-only, no text editing, no
+full-text search across source** is what still binds; a source index is where
+navigation stops being navigation. Name-based jumping is in. Postman is
+untouched by any of this: the composer still has no collections, environments or
+scripting, because "send a request" and "manage a request suite" really are two
+products.
+
+**A desktop shell, from deferred to Electron.** The deferral existed so a
+packaging project could not displace the scanner work, and the scanner work is
+done. Electron over Tauri, and the first reason is reuse rather than speed: the
+Electron main process is Node, so `src/serve/server.mjs` and `src/serve/proxy.mjs`
+run as they are, with the allowlist, the symlink refusal, the `Host` pinning and
+the server-side token injection intact. Tauri would mean reimplementing all of
+that in Rust, and a security posture that gets reimplemented is a security
+posture that gets re-argued by whoever is in a hurry.
+
+Speed happens to agree. The renderer's hot loop is thousands of `quad()` fills a
+frame, which is the workload where a non-Chromium webview falls down, and Tauri
+hands the renderer WKWebView on macOS and WebKitGTK on Linux. A fixed Chromium
+also turns Phase 1's still-open 60 fps gate into one gate rather than three
+per-platform ones.
+
+What it costs, said plainly: a ~150 MB artifact against Tauri's ~8 MB, and the
+repository's first real dependency. It is quarantined in `desktop/` with its own
+`package.json`, so `npm install code-atlas` still pulls nothing, and the
+single-self-contained-file promise is untouched — `atlas build` still writes one
+HTML file that opens in any browser with no shell at all.
