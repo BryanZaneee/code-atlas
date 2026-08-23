@@ -21,83 +21,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { readFileSync } from "node:fs";
 import path from "node:path";
-import { VIEWER_DIR } from "../src/build/assemble.mjs";
+import { loadViewer, openComposer as open } from "./viewer-harness.mjs";
 import { buildViews } from "../src/model/chrome.mjs";
 import { validateFlows, scan } from "../src/build/build.mjs";
 import { scanFixture, FIXTURE_DIR } from "./helpers.mjs";
-
-const MODULES = [
-  "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
-  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
-  "75-findings.js", "78-request.js", "79-live.js", "80-sidebar.js", "82-palette.js", "85-camera.js", "88-interact.js",
-];
-
-function fakeContext() {
-  const state = {};
-  const noop = () => {};
-  return new Proxy(
-    {
-      canvas: { width: 0, height: 0 },
-      measureText: (t) => ({ width: String(t).length * 6 }),
-      createRadialGradient: () => ({ addColorStop: noop }),
-      // The face gradient and the clip the glass material uses; both are pure
-      // appearance, but the renderer calls them per block, so the stub answers.
-      createLinearGradient: () => ({ addColorStop: noop }),
-      clip: noop,
-      setTransform: noop, drawImage: noop, fillRect: noop, clearRect: noop,
-      save: noop, restore: noop, beginPath: noop, closePath: noop,
-      moveTo: noop, lineTo: noop, arc: noop, quadraticCurveTo: noop,
-      fill: noop, fillText: noop, strokeText: noop, setLineDash: noop, stroke: noop,
-    },
-    { get: (t, k) => (k in t ? t[k] : undefined), set: (t, k, v) => { state[k] = v; return true; } },
-  );
-}
-
-function fakeDom() {
-  const textNode = (data) => ({ nodeType: 3, data });
-  const make = (tag) => {
-    const kids = [];
-    const node = {
-      nodeType: 1, tagName: String(tag).toUpperCase(), className: "", childNodes: kids,
-      style: { setProperty() {} }, dataset: {}, hidden: false, disabled: false,
-      width: 0, height: 0, value: "", rows: 0, type: "", placeholder: "", title: "",
-      classList: {
-        add(c) { node.className = `${node.className} ${c}`.trim(); },
-        remove(c) { node.className = node.className.split(/\s+/).filter((x) => x && x !== c).join(" "); },
-        toggle(c, on) { on ? this.add(c) : this.remove(c); },
-        contains(c) { return node.className.split(/\s+/).includes(c); },
-      },
-      get children() { return kids.filter((c) => c.nodeType === 1); },
-      get textContent() { return kids.map((c) => (c.nodeType === 3 ? c.data : c.textContent)).join(""); },
-      set textContent(v) { kids.length = 0; kids.push(textNode(String(v))); },
-      set innerHTML(v) {
-        if (v !== "") throw new Error("innerHTML: repository content must never be parsed as markup");
-        kids.length = 0;
-      },
-      append(...items) { for (const k of items) kids.push(typeof k === "string" ? textNode(k) : k); },
-      replaceChildren(...items) { kids.length = 0; node.append(...items); },
-      addEventListener() {},
-      getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }),
-      getContext: () => fakeContext(),
-      querySelector: () => make("div"),
-    };
-    return node;
-  };
-  const bySelector = new Map();
-  return {
-    createElement: make,
-    createTextNode: textNode,
-    querySelector: (sel) => {
-      if (!bySelector.has(sel)) bySelector.set(sel, make(sel === "#cv" ? "canvas" : "div"));
-      return bySelector.get(sel);
-    },
-    querySelectorAll: () => [],
-    documentElement: { setAttribute() {} },
-    addEventListener() {},
-  };
-}
 
 /** A sessionStorage that records, or one that throws the way a locked-down browser does. */
 function fakeStorage(hostile) {
@@ -112,57 +40,20 @@ function fakeStorage(hostile) {
 }
 
 function load(atlas, { protocol = "http:", hostile = false, storage = fakeStorage(hostile) } = {}) {
-  const source = MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("\n");
-  const ctx = {
-    ATLAS: atlas,
-    console,
-    location: { protocol },
-    performance: { now: () => 0 },
-    requestAnimationFrame: () => 0,
-    fetch: () => Promise.reject(new Error("no network in a test")),
-    addEventListener: () => {},
-    innerWidth: 1400,
-    sessionStorage: storage.api,
-    navigator: {},
-  };
-  ctx.window = ctx;
-  ctx.self = ctx;
-  ctx.document = fakeDom();
-  ctx.window.devicePixelRatio = 1;
-  vm.createContext(ctx);
-  vm.runInContext(
-    `"use strict";\n${source}\n
-     setYaw(S.yaw);
-     resize();
-     globalThis.scope = {
-       S, REQ, byId,
-       get LAYOUT() { return LAYOUT; },
-       get runners() { return runners; },
-       setView, draw, relayout, renderList, renderInspect,
+  const scope = loadViewer(atlas, {
+    protocol,
+    env: { navigator: {}, sessionStorage: storage.api },
+    exports: `REQ, get runners() { return runners; },
        reqEndpoints, reqParamNames, reqState, reqUrl, reqBodyCheck, reqRedactHeaders,
-       reqSave, reqGrade, reqHopEvidence, reqHopJump, reqFlowFor, reqSend, reqCurateSource,
-       $: (sel) => document.querySelector(sel),
-     };`,
-    ctx,
-    { timeout: 60_000 },
-  );
-  ctx.scope.storage = storage;
-  return ctx.scope;
+       reqSave, reqGrade, reqHopEvidence, reqHopJump, reqFlowFor, reqSend, reqCurateSource,`,
+  });
+  scope.storage = storage;
+  return scope;
 }
 
 async function fixture() {
   const { payload } = await scanFixture("mini-monorepo");
   return payload;
-}
-
-/** Open the request view against the first endpoint, with every param filled. */
-function open(scope, epId) {
-  scope.setView("request");
-  const ep = scope.reqEndpoints().find((e) => !epId || e.id === epId);
-  scope.REQ.endpoint = ep;
-  const st = scope.reqState(ep.id);
-  for (const n of scope.reqParamNames(ep.path)) st.params[n] = "42";
-  return ep;
 }
 
 const listRows = (scope) => scope.$("#list").children.filter((c) => c.className.includes("row"));

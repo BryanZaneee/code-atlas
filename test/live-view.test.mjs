@@ -15,140 +15,42 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import vm from "node:vm";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { VIEWER_DIR } from "../src/build/assemble.mjs";
+import { loadViewer, openComposer as open } from "./viewer-harness.mjs";
 import { liveInfo, makeLive } from "../src/serve/proxy.mjs";
 import { scanFixture } from "./helpers.mjs";
 
-const MODULES = [
-  "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
-  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
-  "75-findings.js", "78-request.js", "79-live.js", "80-sidebar.js", "82-palette.js", "85-camera.js", "88-interact.js",
-];
-
-function fakeContext() {
-  const state = {};
-  const noop = () => {};
-  return new Proxy(
-    {
-      canvas: { width: 0, height: 0 },
-      measureText: (t) => ({ width: String(t).length * 6 }),
-      createRadialGradient: () => ({ addColorStop: noop }),
-      // The face gradient and the clip the glass material uses; both are pure
-      // appearance, but the renderer calls them per block, so the stub answers.
-      createLinearGradient: () => ({ addColorStop: noop }),
-      clip: noop,
-      setTransform: noop, drawImage: noop, fillRect: noop, clearRect: noop,
-      save: noop, restore: noop, beginPath: noop, closePath: noop,
-      moveTo: noop, lineTo: noop, arc: noop, quadraticCurveTo: noop,
-      fill: noop, fillText: noop, strokeText: noop, setLineDash: noop, stroke: noop,
-    },
-    { get: (t, k) => (k in t ? t[k] : undefined), set: (t, k, v) => { state[k] = v; return true; } },
-  );
-}
-
-function fakeDom() {
-  const textNode = (data) => ({ nodeType: 3, data });
-  const make = (tag) => {
-    const kids = [];
-    const node = {
-      nodeType: 1, tagName: String(tag).toUpperCase(), className: "", childNodes: kids,
-      style: { setProperty() {} }, dataset: {}, hidden: false, disabled: false,
-      width: 0, height: 0, value: "", rows: 0, type: "", placeholder: "", title: "",
-      classList: {
-        add(c) { node.className = `${node.className} ${c}`.trim(); },
-        remove(c) { node.className = node.className.split(/\s+/).filter((x) => x && x !== c).join(" "); },
-        toggle(c, on) { on ? this.add(c) : this.remove(c); },
-        contains(c) { return node.className.split(/\s+/).includes(c); },
-      },
-      get children() { return kids.filter((c) => c.nodeType === 1); },
-      get textContent() { return kids.map((c) => (c.nodeType === 3 ? c.data : c.textContent)).join(""); },
-      set textContent(v) { kids.length = 0; kids.push(textNode(String(v))); },
-      set innerHTML(v) {
-        if (v !== "") throw new Error("innerHTML: repository content must never be parsed as markup");
-        kids.length = 0;
-      },
-      append(...items) { for (const k of items) kids.push(typeof k === "string" ? textNode(k) : k); },
-      replaceChildren(...items) { kids.length = 0; node.append(...items); },
-      addEventListener() {},
-      getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }),
-      getContext: () => fakeContext(),
-      querySelector: () => make("div"),
-    };
-    return node;
-  };
-  const bySelector = new Map();
-  return {
-    createElement: make,
-    createTextNode: textNode,
-    querySelector: (sel) => {
-      if (!bySelector.has(sel)) bySelector.set(sel, make(sel === "#cv" ? "canvas" : "div"));
-      return bySelector.get(sel);
-    },
-    querySelectorAll: () => [],
-    documentElement: { setAttribute() {} },
-    addEventListener() {},
-  };
-}
-
-/**
- * Load the viewer with a scripted `/api/live`.
- *
- * `reply` is what the proxy would have returned, so a 401 here is the shape a
- * real refusal arrives in rather than an invented one.
- */
 function load(atlas, { protocol = "http:", reply = null, replyStatus = 200 } = {}) {
   const store = new Map();
   const sent = [];
-  const ctx = {
-    ATLAS: atlas,
-    console,
-    location: { protocol },
-    performance: { now: () => 0 },
-    requestAnimationFrame: () => 0,
-    addEventListener: () => {},
-    innerWidth: 1400,
-    sessionStorage: {
-      getItem: (k) => (store.has(k) ? store.get(k) : null),
-      setItem: (k, v) => store.set(k, String(v)),
-      removeItem: (k) => store.delete(k),
+  const scope = loadViewer(atlas, {
+    protocol,
+    env: {
+      navigator: {},
+      sessionStorage: {
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => store.set(k, String(v)),
+        removeItem: (k) => store.delete(k),
+      },
+      // `reply` is what the proxy would have returned, so a 401 here is the
+      // shape a real refusal arrives in rather than an invented one.
+      fetch: async (url, init) => {
+        sent.push({ url, body: JSON.parse(init.body) });
+        return {
+          ok: replyStatus === 200,
+          status: replyStatus,
+          json: async () => reply,
+          text: async () => (typeof reply === "string" ? reply : JSON.stringify(reply)),
+        };
+      },
     },
-    navigator: {},
-    fetch: async (url, init) => {
-      sent.push({ url, body: JSON.parse(init.body) });
-      return {
-        ok: replyStatus === 200,
-        status: replyStatus,
-        json: async () => reply,
-        text: async () => (typeof reply === "string" ? reply : JSON.stringify(reply)),
-      };
-    },
-  };
-  ctx.window = ctx;
-  ctx.self = ctx;
-  ctx.document = fakeDom();
-  ctx.window.devicePixelRatio = 1;
-  vm.createContext(ctx);
-  vm.runInContext(
-    `"use strict";\n${MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("\n")}\n
-     setYaw(S.yaw);
-     resize();
-     globalThis.scope = {
-       S, REQ, LIVE, byId,
-       get LAYOUT() { return LAYOUT; },
-       setView, draw, relayout, renderList, renderInspect,
+    exports: `REQ, LIVE,
        reqEndpoints, reqState, reqParamNames,
-       liveOffered, liveReason, liveSend, liveCurl, liveClassOf, liveStatLine, liveSetToken, liveToken, liveStats,
-       $: (sel) => document.querySelector(sel),
-     };`,
-    ctx,
-    { timeout: 60_000 },
-  );
-  ctx.scope.sent = sent;
-  ctx.scope.store = store;
-  return ctx.scope;
+       liveOffered, liveReason, liveSend, liveCurl, liveClassOf, liveStatLine,
+       liveSetToken, liveToken, liveStats,`,
+  });
+  scope.sent = sent;
+  scope.store = store;
+  return scope;
 }
 
 const OK = { status: 200, statusText: "OK", ms: 17, bytes: 12, truncated: false, redirected: false };
@@ -157,16 +59,6 @@ const DENIED = { status: 401, statusText: "Unauthorized", ms: 9, bytes: 3, trunc
 async function fixture(live = liveInfo(makeLive({ origin: "http://127.0.0.1:4599" }))) {
   const { payload } = await scanFixture("mini-monorepo");
   return { ...payload, live };
-}
-
-/** Open the composer on an endpoint with every parameter filled. */
-function open(scope, epId) {
-  scope.setView("request");
-  const ep = scope.reqEndpoints().find((e) => !epId || e.id === epId);
-  scope.REQ.endpoint = ep;
-  const st = scope.reqState(ep.id);
-  for (const n of scope.reqParamNames(ep.path)) st.params[n] = "42";
-  return ep;
 }
 
 const panel = (scope) => scope.$("#insBody").textContent;

@@ -16,153 +16,20 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import vm from "node:vm";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { VIEWER_DIR } from "../src/build/assemble.mjs";
 import { buildViews } from "../src/model/chrome.mjs";
 import { scanFixture, requireCorpus, scanTaxvault } from "./helpers.mjs";
-
-/**
- * Everything but the vendored highlighter (a tokenizer this view never asks
- * for) and the boot file (which starts an animation loop).
- */
-const MODULES = [
-  "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
-  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
-  "75-findings.js", "79-live.js", "80-sidebar.js", "82-palette.js", "85-camera.js", "88-interact.js",
-];
-
-function fakeContext(counts) {
-  const state = { lineWidth: 1, globalAlpha: 1, dash: null, fillStyle: "" };
-  const stack = [];
-  let curved = false;
-  const noop = () => {};
-  return new Proxy(
-    {
-      canvas: { width: 0, height: 0 },
-      measureText: (t) => ({ width: String(t).length * 6 }),
-      createRadialGradient: () => ({ addColorStop: noop }),
-      // The face gradient and the clip the glass material uses; both are pure
-      // appearance, but the renderer calls them per block, so the stub answers.
-      createLinearGradient: () => ({ addColorStop: noop }),
-      clip: noop,
-      setTransform: noop,
-      drawImage: noop,
-      fillRect: () => counts.fillRect++,
-      clearRect: noop,
-      save: () => stack.push({ ...state }),
-      restore: () => Object.assign(state, stack.pop() ?? state),
-      beginPath: () => { curved = false; },
-      closePath: noop,
-      moveTo: noop, lineTo: noop, arc: noop,
-      quadraticCurveTo: () => { curved = true; },
-      fill: noop, fillText: noop, strokeText: noop,
-      setLineDash: (d) => { state.dash = d?.length ? d : null; },
-      stroke: () => {
-        counts.strokes.push({ w: state.lineWidth, dash: state.dash, color: state.strokeStyle });
-        if (curved) counts.arcs.push({ w: state.lineWidth, dash: state.dash, color: state.strokeStyle });
-      },
-    },
-    {
-      get: (t, k) => (k in t ? t[k] : undefined),
-      set: (t, k, v) => { state[k] = v; return true; },
-    },
-  );
-}
-
-/**
- * A DOM with one rule: repository text arrives as a text node.
- *
- * `innerHTML = ""` is how the existing panels clear themselves, so it is
- * allowed and does exactly that. Any other value throws, which is the point —
- * a finding's message names files, and a file can be called anything.
- */
-function fakeDom(counts) {
-  const textNode = (data) => ({ nodeType: 3, data });
-  const make = (tag) => {
-    const kids = [];
-    const node = {
-      nodeType: 1, tagName: String(tag).toUpperCase(), className: "", childNodes: kids,
-      style: { setProperty() {} }, dataset: {}, hidden: false, disabled: false,
-      width: 0, height: 0, value: "", checked: false, open: false, title: "",
-      classList: {
-        add(c) { node.className = `${node.className} ${c}`.trim(); },
-        remove(c) { node.className = node.className.split(/\s+/).filter((x) => x && x !== c).join(" "); },
-        toggle(c, on) { on ? this.add(c) : this.remove(c); },
-        contains(c) { return node.className.split(/\s+/).includes(c); },
-      },
-      get children() { return kids.filter((c) => c.nodeType === 1); },
-      get textContent() {
-        return kids.map((c) => (c.nodeType === 3 ? c.data : c.textContent)).join("");
-      },
-      set textContent(v) { kids.length = 0; kids.push(textNode(String(v))); },
-      set innerHTML(v) {
-        if (v !== "") throw new Error("innerHTML: repository content must never be parsed as markup");
-        kids.length = 0;
-      },
-      append(...items) { for (const k of items) kids.push(typeof k === "string" ? textNode(k) : k); },
-      replaceChildren(...items) { kids.length = 0; node.append(...items); },
-      addEventListener() {},
-      getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }),
-      getContext: () => fakeContext(counts),
-      querySelector: () => make("div"),
-    };
-    return node;
-  };
-  const bySelector = new Map();
-  return {
-    createElement: make,
-    createTextNode: textNode,
-    querySelector: (sel) => {
-      if (!bySelector.has(sel)) bySelector.set(sel, make(sel === "#cv" ? "canvas" : "div"));
-      return bySelector.get(sel);
-    },
-    querySelectorAll: () => [],
-    documentElement: { setAttribute() {} },
-    addEventListener() {},
-  };
-}
+import { loadViewer } from "./viewer-harness.mjs";
 
 /** The whole viewer, in one scope, over one payload. */
 function load(atlas, protocol = "http:") {
-  const counts = { fillRect: 0, strokes: [], arcs: [] };
-  const source = MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("\n");
-  const ctx = {
-    ATLAS: atlas,
-    console,
-    counts,
-    location: { protocol },   // "http:" is served, so jump-to-line is on offer
-    performance: { now: () => 0 },
-    requestAnimationFrame: () => 0,
-    fetch: () => Promise.reject(new Error("no network in a test")),
-    addEventListener: () => {},
-    innerWidth: 1400,
-  };
-  ctx.window = ctx;
-  ctx.self = ctx;
-  ctx.document = fakeDom(counts);
-  ctx.window.devicePixelRatio = 1;
-  vm.createContext(ctx);
-  vm.runInContext(
-    `"use strict";\n${source}\n
-     setYaw(S.yaw);
-     resize();
-     globalThis.scope = {
-       S, VIEWS, counts: __counts, byId,
-       // A getter, not a snapshot: relayout() REPLACES LAYOUT, so a captured
-       // reference is the empty one the module started with.
-       get LAYOUT() { return LAYOUT; },
-       get ambient() { return ambient; },
-       setView, draw, relayout, renderList, renderInspect, renderStats, renderLegend,
+  return loadViewer(atlas, {
+    protocol,
+    counts: { fillRect: 0, strokes: [], arcs: [] },
+    exports: `VIEWS, get ambient() { return ambient; },
+       renderStats, renderLegend,
        selectFinding, findSelected, easeFindings, findEvidenceIds,
-       veil: () => findVeil,
-       $: (sel) => document.querySelector(sel),
-     };`.replace("__counts", "counts"),
-    ctx,
-    { timeout: 60_000 },
-  );
-  return ctx.scope;
+       veil: () => findVeil,`,
+  });
 }
 
 /** Every row the findings list rendered, as plain data. */
