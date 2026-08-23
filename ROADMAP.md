@@ -3,7 +3,8 @@
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
 **Status: 19 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
-are what comes after it; only 16, the desktop shell, is left.
+are what comes after it. 16's code and its security test are in; its gate needs
+`npm install` in `desktop/` and a window in front of a person.
 
 Two boxes have been open since before v1.1 and neither is a phase. Phase 1's
 60 fps sustained drag and Phase 11's arrival animation both have to be judged by
@@ -38,7 +39,7 @@ the only observed things it adds.
 | 13 | `atlas map` — the isometric atlas in a terminal | — | ● done |
 | 14 | Adapters: Go, Ruby, Java/Kotlin, Rust | — | ● done |
 | 15 | IDE affordances in the viewer | 16 | ● done |
-| 16 | `desktop/` — an Electron shell | — | ○ not started |
+| 16 | `desktop/` — an Electron shell | — | ◐ code in, needs a human |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
 
@@ -888,18 +889,27 @@ carefully argued posture gets quietly re-litigated. Speed agrees: the hot loop i
 thousands of `quad()` fills a frame, which is where a non-Chromium webview falls
 down, and a fixed Chromium makes Phase 1's 60 fps gate one gate rather than three.
 
-- [ ] `desktop/` with its own `package.json`; root `files:` untouched
-- [ ] Main process starts the existing server on a random loopback port; a
-      `BrowserWindow` loads it
-- [ ] Confirm `sameOrigin()` still passes from a `BrowserWindow` — `Host` pinning
-      and `Sec-Fetch-Site` are load-bearing and get checked, not assumed
-- [ ] `contextIsolation: true`, `nodeIntegration: false`, no preload beyond what
-      the menu needs
-- [ ] Menu bar, open-folder dialog that rescans, recent repos, window state
-- [ ] PLAN.md records the dependency decision
+- [x] `desktop/` with its own `package.json`; root `files:` untouched, and a
+      test fails if a dependency reaches the core
+- [x] Main process starts the existing server on a random loopback port — port 0,
+      so two windows never fight over 4173 — and a `BrowserWindow` loads it
+- [x] `sameOrigin()` confirmed rather than assumed. `test/desktop.test.mjs`
+      drives the real server with the exact header sets Chromium sends: a
+      top-level navigation is served, the page's own source fetch is served, and
+      a cross-site fetch at the same port still gets 403. A forged `Host` is
+      refused from a correctly-shaped navigation too
+- [x] `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, and
+      **no preload at all** — every native action is in the menu, which runs in
+      the main process, so there is nothing to bridge. A test fails if a preload
+      ever appears
+- [x] Menu bar, open-folder dialog that rescans, recent repos, window state
+- [x] PLAN.md records the dependency decision, with what it costs
+- [ ] `cd desktop && npm install && npm start` run by a human — the install is
+      ~150 MB and the window has to be looked at
 
 **Not in scope:** code signing, notarization, auto-update, release CI.
 
-**Gate:** `npm start` opens the window on a real repo; the network panel shows
-only `127.0.0.1:<port>`; a forged `Host` still gets 403; root `npm test`
-unaffected.
+**Gate: the testable half is met.** The header-level posture is asserted against
+the real server, and root `npm test` is 539 green with the shell present. What is
+open is what a test cannot see: the window opening, and the network panel showing
+only `127.0.0.1:<port>`.
