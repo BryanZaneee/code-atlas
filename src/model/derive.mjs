@@ -1,7 +1,7 @@
 /** Path derivation: the internal path a request takes, modelled not observed. See PLAN.md "Path derivation + calibration". */
 import { adapterFor } from "../adapters/index.mjs";
 import { mountParents } from "./mounts.mjs";
-import { adjacency } from "./graph.mjs";
+import { adjacency, importAdjacency } from "./graph.mjs";
 import { OFF_SPINE_LAYERS } from "../config/defaults.mjs";
 
 // The off-spine set is shared with the layering finding rather than restated, so the two cannot disagree.
@@ -138,7 +138,7 @@ export function derivePaths(ctx, { nodes, edges, endpoints }) {
   const idIdx = new Map(nodes.map((n, i) => [n.id, i]));
   const layerRank = new Map((ctx.config.layers ?? []).map((l) => [l.id, l.rank]));
 
-  const importAdj = adjacency(edges, (e) => e.kind === "import");
+  const importAdj = importAdjacency(edges);
   for (const list of importAdj.values()) list.sort();
 
   // Import edges only: a hop justified by a curated flow was asserted, not proven, and stays marked inferred.

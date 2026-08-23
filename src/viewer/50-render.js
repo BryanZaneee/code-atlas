@@ -553,6 +553,14 @@ function footprintOf(n) {
 function silhouetteOf(n) {
   return hullOf(footprintOf(n).concat(n.faces.flatMap((f) => f.pts)));
 }
+
+/** Light a block: its footprint washed in, its silhouette outlined. The selection, a finding's evidence and a live response all say the same thing this way, so they say it in one place. */
+function highlightBlock(ctx, n, col, { fill = 0.32, lw = 2 } = {}) {
+  ctx.globalAlpha = fill;
+  quad(ctx, footprintOf(n).map(toScreen), col, null, 0);
+  ctx.globalAlpha = 1;
+  quad(ctx, silhouetteOf(n).map(toScreen), null, col, lw);
+}
 let veil = 0, viewFade = 0;
 function drawTrace() {
   if (veil < 0.02) return;
@@ -613,10 +621,7 @@ function drawOverlay() {
   ctx.save();
   if (hov) quad(ctx, silhouetteOf(hov).map(toScreen), null, THEME.accent, 1);
   if (sel) {
-    ctx.globalAlpha = 0.34;
-    quad(ctx, footprintOf(sel).map(toScreen), THEME.accent, null, 0);
-    ctx.globalAlpha = 1;
-    quad(ctx, silhouetteOf(sel).map(toScreen), null, THEME.accent, 2);
+    highlightBlock(ctx, sel, THEME.accent, { fill: 0.34 });
     chip(ctx, toScreen(sel.top), sel.name, THEME.accent);
   }
   ctx.restore();

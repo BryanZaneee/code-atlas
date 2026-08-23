@@ -41,20 +41,25 @@ function reqBodyCheck() {
     return { ok: false, message: err.message };
   }
 }
+/** What counts as a header line, decided once: parsing and redaction cannot drift apart, which is the part that matters when the header being redacted is `Authorization`. */
+function reqHeaderLine(line) {
+  const i = line.indexOf(":");
+  return i < 1 ? null : { name: line.slice(0, i), value: line.slice(i + 1) };
+}
 function reqHeaderPairs(text) {
   const out = {};
   for (const line of (text ?? "").split("\n")) {
-    const i = line.indexOf(":");
-    if (i < 1) continue;
-    out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    const h = reqHeaderLine(line);
+    if (h) out[h.name.trim()] = h.value.trim();
   }
   return out;
 }
+/** Redaction rewrites the text rather than rebuilding it from the pairs above: the curl a person copies keeps their own spacing and their own non-header lines. */
 function reqRedactHeaders(text) {
   return (text ?? "").split("\n").map((line) => {
-    const i = line.indexOf(":");
-    if (i < 1) return line;
-    return /^authorization$/i.test(line.slice(0, i).trim()) ? `${line.slice(0, i)}:` : line;
+    const h = reqHeaderLine(line);
+    if (!h) return line;
+    return /^authorization$/i.test(h.name.trim()) ? `${h.name}:` : line;
   }).join("\n");
 }
 function reqSave() {
@@ -62,7 +67,7 @@ function reqSave() {
     const out = {};
     for (const [id, st] of REQ.by) out[id] = { ...st, headers: reqRedactHeaders(st.headers) };
     sessionStorage.setItem(REQ_STORE_KEY, JSON.stringify(out));
-  } catch { }
+  } catch { /* a hardened browser; the composer still works for this page's life */ }
 }
 function reqLoad() {
   try {
@@ -71,7 +76,7 @@ function reqLoad() {
     for (const [id, st] of Object.entries(JSON.parse(raw))) {
       REQ.by.set(id, { params: {}, query: "", headers: "", body: "", ...st });
     }
-  } catch { }
+  } catch { /* a hardened browser, or a stored shape this build no longer reads; start empty */ }
 }
 function reqCuratedFlow(ep) {
   const id = (byId.get(ep.id)?.travelledBy ?? [])[0];

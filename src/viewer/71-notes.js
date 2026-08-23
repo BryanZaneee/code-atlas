@@ -62,13 +62,13 @@ function loadNotes() {
   try {
     const raw = JSON.parse(localStorage.getItem(NOTES_KEY) ?? "{}");
     for (const [k, v] of Object.entries(raw ?? {})) S.notes.set(k, v);
-  } catch { }
+  } catch { /* a hardened browser, or notes written by an older payload; start empty */ }
 }
 let noteTimer = null;
 function saveNotes() {
   clearTimeout(noteTimer);
   noteTimer = setTimeout(() => {
-    try { localStorage.setItem(NOTES_KEY, JSON.stringify(Object.fromEntries(S.notes))); } catch { }
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(Object.fromEntries(S.notes))); } catch { /* a hardened browser; notes still work for this page's life */ }
   }, 250);
 }
 function renderNotes(b) {

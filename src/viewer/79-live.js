@@ -160,10 +160,7 @@ function drawLive() {
   if (!n?.top) return;
 
   const col = THEME.liveStatus?.[liveClassOf(r.status)] ?? THEME.accent;
-  ctx.globalAlpha = 0.32;
-  quad(ctx, footprintOf(n).map(toScreen), col, null, 0);
-  ctx.globalAlpha = 1;
-  quad(ctx, silhouetteOf(n).map(toScreen), null, col, 2);
+  highlightBlock(ctx, n, col);
 
   // Only what was observed: a truncated or timed-out read says so in words rather than printing a non-round-trip number.
   const text = r.error ? r.error

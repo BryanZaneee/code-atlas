@@ -209,6 +209,9 @@ export function adjacency(edges, accept) {
   return adj;
 }
 
+/** The import graph alone, which is what "what can reach what" means everywhere it is asked. Coverage and the unreachable finding both walk it, and naming the predicate once is what stops them disagreeing about which edges count. */
+export const importAdjacency = (edges) => adjacency(edges, (e) => e.kind === "import");
+
 /** Every id reachable from `seeds` along `adj`, seeds included. */
 export function reachableFrom(seeds, adj) {
   const reached = new Set(seeds);

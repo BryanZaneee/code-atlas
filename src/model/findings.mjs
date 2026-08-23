@@ -1,6 +1,6 @@
 /** Structural findings: arithmetic over the graph the pipeline already built, never a second parse. Each is `{id, type, severity, message, why, evidence}`, every list explicitly sorted, and every function degrades to an empty array rather than guessing. */
 import { OFF_SPINE_LAYERS, UNREACHED_LAYERS } from "../config/defaults.mjs";
-import { adjacency, reachableFrom } from "./graph.mjs";
+import { importAdjacency, reachableFrom } from "./graph.mjs";
 
 
 /** p-th percentile of an ascending-sorted array, nearest-rank method. */
@@ -14,7 +14,7 @@ const sample = (ids, n = 6) => ids.slice(0, n).join(", ") + (ids.length > n ? `,
 
 /** Import cycles: Tarjan's SCC over import edges, smallest first. Iterative because an unbounded call stack on a hostile repo is resource exhaustion. */
 function findCycles(nodes, edges) {
-  const adj = adjacency(edges, (e) => e.kind === "import");
+  const adj = importAdjacency(edges);
 
   const index = new Map();
   const lowlink = new Map();
@@ -179,7 +179,7 @@ function findUnreachable(nodes, edges) {
   const entryIds = nodes.filter((n) => n.kind === "file" && n.layer === "entry").map((n) => n.id);
   if (!entryIds.length) return [];
 
-  const reached = reachableFrom(entryIds, adjacency(edges, (e) => e.kind === "import"));
+  const reached = reachableFrom(entryIds, importAdjacency(edges));
 
   return nodes
     .filter((n) => n.kind === "file" && !UNREACHED_LAYERS.has(n.layer) && !reached.has(n.id))

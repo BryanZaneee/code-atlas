@@ -53,10 +53,7 @@ function drawFindings() {
   ctx.save();
   if (dash) ctx.setLineDash(dash);
   for (const n of blocks) {
-    ctx.globalAlpha = f.muted ? 0.16 : 0.3;
-    quad(ctx, footprintOf(n).map(toScreen), col, null, 0);
-    ctx.globalAlpha = 1;
-    quad(ctx, silhouetteOf(n).map(toScreen), null, col, f.muted ? 1.2 : 2);
+    highlightBlock(ctx, n, col, { fill: f.muted ? 0.16 : 0.3, lw: f.muted ? 1.2 : 2 });
   }
   ctx.restore();
   for (const e of f.evidence?.edges ?? []) {

@@ -87,7 +87,7 @@ let CUSTOM_PALETTES = (() => {
   try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? "{}") ?? {}; } catch { return {}; }
 })();
 function saveCustomPalettes() {
-  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(CUSTOM_PALETTES)); } catch { }
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(CUSTOM_PALETTES)); } catch { /* a hardened browser; the palette still works for this page's life */ }
 }
 const allPalettes = () => ({ ...BUILTIN_PALETTES, ...CUSTOM_PALETTES });
 const paletteColors = () => allPalettes()[S.palettePreset] ?? BUILTIN_PALETTES.atlas ?? [THEME.layerFallback];
