@@ -21,6 +21,7 @@ import { DEFAULT_KEEP, DEFAULT_EXCLUDE } from "../src/config/defaults.mjs";
 import ts from "../src/adapters/ts.mjs";
 import py from "../src/adapters/py.mjs";
 import go from "../src/adapters/go.mjs";
+import rb from "../src/adapters/rb.mjs";
 import { FIXTURE_DIR } from "./helpers.mjs";
 
 /** A fixture scanned the way the pipeline scans one, with the adapter prepared. */
@@ -262,3 +263,63 @@ test("a side-effect import binds no name, and an alias binds the alias", () => {
 });
 
 conform(go, goCtx, EXPECT_GO);
+
+// ---------------------------------------------------------------- Ruby
+
+const rbCtx = fixture("hostile-rb", rb);
+
+/**
+ * Ruby's two modes, which are Python's two modes wearing different syntax:
+ * `require_relative` resolves against the requiring file, plain `require`
+ * against a load path. The relativity is normalised onto the specifier at
+ * extraction — `require_relative "helper"` comes out as `./helper` — because
+ * the two forms are otherwise the same string and `resolve` sees only strings.
+ *
+ * The load path is inferred, never read: Ruby assembles the real `$LOAD_PATH`
+ * at runtime out of a gemspec, a Gemfile and `-I` flags. `lib/` and each
+ * immediate subdirectory of `app/` are the conventional entries, and
+ * `require "store/row"` below resolving under `lib/` with no prefix is that
+ * inference doing its job.
+ *
+ * The fixture carries the two things that fool a regex: an `=begin`/`=end`
+ * block holding a require, and a require inside a single-quoted string. The
+ * second is the one worth having — it produced a phantom gem until `require`
+ * was anchored to a statement position, and a phantom edge is worse than a
+ * missed one.
+ */
+const EXPECT_RB = {
+  "lib/widget.rb": [
+    { spec: "./store/row", kind: "relative", resolved: { kind: "internal", ids: ["lib/store/row.rb"] } },
+    { spec: "json", kind: "static", resolved: { kind: "external", ids: ["json"] } },
+  ],
+  // Every require in here is inside a comment. Extracting nothing is the assertion.
+  "lib/store/row.rb": [],
+  "app/models/document.rb": [
+    { spec: "../../lib/widget", kind: "relative", resolved: { kind: "internal", ids: ["lib/widget.rb"] } },
+    { spec: "store/row", kind: "static", resolved: { kind: "internal", ids: ["lib/store/row.rb"] } },
+    { spec: "rails/all", kind: "static", resolved: { kind: "external", ids: ["rails"] } },
+  ],
+  "spec/widget_spec.rb": [
+    { spec: "../lib/widget", kind: "relative", resolved: { kind: "internal", ids: ["lib/widget.rb"] } },
+    { spec: "rspec", kind: "static", resolved: { kind: "external", ids: ["rspec"] } },
+  ],
+};
+
+test("every file in fixtures/hostile-rb/ is covered by the expectation table", () => {
+  const covered = new Set(Object.keys(EXPECT_RB));
+  const missing = rbCtx.paths.filter((p) => !covered.has(p));
+  assert.deepEqual(missing, [], "a fixture file with no row in EXPECT_RB — add one or it isn't being conformance-checked");
+});
+
+test("the load path is inferred from the layout, and the root is not on it", () => {
+  // "" is deliberately absent: no .rb sits at the top level here, and an empty
+  // root would otherwise claim every gem name in the repository.
+  assert.deepEqual(rbCtx.rb.roots, ["app/models", "lib"]);
+});
+
+test("a require inside a string is not an import", () => {
+  const specs = rb.extractImports(rbCtx.src.get("app/models/document.rb")).map((e) => e.spec);
+  assert.ok(!specs.includes("in_a_string"), "a require inside a single-quoted string was extracted as a real one");
+});
+
+conform(rb, rbCtx, EXPECT_RB);
