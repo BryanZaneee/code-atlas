@@ -97,12 +97,35 @@ atlas scan      # what the scanner found, and what it couldn't
 atlas init      # write a starter config by inspecting the repo
 atlas serve     # local viewer on 127.0.0.1, with read-only source reading
 atlas findings  # cycles, layering violations, orphans, untested endpoints
+atlas map       # draw the atlas in this terminal
 ```
 
 Common flags: `--repo PATH` (default `.`), `--config FILE` (optional — atlas
 detects otherwise), `--ref REF` (git ref, or `worktree` / `fs`; default `HEAD`),
 `--json` (print the payload instead of writing HTML). `serve` also takes
-`--port` (default `4173`) and `--open`. Full list: `node bin/atlas.mjs --help`.
+`--port` (default `4173`) and `--open`; `map` takes `--width`, `--height` and
+`--color`. Full list: `node bin/atlas.mjs --help`.
+
+### `atlas map`
+
+The same city, in a terminal. Half-block characters give two vertical pixels a
+cell, blocks paint back to front, and colour comes off the payload's own layer
+ramp, so the terminal and the browser agree by construction rather than by
+matching hexes by hand.
+
+```
+atlas map                       # fits the window you are in
+atlas map --width 100 --height 30
+atlas map --color none          # or NO_COLOR=1
+atlas map | less -R             # a pipe is never sent escapes at all
+```
+
+Colour steps down truecolor to 256 to 16 to a luminance ramp, decided by
+`COLORTERM`, `TERM`, `NO_COLOR` and whether stdout is a terminal. A repo whose
+files will not fit the window draws one solid per district instead — a
+megablock, the same unit the viewer collapses to — and the header says so rather
+than letting you read a coincidence. It draws only what the payload observed:
+files, lines and layers. No inferred path, and no number nothing measured.
 
 ## Features
 
@@ -440,6 +463,10 @@ detail on each of these.
 - [ ] **Java and Kotlin.** Wildcard imports are the same shape as a Go package.
 - [ ] **Ruby.** Two resolution modes, like Python, so copy that adapter.
 - [ ] **Rust.** The hard one, named here so nobody starts with it.
+
+A language with no adapter is not invisible: its files are still walked, drawn,
+sized and classified, and `atlas scan` reports how many of them nobody could
+read imports out of. What an adapter adds is edges.
 
 ### Not planned
 
