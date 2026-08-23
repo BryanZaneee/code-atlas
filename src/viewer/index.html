@@ -27,20 +27,20 @@
         <h3>VIEW</h3>
         <div id="views" style="display:grid;grid-template-columns:1fr 1fr;gap:4px"></div>
       </div>
-      <details class="fold" id="foldList" open="open">
+      <details class="fold" open="open">
         <summary><span id="listTitle">FOLDERS</span><span class="num" id="listCount"></span></summary>
         <div class="foldBody">
           <input type="text" id="q" placeholder="search files or folders…" autocomplete="off" style="margin-bottom:6px">
           <div id="list"></div>
         </div>
       </details>
-      <details class="fold" id="foldSvc" open="open">
+      <details class="fold" open="open">
         <summary>SERVICES</summary>
         <div class="foldBody">
           <div id="svc"></div>
         </div>
       </details>
-      <details class="fold" id="foldVisual">
+      <details class="fold">
         <summary>VISUAL</summary>
         <div class="foldBody">
           <label class="pick"><span>group by</span><select id="vGroup">
@@ -70,7 +70,7 @@
           <label class="chk"><input type="checkbox" id="vFacade" checked="checked"> facade bands (50 lines each)</label>
         </div>
       </details>
-      <details class="fold" id="foldPalette">
+      <details class="fold">
         <summary>PALETTE</summary>
         <div class="foldBody">
           <label class="pick"><span>colour by</span><select id="pMode">
@@ -87,7 +87,7 @@
           </div>
         </div>
       </details>
-      <details class="fold" id="foldOptions">
+      <details class="fold">
         <summary>OPTIONS</summary>
         <div class="foldBody">
           <label class="chk"><input type="checkbox" id="oVendor"> show vendor bulk (node_modules…)</label>
@@ -98,7 +98,7 @@
           <label class="chk"><input type="checkbox" id="oLabels" checked="checked"> file labels</label>
         </div>
       </details>
-      <details class="fold" id="foldScan">
+      <details class="fold">
         <summary>SCAN</summary>
         <div class="foldBody">
           <div class="stats" id="stats"></div>

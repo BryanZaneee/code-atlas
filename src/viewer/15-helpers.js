@@ -45,7 +45,6 @@ const LOC_P95 = (() => {
   return Math.max(1, locs[Math.min(locs.length - 1, Math.floor(locs.length * 0.95))]);
 })();
 const LOG_P95 = Math.log1p(LOC_P95);
-const EXP_MAX = Math.max(1, ...ATLAS.nodes.map(n => n.exports ?? 0));
 const ENDPOINT_OWNERS = new Set((ATLAS.endpoints ?? []).map(e => e.definedIn).filter(Boolean));
 function heightOf(n) {
   if (n.kind === "datastore") return 84;

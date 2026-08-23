@@ -124,8 +124,6 @@ if (quickstart) {
   if (!values.json) values.open = true;
 }
 
-const PENDING = {};
-if (PENDING[command]) die(`\`atlas ${command}\` lands in phase ${PENDING[command]}`);
 if (!["build", "scan", "init", "serve", "findings"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
 
 // No config means defaults plus detection; a config only ever overrides what it names.
