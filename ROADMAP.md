@@ -2,8 +2,8 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status: 16 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
-are what comes after it, and 12 is done.
+**Status: 17 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
+are what comes after it; 12 and 13 are done.
 
 Two boxes have been open since before v1.1 and neither is a phase. Phase 1's
 60 fps sustained drag and Phase 11's arrival animation both have to be judged by
@@ -35,7 +35,7 @@ the only observed things it adds.
 | 10 | Open-source packaging | — | ● done |
 | 11 | Viewer port: folder districts, four views, authorship | — | ● done |
 | 12 | Sweep: dead code, one fake browser, named stages | — | ● done |
-| 13 | `atlas map` — the isometric atlas in a terminal | — | ○ not started |
+| 13 | `atlas map` — the isometric atlas in a terminal | — | ● done |
 | 14 | Adapters: Go, Ruby, Java/Kotlin, Rust | — | ○ not started |
 | 15 | IDE affordances in the viewer | 16 | ○ not started |
 | 16 | `desktop/` — an Electron shell | — | ○ not started |
@@ -756,18 +756,22 @@ worth reading in the file that depends on it.
 document; this is the other half of the ask, and it consumes the payload rather
 than the viewer.*
 
-- [ ] `src/cli/iso.mjs` + a `map` case in the dispatch and a help block
-- [ ] Half-block raster (`▀`, two vertical pixels a cell) with a per-subpixel
-      depth buffer, painter's algorithm by depth
-- [ ] Top face and two shaded side faces per block, from `payload.layers[].color`
-      — the OKLab ramp already ships on the payload, so terminal and browser
-      agree on colour by construction
-- [ ] Colour ladder: truecolor → 256 → 16 → ASCII, picked from `COLORTERM`,
-      `TERM`, `NO_COLOR` and `isTTY`. A non-TTY stdout takes the last rung, so
-      `atlas map | less` stays readable
-- [ ] Legend below the map, in the `padStart(4)` idiom `report()` already uses
-- [ ] `test/iso.test.mjs` — a pinned width and height, colour off, diffed against
-      a golden text file. No `Date`, no `Math.random`
+- [x] `src/cli/iso.mjs` + a `map` case in the dispatch and a help block
+- [x] Half-block raster (`▀`, two vertical pixels a cell). No depth buffer: for
+      boxes on an isometric grid, back-to-front painting is exact
+- [x] Top face and two shaded side faces per block. `shade()` moved into
+      `chrome.mjs` so the terminal and the browser use one OKLab step rather
+      than two guesses; the viewer keeps its copy because a concatenated script
+      cannot import a module
+- [x] Colour ladder: truecolor → 256 → 16 → luminance ramp, from `COLORTERM`,
+      `TERM`, `NO_COLOR` and `isTTY`. A pipe always takes the last rung
+- [x] Legend below the map, in the `padStart(4)` idiom `report()` already uses,
+      under the same header lines `report()` leads with
+- [x] Auto-collapse to megablocks when a file would land on too few pixels to
+      read, with the header saying so; `collapse` forces or refuses it
+- [x] `test/iso.test.mjs` — 14 tests plus a golden text file. The ladder, the
+      no-escapes-through-a-pipe rule, the empty repo, a 20-column window and
+      byte-for-byte determinism are all asserted directly
 
 **Not in scope.** Import edges routed through a character grid are likely to read
 as noise; blocks and districts ship first and `--edges` is a later box, not a
@@ -775,8 +779,8 @@ promise. Districts column by **layer**, because `payload.districts[]` is built o
 `service/layer` and folder districts are computed viewer-side; `--group folder`
 is a later box too. No second HTML output — `build` is already that.
 
-**Gate:** draws in a terminal; piped to `cat` it emits no escape sequence;
-`NO_COLOR=1` and an 80-column window are both legible.
+**Gate: met.** Draws in a terminal; piped to `cat` it emits no escape sequence;
+`NO_COLOR=1` and an 80-column window are both legible; 458 tests green.
 
 ---
 
