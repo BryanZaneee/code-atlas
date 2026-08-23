@@ -56,7 +56,13 @@ function savePaletteAs() {
   renderPalette(); renderList(); renderServices(); renderLegend();
 }
 
-function initInteraction() {
+/**
+ * Keyboard: camera, transport, and clearing whatever is lit.
+ *
+ * An input or a textarea keeps its own keys — a person typing a header into the
+ * composer is not steering the camera.
+ */
+function initKeyboard() {
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const k = e.key.toLowerCase();
@@ -78,6 +84,10 @@ function initInteraction() {
     } else return;
     e.preventDefault();
   });
+}
+
+/** Pointer: rotate, pan, zoom, select, and drag a district. */
+function initPointer() {
   cv.addEventListener("mousedown", (e) => {
     if (S.introT < 1) S.introT = 1;   /* first input ends the intro; never swallow the event */
     dragging = true; rotating = e.shiftKey; moved = 0;
@@ -182,7 +192,10 @@ function initInteraction() {
     S.panX = mx - w.x * S.zoom;
     S.panY = my - w.y * S.zoom;
   }, { passive: false });
+}
 
+/** The dock, the panels, the toggles: every control that is a DOM element rather than a gesture. */
+function initControls() {
   // A hidden panel gives its width back to the canvas, so the drawing surface
   // has to be re-measured once the slide finishes — otherwise the map keeps the
   // old width and stretches. `transitionend` rather than a timer, so the two
@@ -286,12 +299,7 @@ function initInteraction() {
     staticDirty = true;
   };
   $("#bTheme").onclick = () => setThemeMode(S.theme === "dark" ? "light" : "dark");
-  let queryTimer = null;
-  $("#q").addEventListener("input", (e) => {
-    const v = e.target.value.trim();
-    clearTimeout(queryTimer);
-    queryTimer = setTimeout(() => { S.query = v; staticDirty = true; }, 120);
-  });
+  initSidebarFilter();
   for (const [id, key] of [["#oDocs", "docs"], ["#oTests", "tests"], ["#oContract", "contract"], ["#oAmbient", "ambient"], ["#oLabels", "labels"], ["#oVendor", "vendor"]]) {
     $(id).onchange = (e) => {
       S.opts[key] = e.target.checked;
@@ -301,4 +309,10 @@ function initInteraction() {
   }
   window.addEventListener("resize", () => { resize(); fitView(true); });
   if (window.ResizeObserver) new ResizeObserver(() => { if (!cv) return; resize(); fitView(true); }).observe($("#stage"));
+}
+
+function initInteraction() {
+  initKeyboard();
+  initPointer();
+  initControls();
 }

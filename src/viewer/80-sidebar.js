@@ -157,3 +157,19 @@ function renderLegend() {
   right.append(el("span", ATLAS.source ? "warn" : null, srcBadgeText()));
   w.append(right);
 }
+
+/**
+ * The sidebar's own filter box.
+ *
+ * It lives here rather than with the dock controls because it belongs to the
+ * list it filters. Debounced, because every keystroke otherwise repaints the
+ * whole map — it narrows what is drawn, it does not select anything.
+ */
+let queryTimer = null;
+function initSidebarFilter() {
+  $("#q").addEventListener("input", (e) => {
+    const v = e.target.value.trim();
+    clearTimeout(queryTimer);
+    queryTimer = setTimeout(() => { S.query = v; staticDirty = true; }, 120);
+  });
+}
