@@ -2,8 +2,8 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status: 17 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
-are what comes after it; 12 and 13 are done.
+**Status: 18 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
+are what comes after it; 12, 13 and 14 are done.
 
 Two boxes have been open since before v1.1 and neither is a phase. Phase 1's
 60 fps sustained drag and Phase 11's arrival animation both have to be judged by
@@ -36,7 +36,7 @@ the only observed things it adds.
 | 11 | Viewer port: folder districts, four views, authorship | — | ● done |
 | 12 | Sweep: dead code, one fake browser, named stages | — | ● done |
 | 13 | `atlas map` — the isometric atlas in a terminal | — | ● done |
-| 14 | Adapters: Go, Ruby, Java/Kotlin, Rust | — | ○ not started |
+| 14 | Adapters: Go, Ruby, Java/Kotlin, Rust | — | ● done |
 | 15 | IDE affordances in the viewer | 16 | ○ not started |
 | 16 | `desktop/` — an Electron shell | — | ○ not started |
 
@@ -794,20 +794,31 @@ Each is one file in `src/adapters/`, one entry in `ADAPTERS`, one fixture, and
 one expectation table in `test/conformance.test.mjs`. Note that `fixture()` calls
 `adapter.prepare(ctx)` unconditionally, so `prepare` is not optional in practice.
 
-- [ ] **Go** — `fixtures/hostile-go/` already exists and no test reads it;
-      `docs/adapters.md` carries a worked 51-line adapter and the exact
-      expectation table. An import names a package, which is a directory, so
-      `resolve` returns every `.go` file in it: the case the array return was
-      designed for
-- [ ] **Ruby** — `require_relative` against the requiring file, `require` against
-      a load path. The same two-mode problem `py.mjs` solved, so copy that
-- [ ] **Java / Kotlin** — one adapter, both extensions. `prepare` finds the source
-      roots the way `py.mjs` infers `sys.path`; wildcard imports are Go's
-      one-specifier-many-files shape again
-- [ ] **Rust**, attempted with a hard stop — `mod`/`use` describe a tree that only
-      partly matches the file tree. If `resolve` cannot stay regex-shaped it
-      returns `unresolved` and the fixture documents what a regex cannot see
-- [ ] `docs/adapters.md` and the README carry the endpoint gap below
+- [x] **Go** — an import names a package, which is a directory, so one
+      specifier resolves to every `.go` file in it: the first adapter to
+      actually use the array return. `_test.go` files are excluded from those
+      ids. `go.mod` is read off disk, several are allowed, and the longest
+      matching module path wins
+- [x] **Ruby** — `require_relative` against the file, `require` against a load
+      path inferred from `lib/` and `app/`'s subdirectories, since the real
+      `$LOAD_PATH` is assembled at runtime and cannot be read. The relativity is
+      normalised onto the specifier, the way `py.mjs` carries it in dots
+- [x] **Java / Kotlin** — one adapter, because a Kotlin file routinely imports a
+      Java one out of the same source root. A wildcard names the package and
+      resolves to every file in it; a static member import drops a segment.
+      Source roots are inferred from the conventional layout first, then by
+      backing the declared `package` out of a file's own directory
+- [x] **Rust** — the module tree resolves, including the rule a naive reading
+      gets wrong: a non-`mod.rs` file's children live under a directory named
+      after it. `Cargo.toml` is read for the package name, without which every
+      integration test in every Rust repo hangs off the graph. **Not** followed:
+      `pub use` re-export chains, `#[path]`, and `mod` behind a `cfg` — recorded
+      in the conformance table rather than left to be discovered
+- [x] `blankCLike` in `lex.mjs`, shared by the four C-shaped languages. Four
+      copies of one blanker is how a commented-out import becomes a real edge in
+      three of them; `ts.mjs` and `py.mjs` keep their own, one having regex
+      literals to worry about and the other triple quotes
+- [x] `docs/adapters.md` and the README carry the endpoint gap below
 
 **The gap, documented rather than papered over.** These adapters buy import
 edges, not endpoints. `endpoints.mjs`'s router and route regexes and
@@ -817,8 +828,10 @@ supplies `endpointRules`. Shipping guessed Gin/Rails/Spring patterns that no
 fixture and no corpus can check is "never shape a rule around one repo" wearing
 a new hat.
 
-**Gate:** conformance green per language; `atlas scan` on each fixture reports
-resolved edges where it used to report a file with no adapter;
+**Gate: met.** Conformance green for all four, against four hostile fixtures
+that each carry the thing a regex gets wrong — a raw string holding a fake
+import block, a require inside a string literal, a text block, an inline `mod`.
+`atlas scan` reports resolved edges on every one. 514 tests green;
 `generic.test.mjs` green.
 
 ---
