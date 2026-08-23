@@ -85,13 +85,12 @@ function districtPoly(ox, oy, c, count) {
   if (!rem) return [[x0, y0], [X(c), y0], [X(c), Y(full)], [x0, Y(full)]];
   return [[x0, y0], [X(c), y0], [X(c), Y(full)], [X(rem), Y(full)], [X(rem), Y(full + 1)], [x0, Y(full + 1)]];
 }
-function relayout() {
-  setDensity(S.density);
+/** Visible nodes grouped into districts by the across axis, sorted, and collapsed to megablocks where asked. */
+function plotsFor() {
   for (const id of pseudoIds) byId.delete(id);
   pseudoIds.clear();
-  const vis0 = visibleSet();
   const plots = new Map();
-  for (const n of vis0) {
+  for (const n of visibleSet()) {
     const key = groupKeyOf(n);
     const k = districtId(n.service, key);
     n._dk = k;
@@ -102,28 +101,31 @@ function relayout() {
     p.blocks.sort((x, y) => x.name.localeCompare(y.name));
     if (S.collapsed.has(p.id) && p.blocks.length > 1) { p.members = p.blocks; p.blocks = [megablock(p)]; }
   }
-  const vis = [...plots.values()].flatMap((p) => p.blocks);
+  return plots;
+}
 
-  const svcOrder = ATLAS.services.slice().sort((a, b) => a.order - b.order).map(s => s.id);
-  const services = svcOrder.filter(s => vis.some(n => n.service === s));
-  const PACK = { grid: 1, wide: 1.6, tall: 0.62 }[S.packing] ?? 1;
-
-  const list = [...plots.values()];
+/** Each district's own grid: columns from the packing bias, rows from what is left. */
+function sizePlots(list, pack) {
   for (const p of list) {
-    p.c = districtCols(p.blocks.length, PACK);
+    p.c = districtCols(p.blocks.length, pack);
     p.w = p.c;
     p.h = Math.ceil(p.blocks.length / p.c);
   }
+}
+
+/** How wide the whole map is allowed to run before a service wraps. Square-ish by area unless the packing biases it, or unless a fixed band count is asked for, in which case the longest service decides. */
+function targetWidth(list, services) {
   const area = list.reduce((a, p) => a + (p.w + 1) * (p.h + 1), 0);
   const widest = Math.max(1, ...list.map((p) => p.w + 1));
   const bandRows = S.bands === "auto" ? 0 : clamp(parseInt(S.bands, 10) || 1, 1, ASPECT.maxBands);
   const shapeBias = S.packing === "wide" ? ASPECT.target : S.packing === "tall" ? 1 / ASPECT.target : 1;
-  let T = Math.max(widest, Math.round(Math.sqrt(area) * shapeBias));
-  if (bandRows) {
-    const longest = Math.max(...services.map((sv) => list.filter((p) => p.service === sv).reduce((a, p) => a + p.w + 1, 0)));
-    T = Math.max(widest, Math.ceil(longest / bandRows));
-  }
+  if (!bandRows) return Math.max(widest, Math.round(Math.sqrt(area) * shapeBias));
+  const longest = Math.max(...services.map((sv) => list.filter((p) => p.service === sv).reduce((a, p) => a + p.w + 1, 0)));
+  return Math.max(widest, Math.ceil(longest / bandRows));
+}
 
+/** Shelf-pack each service's districts into bands `T` wide, and give the service its row and its plinth height. */
+function bandServices(services, list, T) {
   const byService = new Map();
   for (const p of list) {
     if (!byService.has(p.service)) byService.set(p.service, []);
@@ -140,6 +142,43 @@ function relayout() {
     svcZ.set(sv, S.plinths ? i * PLINTH_STEP : 0);
     cursor += realH * SPACING + GUT_SVC;
   });
+  return { svcY, svcZ };
+}
+
+/** One plate per service, hugging every district that landed on its row. */
+function servicePlatesFor(services, districts, svcZ) {
+  const plateSrc = new Map();
+  for (const d of districts) {
+    if (!plateSrc.has(d.service)) plateSrc.set(d.service, []);
+    plateSrc.get(d.service).push(d);
+  }
+  return services.map((sv) => {
+    const ds = plateSrc.get(sv);
+    if (!ds?.length) return null;
+    const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    for (const d of ds) {
+      if (d.x0 < b.x0) b.x0 = d.x0;
+      if (d.y0 < b.y0) b.y0 = d.y0;
+      if (d.x1 > b.x1) b.x1 = d.x1;
+      if (d.y1 > b.y1) b.y1 = d.y1;
+    }
+    return { service: sv, label: svcById.get(sv)?.label ?? sv, pz: svcZ.get(sv) ?? 0,
+      x0: b.x0 - 0.9, y0: b.y0 - 0.9, x1: b.x1 + 0.9, y1: b.y1 + 0.9 };
+  }).filter(Boolean);
+}
+
+/** The layout pipeline: group, size, solve the width, band the services, place, then hug. Placement runs three times because `barycentre` pulls each district toward what imports it, and where it lands changes the next pull. */
+function relayout() {
+  setDensity(S.density);
+  const plots = plotsFor();
+  const list = [...plots.values()];
+  const vis = list.flatMap((p) => p.blocks);
+
+  const svcOrder = ATLAS.services.slice().sort((a, b) => a.order - b.order).map((s) => s.id);
+  const services = svcOrder.filter((s) => vis.some((n) => n.service === s));
+
+  sizePlots(list, { grid: 1, wide: 1.6, tall: 0.62 }[S.packing] ?? 1);
+  const { svcY, svcZ } = bandServices(services, list, targetWidth(list, services));
 
   const districts = [];
   const place = () => {
@@ -171,30 +210,12 @@ function relayout() {
   barycentre(plots); place();
   barycentre(plots); place();
 
-  const plateSrc = new Map();
-  for (const d of districts) {
-    if (!plateSrc.has(d.service)) plateSrc.set(d.service, []);
-    plateSrc.get(d.service).push(d);
-  }
-  const servicePlates = services.map(Sv => {
-    const ds = plateSrc.get(Sv);
-    if (!ds?.length) return null;
-    const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    for (const d of ds) {
-      if (d.x0 < b.x0) b.x0 = d.x0;
-      if (d.y0 < b.y0) b.y0 = d.y0;
-      if (d.x1 > b.x1) b.x1 = d.x1;
-      if (d.y1 > b.y1) b.y1 = d.y1;
-    }
-    return { service: Sv, label: svcById.get(Sv)?.label ?? Sv, pz: svcZ.get(Sv) ?? 0,
-      x0: b.x0 - 0.9, y0: b.y0 - 0.9, x1: b.x1 + 0.9, y1: b.y1 + 0.9 };
-  }).filter(Boolean);
-
   const occupied = new Set();
   for (const n of vis) occupied.add(`${Math.round(n.gx / SPACING)},${Math.round(n.gy / SPACING)}`);
 
-  LAYOUT = { nodes: vis, districts, servicePlates, bbox: null, occupied,
-    ids: new Set(vis.map(n => n.id)),
+  LAYOUT = { nodes: vis, districts, servicePlates: servicePlatesFor(services, districts, svcZ),
+    bbox: null, occupied,
+    ids: new Set(vis.map((n) => n.id)),
     steps: playsFlow(S.view) ? pathSteps() : new Map(),
     edges: visibleEdges(vis) };
   reproject();

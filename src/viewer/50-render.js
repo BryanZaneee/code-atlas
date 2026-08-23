@@ -365,7 +365,8 @@ function computeExtent() {
   const pad = CACHE_PAD / Math.min(1, mipScale(S.zoom));
   return { x0: x0 - pad, y0: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
 }
-function drawStatic() {
+/** Size the offscreen cache and aim it at the map. `wanted` is the scale the zoom asks for; `bySide` and `byArea` are the two ceilings that keep a large repo from asking for a raster the browser will refuse, so the scale actually used is the smallest of the three. */
+function sizeCache() {
   const ext = cacheExtent();
   const wanted = mipScale(S.zoom);
   const bySide = MAX_CACHE_SIDE / (Math.max(ext.w, ext.h) * DPR);
@@ -378,6 +379,11 @@ function drawStatic() {
   off.height = Math.max(1, Math.round(ext.h * scale * DPR));
   const m = scale * DPR;
   octx.setTransform(m, 0, 0, m, -ext.x0 * m, -ext.y0 * m);
+  return { ext, scale };
+}
+
+function drawStatic() {
+  const { ext, scale } = sizeCache();
   const px = (v) => v / scale;
   const zf = scale;
   octx.fillStyle = BG;
