@@ -2,14 +2,15 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status: every phase is complete — 15 of 15.**
+**Status: 16 of 20 phases complete.** Phases 0–11 shipped v1.1. Phases 12–16
+are what comes after it, and 12 is done.
 
-Two boxes are open and neither is a phase. Phase 1's 60 fps sustained drag and
-Phase 11's arrival animation both have to be judged by a human with the window
-in front of them, because `requestAnimationFrame` is suspended in a backgrounded
-tab: a harness driving the page sees the arrival advance one frame per forced
-repaint, which looks like blocks failing to draw. Everything else, including
-every gate, is met and tested.
+Two boxes have been open since before v1.1 and neither is a phase. Phase 1's
+60 fps sustained drag and Phase 11's arrival animation both have to be judged by
+a human with the window in front of them, because `requestAnimationFrame` is
+suspended in a backgrounded tab: a harness driving the page sees the arrival
+advance one frame per forced repaint, which looks like blocks failing to draw.
+Everything else, including every gate, is met and tested.
 
 Live mode landed last by design. It is the only part of the tool that opens a
 socket to a running app, it is off unless `--allow-live` is passed, and even
@@ -33,6 +34,11 @@ the only observed things it adds.
 | 9 | Live proxy mode | — | ● done |
 | 10 | Open-source packaging | — | ● done |
 | 11 | Viewer port: folder districts, four views, authorship | — | ● done |
+| 12 | Sweep: dead code, one fake browser, named stages | — | ● done |
+| 13 | `atlas map` — the isometric atlas in a terminal | — | ○ not started |
+| 14 | Adapters: Go, Ruby, Java/Kotlin, Rust | — | ○ not started |
+| 15 | IDE affordances in the viewer | 16 | ○ not started |
+| 16 | `desktop/` — an Electron shell | — | ○ not started |
 
 Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
 
@@ -697,3 +703,171 @@ colour. Source reads through vendored Prism under `serve` and from
 reads `LIVE · STATUS OBSERVED · PATH STILL MODELLED`, with status, duration and
 byte count and no response body. `generic.test.mjs` green; goldens re-baselined
 in the same commits, with the diffs read.
+
+---
+
+## Phase 12 — Sweep
+
+*The audit that opened this phase found almost nothing, which is the result. Three
+lines of dead code across ~4,000 in `src/` and `bin/`, no TODO, no commented-out
+block, no stray log. The work turned out to be in `test/`.*
+
+- [x] `EXP_MAX` deleted — computed every viewer load, read nowhere, and the last
+      spread-over-all-nodes call in the helpers, so a latent `RangeError` on a
+      large payload
+- [x] `PENDING` deleted — an empty object guarding a permanently false branch,
+      left over from phase gating
+- [x] Six `id="fold*"` attributes deleted — no script and no rule read them
+- [x] The Claude Design export the Phase 11 viewer was ported from is
+      `.gitignore`d rather than tracked
+- [x] `test/viewer-harness.mjs` — one fake browser for `findings-view`,
+      `live-view` and `request-view`, which had drifted apart on which fields an
+      element stub answers. 162 lines lighter, same 443 tests
+- [x] `highlightBlock` — the selection, a finding's evidence and a live response
+      lit a block the same way in three places
+- [x] `reqHeaderLine` — the header parser and the redactor agreed by coincidence,
+      and the header being redacted is `Authorization`
+- [x] `importAdjacency` — four hand-written copies of one predicate, across
+      coverage, cycles, the unreachable check and path derivation
+- [x] The seven storage guards that swallowed an exception in silence now carry
+      the reason the eighth already had
+- [x] `relayout` split into its five stage names, 116 lines → 54; `sizeCache`
+      taken off the front of `drawStatic`
+
+**Deliberately not done, with the reason.** The OKLab helpers really are
+duplicated between `src/model/chrome.mjs` and `src/viewer/00-theme.js`, but the
+viewer is a concatenated plain script and cannot import an `.mjs`; removing 17
+lines of pure maths would cost a build-step injection hack. `arcFor` and
+`findArc` were on the list as one function with a bow parameter and are not —
+one bows vertically in screen space, the other perpendicular to the segment.
+`test/render.test.mjs` and `test/viewer-source.test.mjs` keep their own stubs:
+the first counts draw calls against a far thinner element and never opens a
+panel, and the second runs a DOM whose `innerHTML` refuses *every* value, the
+empty string included, which is the strictest assertion in the suite and is
+worth reading in the file that depends on it.
+
+**Gate: met.** 443 tests, green before and after, none deleted.
+
+---
+
+## Phase 13 — `atlas map`
+
+*The same city, drawn in a terminal. `build` already emits a self-contained HTML
+document; this is the other half of the ask, and it consumes the payload rather
+than the viewer.*
+
+- [ ] `src/cli/iso.mjs` + a `map` case in the dispatch and a help block
+- [ ] Half-block raster (`▀`, two vertical pixels a cell) with a per-subpixel
+      depth buffer, painter's algorithm by depth
+- [ ] Top face and two shaded side faces per block, from `payload.layers[].color`
+      — the OKLab ramp already ships on the payload, so terminal and browser
+      agree on colour by construction
+- [ ] Colour ladder: truecolor → 256 → 16 → ASCII, picked from `COLORTERM`,
+      `TERM`, `NO_COLOR` and `isTTY`. A non-TTY stdout takes the last rung, so
+      `atlas map | less` stays readable
+- [ ] Legend below the map, in the `padStart(4)` idiom `report()` already uses
+- [ ] `test/iso.test.mjs` — a pinned width and height, colour off, diffed against
+      a golden text file. No `Date`, no `Math.random`
+
+**Not in scope.** Import edges routed through a character grid are likely to read
+as noise; blocks and districts ship first and `--edges` is a later box, not a
+promise. Districts column by **layer**, because `payload.districts[]` is built on
+`service/layer` and folder districts are computed viewer-side; `--group folder`
+is a later box too. No second HTML output — `build` is already that.
+
+**Gate:** draws in a terminal; piped to `cat` it emits no escape sequence;
+`NO_COLOR=1` and an 80-column window are both legible.
+
+---
+
+## Phase 14 — Four more languages
+
+*The adapter contract is already wide enough that none of this touches
+`src/model/`. `LANGS` and `DEFAULT_KEEP` know these extensions today, so the
+files are already walked, drawn and counted — they just produce no edges.*
+
+Each is one file in `src/adapters/`, one entry in `ADAPTERS`, one fixture, and
+one expectation table in `test/conformance.test.mjs`. Note that `fixture()` calls
+`adapter.prepare(ctx)` unconditionally, so `prepare` is not optional in practice.
+
+- [ ] **Go** — `fixtures/hostile-go/` already exists and no test reads it;
+      `docs/adapters.md` carries a worked 51-line adapter and the exact
+      expectation table. An import names a package, which is a directory, so
+      `resolve` returns every `.go` file in it: the case the array return was
+      designed for
+- [ ] **Ruby** — `require_relative` against the requiring file, `require` against
+      a load path. The same two-mode problem `py.mjs` solved, so copy that
+- [ ] **Java / Kotlin** — one adapter, both extensions. `prepare` finds the source
+      roots the way `py.mjs` infers `sys.path`; wildcard imports are Go's
+      one-specifier-many-files shape again
+- [ ] **Rust**, attempted with a hard stop — `mod`/`use` describe a tree that only
+      partly matches the file tree. If `resolve` cannot stay regex-shaped it
+      returns `unresolved` and the fixture documents what a regex cannot see
+- [ ] `docs/adapters.md` and the README carry the endpoint gap below
+
+**The gap, documented rather than papered over.** These adapters buy import
+edges, not endpoints. `endpoints.mjs`'s router and route regexes and
+`mounts.mjs`'s `MOUNT` are JS-shaped and run over every language, so a Go or
+Rails repo shows structure and imports and close to zero endpoints unless config
+supplies `endpointRules`. Shipping guessed Gin/Rails/Spring patterns that no
+fixture and no corpus can check is "never shape a rule around one repo" wearing
+a new hat.
+
+**Gate:** conformance green per language; `atlas scan` on each fixture reports
+resolved edges where it used to report a file with no adapter;
+`generic.test.mjs` green.
+
+---
+
+## Phase 15 — IDE affordances in the viewer
+
+*Opens with a PLAN.md edit, not a code edit: the "like VS Code, the answer is no"
+guard gets narrowed, in writing, with the reasoning.*
+
+- [ ] PLAN.md reversal — what the guard protected against was becoming an
+      **editor**. The narrowed rule that stays binding: read-only, no text
+      editing, no full-text search across source. Name-based navigation is in;
+      grep-the-repo is not
+- [ ] Split `initInteraction()` (246 lines, and it owns a sidebar control it has
+      no business owning) into keyboard, pointer and controls
+- [ ] Command palette on Cmd/Ctrl-K — file, district, endpoint, finding
+- [ ] Keyboard navigation — move the selection between blocks, Enter to inspect,
+      Esc to clear, `[`/`]` to cycle views
+- [ ] Go-to-definition along import edges from the source panel
+- [ ] Back/forward history and open-file tabs in the inspect panel
+- [ ] Breadcrumb: service › district › file
+
+**Gate:** every affordance reachable by keyboard alone; `viewer.test.mjs` green;
+a built atlas still issues no network request.
+
+---
+
+## Phase 16 — `desktop/`
+
+*The shell deferred until after v1.0, taken up now that v1.1 has shipped. A new
+directory beside `bin/ src/ test/`, with its own `package.json` and its own
+dependencies: nothing existing moves, and the core stays publishable zero-dep.*
+
+Electron rather than Tauri, and the reason is reuse before it is speed: Electron's
+main process is Node, so `src/serve/server.mjs` and `src/serve/proxy.mjs` run
+verbatim with their security posture intact. Tauri would mean reimplementing the
+allowlist, the symlink refusal and the live proxy in Rust, and that is where a
+carefully argued posture gets quietly re-litigated. Speed agrees: the hot loop is
+thousands of `quad()` fills a frame, which is where a non-Chromium webview falls
+down, and a fixed Chromium makes Phase 1's 60 fps gate one gate rather than three.
+
+- [ ] `desktop/` with its own `package.json`; root `files:` untouched
+- [ ] Main process starts the existing server on a random loopback port; a
+      `BrowserWindow` loads it
+- [ ] Confirm `sameOrigin()` still passes from a `BrowserWindow` — `Host` pinning
+      and `Sec-Fetch-Site` are load-bearing and get checked, not assumed
+- [ ] `contextIsolation: true`, `nodeIntegration: false`, no preload beyond what
+      the menu needs
+- [ ] Menu bar, open-folder dialog that rescans, recent repos, window state
+- [ ] PLAN.md records the dependency decision
+
+**Not in scope:** code signing, notarization, auto-update, release CI.
+
+**Gate:** `npm start` opens the window on a real repo; the network panel shows
+only `127.0.0.1:<port>`; a forged `Host` still gets 403; root `npm test`
+unaffected.
