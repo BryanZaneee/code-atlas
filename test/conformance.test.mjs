@@ -20,6 +20,7 @@ import { collect } from "../src/scan/walk.mjs";
 import { DEFAULT_KEEP, DEFAULT_EXCLUDE } from "../src/config/defaults.mjs";
 import ts from "../src/adapters/ts.mjs";
 import py from "../src/adapters/py.mjs";
+import go from "../src/adapters/go.mjs";
 import { FIXTURE_DIR } from "./helpers.mjs";
 
 /** A fixture scanned the way the pipeline scans one, with the adapter prepared. */
@@ -204,3 +205,60 @@ test("sys.path roots are inferred from the layout, not from config", () => {
 });
 
 conform(py, pyCtx, EXPECT_PY);
+
+// ---------------------------------------------------------------- Go
+
+const goCtx = fixture("hostile-go", go);
+
+/**
+ * Go's difference from the other two: a specifier names a **package**, which is
+ * a directory, so one import resolves to every `.go` file in it. That is the
+ * case the array return shape exists for, and `github.com/example/widget` below
+ * is the row that proves it — two files, from one specifier.
+ *
+ * The fixture also carries what a regex gets wrong if nobody checks: a backtick
+ * raw string holding a whole fake import block, a `/* ... *\/` comment holding
+ * another, the one-line `import "strings"` form the block regex cannot see, and
+ * a `_` side-effect import next to an aliased one.
+ */
+const EXPECT_GO = {
+  "widget.go": [],
+  "single.go": [
+    { spec: "strings", kind: "static", resolved: { kind: "external", ids: ["strings"] } },
+  ],
+  // The raw string in here reads exactly like an import block. Extracting nothing is the assertion.
+  "internal/store/store.go": [],
+  "internal/store/store_test.go": [
+    { spec: "testing", kind: "static", resolved: { kind: "external", ids: ["testing"] } },
+  ],
+  "cmd/main.go": [
+    { spec: "fmt", kind: "static", line: 14, resolved: { kind: "external", ids: ["fmt"] } },
+    { spec: "encoding/json", kind: "static", resolved: { kind: "external", ids: ["encoding/json"] } },
+    { spec: "net/http/pprof", kind: "static", resolved: { kind: "external", ids: ["net/http/pprof"] } },
+    // One specifier, two files: the package is the directory.
+    { spec: "github.com/example/widget", kind: "static",
+      resolved: { kind: "internal", ids: ["single.go", "widget.go"] } },
+    // A nested package, and store_test.go is deliberately not among the ids.
+    { spec: "github.com/example/widget/internal/store", kind: "static",
+      resolved: { kind: "internal", ids: ["internal/store/store.go"] } },
+  ],
+};
+
+test("every file in fixtures/hostile-go/ is covered by the expectation table", () => {
+  const covered = new Set(Object.keys(EXPECT_GO));
+  const missing = goCtx.paths.filter((p) => !covered.has(p));
+  assert.deepEqual(missing, [], "a fixture file with no row in EXPECT_GO — add one or it isn't being conformance-checked");
+});
+
+test("the module path comes from go.mod, which the walk never admits into src", () => {
+  assert.deepEqual(goCtx.go.modules, [{ name: "github.com/example/widget", dir: "" }]);
+});
+
+test("a side-effect import binds no name, and an alias binds the alias", () => {
+  const bound = new Map(go.importBindings(goCtx.src.get("cmd/main.go")).map((b) => [b.spec, [...b.localNames]]));
+  assert.deepEqual(bound.get("encoding/json"), ["alias"]);
+  assert.deepEqual(bound.get("net/http/pprof"), ["pprof"]);
+  assert.deepEqual(bound.get("github.com/example/widget"), ["widget"]);
+});
+
+conform(go, goCtx, EXPECT_GO);
