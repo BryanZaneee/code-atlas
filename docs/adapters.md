@@ -27,6 +27,15 @@ export default {
 Register it in `src/adapters/index.mjs`. `adapterFor(path)` picks the **first**
 adapter whose `extensions` match, so the list order is the tie-break.
 
+Six ship today: `ts` (TypeScript and JavaScript), `py`, `go`, `rb`, `jvm` (Java
+and Kotlin in one adapter, because a Kotlin file routinely imports a Java one out
+of the same source root) and `rs`.
+
+Only claim an extension the walk actually delivers. `DEFAULT_KEEP` in
+`src/config/defaults.mjs` decides what is walked at all, and an adapter naming a
+suffix that is not in it is a quiet lie — the adapter looks like support and can
+never run.
+
 | member | contract |
 | --- | --- |
 | `id` | unique; also the key `prepare`'s return value is stored under on `ctx` |
@@ -119,6 +128,27 @@ drawn: `tsconfig.json` carries no import edges, so `keep` excludes it, but its
 `paths` table decides where dozens of specifiers land. Read those in `prepare`,
 once — never per import.
 
+## An adapter buys edges, not endpoints
+
+This is the one thing worth knowing before writing one, because it is the
+question every new language raises and the answer is not the obvious one.
+
+Endpoint extraction is **not** part of the adapter contract. `src/model/endpoints.mjs`
+and `src/model/mounts.mjs` carry their patterns — `ROUTER_DECL`, `ROUTER_IMPORT`,
+`ROUTE_OBJECT`, `ROUTE_FILE`, `METHOD_EXPORT`, `MOUNT` — and those patterns are
+JavaScript-shaped and are applied to every language. Your adapter is consulted
+for exactly three things along the way: whether a file is in a language anyone
+can read at all, `blankComments` before matching, and `importBindings` +
+`resolve` to follow a mount chain.
+
+So a Go, Rails or Spring repository gets its structure, its sizes, its layers and
+its full import graph, and close to **zero endpoints**, unless the repository's
+config supplies `endpointRules`. That gap is deliberate. Shipping guessed Gin,
+Rails or Spring route patterns that no fixture and no corpus in this repo can
+check would be "never shape a rule around one repository" wearing a new hat, and
+a phantom endpoint is the one thing the honesty contract will not have. Config
+closes it; a guess does not.
+
 ## Rules that are not negotiable
 
 - **Zero dependencies.** Node stdlib, `.mjs` ESM. No compiler, no parser.
@@ -182,6 +212,11 @@ pair, one import that must stay `external`, and — the row people forget — on
 that must stay **`unresolved`**.
 
 ### Worked example: a Go adapter in 50 lines
+
+*Kept as a teaching example. The shipped `src/adapters/go.mjs` is this plus the
+shapes it skips — the one-line `import "fmt"` form, aliased and `_` imports,
+backtick raw strings, several `go.mod` files, and `_test.go` files excluded from
+a package's ids. Read that file for the real thing and this one for the shape.*
 
 `fixtures/hostile-go/` ships in this repo: two Go files and a `go.mod`
 declaring the module name (Go has no `keep` extension for `go.mod`, so it is

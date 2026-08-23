@@ -386,10 +386,22 @@ missing one.
 size of the guess, and it is in the README rather than a footnote because it
 sets expectations before first use.
 
-**Only TypeScript/JavaScript and Python have adapters.** Any other language
-still renders — files, sizes, layers and endpoints where the rules match — but
-contributes no import edges, and `atlas scan` reports that as a coverage answer.
-Adding a language is about thirty lines: **[docs/adapters.md](./docs/adapters.md)**.
+**Six adapters: TypeScript/JavaScript, Python, Go, Ruby, Java/Kotlin and Rust.**
+Any other language still renders — files, sizes, layers and endpoints where the
+rules match — but contributes no import edges, and `atlas scan` reports that as a
+coverage answer. Adding a language is about sixty lines:
+**[docs/adapters.md](./docs/adapters.md)**.
+
+**Endpoints are read with JavaScript-shaped patterns**, whatever the language.
+An adapter buys import edges; a Go, Rails or Spring repo will show its structure
+and almost no endpoints unless its config supplies `endpointRules`. Guessing at
+route syntax no fixture here can check is how a phantom endpoint gets drawn, and
+that is the one thing this tool will not do.
+
+**Rust does not follow `pub use` re-export chains.** An import of a type
+re-exported through `lib.rs` lands on the file that exports the name rather than
+the file that defines the type — one hop short. It is recorded in the
+conformance table, not hidden.
 
 **No call graph, and no per-hop timings.** Live mode sends one real request and
 reports what came back; it does not trace anything inside your application.
@@ -458,15 +470,26 @@ The adapter contract is wide enough that a new language needs no change in
 `src/model/`. `docs/adapters.md` carries a worked example and ROADMAP.md has the
 detail on each of these.
 
-- [ ] **Go.** Furthest along: a fixture already exists, and a Go import naming a
-      package rather than a file is the case the contract was shaped around.
-- [ ] **Java and Kotlin.** Wildcard imports are the same shape as a Go package.
-- [ ] **Ruby.** Two resolution modes, like Python, so copy that adapter.
-- [ ] **Rust.** The hard one, named here so nobody starts with it.
+- [x] **Go.** An import names a package, which is a directory, so one specifier
+      resolves to every `.go` file in it.
+- [x] **Java and Kotlin.** One adapter: a Kotlin file routinely imports a Java
+      one out of the same source root. Wildcards are the Go-package shape again.
+- [x] **Ruby.** `require_relative` against the file, `require` against a load
+      path that is inferred rather than read.
+- [x] **Rust.** The module tree resolves; `pub use` re-export chains do not, and
+      the conformance table records that rather than leaving it to be found.
+- [ ] PHP, C# — the two most asked for next.
 
 A language with no adapter is not invisible: its files are still walked, drawn,
 sized and classified, and `atlas scan` reports how many of them nobody could
 read imports out of. What an adapter adds is edges.
+
+**An adapter buys edges, not endpoints.** The route and mount patterns in
+`src/model/endpoints.mjs` are JavaScript-shaped and run over every language, so a
+Go or Rails repo shows structure and imports and close to zero endpoints unless
+its config supplies `endpointRules`. Guessing at Gin or Rails route syntax that
+no fixture here can check would be shaping a rule around one repository, and a
+phantom endpoint is the one thing this tool will not draw.
 
 ### Not planned
 
