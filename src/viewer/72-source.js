@@ -104,7 +104,7 @@ function srcPieces(text, lang) {
 }
 
 /** Paint `text` into `host` as numbered lines; takes its container and touches no other state, so the escaping guarantee is directly testable. */
-function srcPaint(host, text, lang, hit) {
+function srcPaint(host, text, lang, hit, jumps = null) {
   const code = el("div", "srcCode");
   const pieces = srcPieces(text, lang);
   const total = text.split("\n").length;
@@ -113,10 +113,20 @@ function srcPaint(host, text, lang, hit) {
   let row = null, cell = null, ln = 0;
   const newRow = () => {
     ln++;
-    row = el("div", "ln" + (ln === hit ? " hit" : ""));
+    const to = jumps?.get(ln);
+    row = el("div", "ln" + (ln === hit ? " hit" : "") + (to ? " goes" : ""));
     row.append(el("span", "g", String(ln).padStart(pad, " ")));
     cell = el("span", "c");
     row.append(cell);
+    if (to) {
+      // Go-to-definition, from an edge the scanner already resolved rather than
+      // from re-reading the line: the arrow appears only where resolution
+      // actually succeeded, so it never offers a jump that goes nowhere.
+      const go = el("button", "srcGo", "→");
+      go.title = `go to ${byId.get(to)?.name ?? to}`;
+      go.onclick = (ev) => { ev.stopPropagation(); closeSource(); goTo(to); };
+      row.append(go);
+    }
     code.append(row);
   };
   newRow();
@@ -139,6 +149,17 @@ function srcPaint(host, text, lang, hit) {
     code.scrollTop = Math.max(0, target.offsetTop - code.clientHeight / 2 + target.offsetHeight / 2);
   }
   return ln;
+}
+
+/** Which lines of a file carry a resolved internal import, and where each one goes. Read off the edge list, so a line only offers a jump when the scanner actually landed it. */
+function srcJumpLines(path) {
+  const out = new Map();
+  for (const e of edgesFrom.get(path) ?? []) {
+    if (!e.line || e.kind.startsWith("test:")) continue;
+    if (!byId.has(e.to)) continue;
+    if (!out.has(e.line)) out.set(e.line, e.to);
+  }
+  return out.size ? out : null;
 }
 
 /** A message in the panel body — the failure path, and it must never be empty. */
@@ -182,7 +203,7 @@ function openSource(path, line) {
   srcMessage(`Reading ${path}…`, null);
   srcRead(path).then((text) => {
     if (gen !== SRC.gen) return;      // a newer request won; this one's paint is stale
-    const lines = srcPaint($("#srcBody"), text, srcLangOf(path), SRC.line);
+    const lines = srcPaint($("#srcBody"), text, srcLangOf(path), SRC.line, srcJumpLines(path));
     $("#srcWhere").textContent = SRC.line ? `line ${fmt(SRC.line)} of ${fmt(lines)}` : `${fmt(lines)} lines`;
   }).catch((err) => {
     if (gen !== SRC.gen) return;

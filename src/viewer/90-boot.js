@@ -20,6 +20,7 @@ renderPalette();
 renderLegend();
 resize();
 initInteraction();
+initPalette();
 setView(VIEWS[0]?.id ?? "structure");
 fitView(true);
 syncControls();

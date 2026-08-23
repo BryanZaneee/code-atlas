@@ -26,7 +26,7 @@ export const MODULES = [
   "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
   "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
   "75-findings.js", "78-request.js", "79-live.js", "80-sidebar.js", "82-palette.js",
-  "85-camera.js", "88-interact.js",
+  "85-camera.js", "86-navigate.js", "88-interact.js",
 ];
 
 /**

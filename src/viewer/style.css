@@ -23,6 +23,7 @@
     --radius:0px; --sbw:236px;
     /* Three elevations, and they are colours like any other: the light-theme
        ink shadow is invisible over the dark ground, so both themes state it. */
+    --veil:#eef1f6a8;
     --shadow-1:0 6px 20px rgba(10,12,20,.12);
     --shadow-2:0 8px 28px rgba(10,12,20,.14);
     --shadow-3:0 14px 40px rgba(10,12,20,.18);
@@ -37,6 +38,7 @@
     --src-bg:#0e1222; --src-gutter:#767d82; --src-hit:#1a2340; --src-hit-edge:#6ea8ff;
     --src-key:#c9a9ff; --src-str:#6fd7a4; --src-com:#7f878d; --src-num:#f0a868;
     --src-fn:#8db6ff; --src-punct:#98a3c4;
+    --veil:#0a0d16b8;
     --shadow-1:0 6px 20px rgba(0,0,0,.5);
     --shadow-2:0 10px 30px rgba(0,0,0,.55);
     --shadow-3:0 16px 44px rgba(0,0,0,.6);
@@ -279,3 +281,70 @@
   ::-webkit-scrollbar { width:9px; height:9px; }
   ::-webkit-scrollbar-thumb { background:var(--border); }
   ::-webkit-scrollbar-track { background:transparent; }
+
+  /* ── breadcrumb: service › district › file, above the inspector ─────────── */
+  #crumb {
+    display:flex; align-items:center; gap:4px; flex-wrap:wrap;
+    padding:6px 10px; border-bottom:1px solid var(--border);
+    background:var(--panel-2); font-size:9.5px; flex:0 0 auto;
+  }
+  .crumbBit {
+    background:none; border:none; padding:1px 3px; border-radius:3px;
+    color:var(--dim); font-family:var(--mono); font-size:9.5px; cursor:pointer;
+  }
+  .crumbBit:hover:not(:disabled) { background:var(--bg); color:var(--ink); }
+  .crumbBit:disabled { color:var(--ink); cursor:default; opacity:1; }
+  .crumbSep { color:var(--faint); }
+  .crumbNav { margin-left:auto; display:flex; gap:2px; }
+  .crumbNav .crumbBit:disabled { color:var(--faint); opacity:.4; }
+
+  /* ── the command palette ────────────────────────────────────────────────── */
+  #palette {
+    position:absolute; inset:0; z-index:60;
+    background:var(--veil);
+    display:flex; justify-content:center; align-items:flex-start; padding-top:12vh;
+  }
+  #palette[hidden] { display:none; }
+  .palBox {
+    width:min(680px, 88vw); background:var(--panel);
+    border:1px solid var(--border); border-radius:var(--radius);
+    box-shadow:var(--shadow-3); overflow:hidden;
+    display:flex; flex-direction:column; max-height:70vh;
+  }
+  #palInput {
+    background:var(--panel); color:var(--ink); border:none;
+    border-bottom:1px solid var(--border);
+    padding:12px 14px; font-family:var(--mono); font-size:13px; outline:none;
+  }
+  #palList { overflow-y:auto; }
+  .palRow {
+    display:flex; align-items:baseline; gap:8px;
+    padding:5px 14px; cursor:pointer; font-size:11px;
+  }
+  .palRow:hover { background:var(--panel-2); }
+  .palRow.on { background:var(--ink); color:var(--bg); }
+  .palTag {
+    flex:0 0 76px; font-size:8px; letter-spacing:.12em;
+    color:var(--dim); text-align:right; text-transform:uppercase;
+  }
+  .palRow.on .palTag, .palRow.on .palHint { color:var(--bg); opacity:.66; }
+  .palName { flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .palHint { color:var(--faint); font-size:9px; margin-left:auto; padding-left:12px; white-space:nowrap; }
+  .palEmpty { padding:14px; color:var(--dim); font-size:11px; }
+  .palFoot {
+    display:flex; gap:12px; padding:6px 14px;
+    border-top:1px solid var(--border); background:var(--panel-2);
+    font-size:8px; letter-spacing:.12em; color:var(--dim);
+  }
+
+  /* A line carrying a resolved import gets a jump arrow, on hover only: the
+     gutter is for reading, and a row of arrows would compete with the code. */
+  .srcCode .ln.goes { position:relative; }
+  .srcGo {
+    position:absolute; right:6px; top:0;
+    background:var(--panel-2); color:var(--dim); border:1px solid var(--border);
+    border-radius:3px; padding:0 4px; font-family:var(--mono); font-size:9px;
+    line-height:1.5; cursor:pointer; opacity:0;
+  }
+  .srcCode .ln.goes:hover .srcGo { opacity:1; }
+  .srcGo:hover { color:var(--ink); border-color:var(--ink); }

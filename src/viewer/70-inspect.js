@@ -23,6 +23,9 @@ function enterFlow(flowId, fromId) {
 }
 function renderInspect() {
   markFlowRows();
+  // The breadcrumb answers "where am I", so it tracks the inspector rather than
+  // each of the eight places that set S.selected and then re-render.
+  renderBreadcrumb();
   const b = $("#insBody");
   b.innerHTML = "";
   if (S.insTab === "notes") { renderNotes(b); return; }
@@ -170,7 +173,8 @@ function renderInspect() {
       r.append(el("span", "nm", t?.name ?? e[key]), el("span", "sub", e.kind));
       const jump = srcJump(null, e.line ? e.from : null, e.line);
       if (jump) r.append(jump);
-      r.onclick = () => { S.selected = e[key]; S.pinnedPacket = null; renderInspect(); };
+      // `goTo` rather than a bare assignment: the target may be filtered out, collapsed into a megablock or in a service that is switched off, and following an import to a block you cannot see is not following it.
+      r.onclick = () => goTo(e[key]);
       b.append(r);
       if (e.note) b.append(el("div", "note warn", e.note));
     }

@@ -66,6 +66,27 @@ function initKeyboard() {
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const k = e.key.toLowerCase();
+
+    // Navigation first, and modified keys before bare ones, so a browser-shaped
+    // chord never falls through to a single-letter camera control.
+    if (k === "k" && (e.metaKey || e.ctrlKey)) { palOpen(); e.preventDefault(); return; }
+    if (e.altKey && k === "arrowleft") { navBack(); e.preventDefault(); return; }
+    if (e.altKey && k === "arrowright") { navForward(); e.preventDefault(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    // Arrows step a flow when one is playing — that is what they have always
+    // done and a reader mid-path expects it — and move the selection otherwise.
+    const ARROWS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0] };
+    if (ARROWS[k] && !playsFlow(S.view)) { navByKey(...ARROWS[k]); e.preventDefault(); return; }
+
+    if (k === "[" || k === "]") { cycleView(k === "]" ? 1 : -1); e.preventDefault(); return; }
+    if (k === "enter" && S.selected && srcCapable()) {
+      // Enter on a selected block opens what a reader is one click away from anyway.
+      openSource(S.selected, null);
+      e.preventDefault();
+      return;
+    }
+
     if (k === "q") rotateTo(S.yaw - YAW_STEP);
     else if (k === "e") rotateTo(S.yaw + YAW_STEP);
     else if (k === "r") { const movedD = resetOffsets(); rotateTo(YAW0); fitView(); if (movedD) { renderList(); renderInspect(); } }
@@ -73,7 +94,8 @@ function initKeyboard() {
     else if (k === "arrowright") stepBy(1);
     else if (k === "arrowleft") stepBy(-1);
     else if (k === "escape") {
-      if (SRC.open) closeSource();
+      if (!$("#palette")?.hidden) palClose();
+      else if (SRC.open) closeSource();
       else {
         const lit = S.finding;
         S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;

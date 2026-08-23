@@ -148,13 +148,14 @@
           <div class="obTitle">The codebase, as a city</div>
           <div class="obRow"><b>Flags</b> name the services · <b>districts</b> are folders · <b>block height</b> is file length.</div>
           <div class="obRow">Click any block for its imports, tests and source. Moving diamonds are packets riding real import edges — click one mid-flight to read it. Use ✦ ARRANGE to rearrange blocks and districts by hand.</div>
-          <div class="obKeys"><span>DRAG PAN</span><span>SHIFT-DRAG TURN</span><span>SCROLL ZOOM</span><span>SPACE PLAY</span><span>← → STEP</span><span>ESC CLEAR</span></div>
+          <div class="obKeys"><span>⌘K GO TO</span><span>DRAG PAN</span><span>SHIFT-DRAG TURN</span><span>SCROLL ZOOM</span><span>SPACE PLAY</span><span>ARROWS MOVE</span><span>ESC CLEAR</span></div>
           <button id="obGo">EXPLORE THE MAP</button>
         </div>
       </div>
     </main>
 
     <aside id="inspect">
+      <nav id="crumb" hidden="hidden"></nav>
       <div class="tabs">
         <button id="tabInfo" class="tab on">INFO</button>
         <button id="tabNotes" class="tab">NOTES</button>
@@ -177,6 +178,14 @@
   </div>
 
   <footer id="legend"></footer>
+
+  <div id="palette" hidden="hidden">
+    <div class="palBox">
+      <input type="text" id="palInput" placeholder="go to a file, district, endpoint or finding…" autocomplete="off" spellcheck="false">
+      <div id="palList"></div>
+      <div class="palFoot"><span>↑↓ MOVE</span><span>↵ GO</span><span>ESC CLOSE</span></div>
+    </div>
+  </div>
 </div>
 
 <script>const ATLAS = /*__ATLAS_DATA__*/;</script>
