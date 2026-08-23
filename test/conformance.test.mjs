@@ -23,6 +23,7 @@ import py from "../src/adapters/py.mjs";
 import go from "../src/adapters/go.mjs";
 import rb from "../src/adapters/rb.mjs";
 import jvm from "../src/adapters/jvm.mjs";
+import rs from "../src/adapters/rs.mjs";
 import { FIXTURE_DIR } from "./helpers.mjs";
 
 /** A fixture scanned the way the pipeline scans one, with the adapter prepared. */
@@ -393,3 +394,75 @@ test("Kotlin's `as` binds the alias, and a wildcard binds nothing nameable", () 
 });
 
 conform(jvm, jvmCtx, EXPECT_JVM);
+
+// ---------------------------------------------------------------- Rust
+
+const rsCtx = fixture("hostile-rust", rs);
+
+/**
+ * Rust, and the table is as much a record of what is NOT read as of what is.
+ *
+ * What resolves cleanly is the module tree: `mod foo;` names a file beside the
+ * declarer, or under a directory named after it when the declarer is not itself
+ * a `mod.rs`. `src/util.rs` declaring `mod helpers;` and landing on
+ * `src/util/helpers.rs` is that second rule, and it is the one a naive reading
+ * gets wrong.
+ *
+ * What is deliberately NOT followed is `pub use` re-export chains. See
+ * `use crate::store::Row` below: it lands on `src/store/mod.rs`, which is where
+ * the name is exported from, not on `src/store/row.rs`, which is where the type
+ * is defined. Following it needs a symbol table and a fixpoint over re-export
+ * chains — parsing, not matching — so the map under-reports by one hop and says
+ * so here. Same for `#[path = "..."]` and any `mod` behind a `cfg`.
+ *
+ * Two shapes worth naming. `mod inner { ... }` in row.rs declares no file and
+ * must not resolve to one, which is why the pattern insists on the semicolon.
+ * And `use widget::Widget` in the integration test names the library by its
+ * Cargo package name rather than by `crate`, so without reading Cargo.toml
+ * every integration test in every Rust repo would hang off the graph entirely.
+ */
+const EXPECT_RS = {
+  "src/lib.rs": [
+    { spec: "store", kind: "mod", resolved: { kind: "internal", ids: ["src/store/mod.rs"] } },
+    { spec: "util", kind: "mod", resolved: { kind: "internal", ids: ["src/util.rs"] } },
+    { spec: "std::collections::HashMap", kind: "use", resolved: { kind: "external", ids: ["std"] } },
+    // Lands on the re-exporting mod.rs, not on row.rs. The documented under-report.
+    { spec: "crate::store::Row", kind: "use", resolved: { kind: "internal", ids: ["src/store/mod.rs"] } },
+  ],
+  "src/store/mod.rs": [
+    { spec: "row", kind: "mod", resolved: { kind: "internal", ids: ["src/store/row.rs"] } },
+    { spec: "self::row::Row", kind: "use", resolved: { kind: "internal", ids: ["src/store/row.rs"] } },
+    { spec: "super::util::trim", kind: "use", resolved: { kind: "internal", ids: ["src/util.rs"] } },
+  ],
+  // `mod inner { ... }` declares no file. Extracting nothing is the assertion.
+  "src/store/row.rs": [],
+  "src/util.rs": [
+    { spec: "self::helpers::squeeze", kind: "use", resolved: { kind: "internal", ids: ["src/util/helpers.rs"] } },
+    // util.rs is not a mod.rs, so its children live under util/.
+    { spec: "helpers", kind: "mod", resolved: { kind: "internal", ids: ["src/util/helpers.rs"] } },
+  ],
+  "src/util/helpers.rs": [],
+  "tests/integration.rs": [
+    // Named by the Cargo package, not by `crate`: a separate crate links against the library.
+    { spec: "widget::Widget", kind: "use", resolved: { kind: "internal", ids: ["src/lib.rs"] } },
+    { spec: "serde::Serialize", kind: "use", resolved: { kind: "external", ids: ["serde"] } },
+  ],
+};
+
+test("every file in fixtures/hostile-rust/ is covered by the expectation table", () => {
+  const covered = new Set(Object.keys(EXPECT_RS));
+  const missing = rsCtx.paths.filter((p) => !covered.has(p));
+  assert.deepEqual(missing, [], "a fixture file with no row in EXPECT_RS — add one or it isn't being conformance-checked");
+});
+
+test("the crate name comes from Cargo.toml, which the walk never admits into src", () => {
+  assert.deepEqual(rsCtx.rs.crates, [{ name: "widget", dir: "" }]);
+  assert.deepEqual(rsCtx.rs.roots, ["src"]);
+});
+
+test("an inline `mod x { }` declares no file and is never extracted", () => {
+  const specs = rs.extractImports(rsCtx.src.get("src/store/row.rs")).map((e) => e.spec);
+  assert.deepEqual(specs, [], "an inline module was extracted as a file-declaring one");
+});
+
+conform(rs, rsCtx, EXPECT_RS);
