@@ -6,6 +6,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { scan } from "../src/build/build.mjs";
 import { report, diagnose, findingsReport } from "../src/cli/report.mjs";
+import { renderMap, colorMode } from "../src/cli/iso.mjs";
 import { assemble } from "../src/build/assemble.mjs";
 import { makeProgress } from "../src/cli/progress.mjs";
 import { starterConfig } from "../src/config/init.mjs";
@@ -33,6 +34,7 @@ atlas <command> [options]
   scan       what the scanner found, and what it could not
   init       write a starter config by inspecting the repo
   findings   cycles, layering violations, orphans, and the rest of the graph
+  map        draw the atlas in this terminal
   serve      local viewer with source reading
 
 options
@@ -53,6 +55,13 @@ build options
   --include-vendor        draw node_modules, vendor/ and virtualenvs too.
                            Off by default: a mid-size repo has tens of
                            thousands of these and the map stops being legible
+
+map options
+  --width N        map width in columns          (default: the terminal's)
+  --height N       map height in rows            (default: the terminal's)
+  --color MODE     truecolor | 256 | 16 | none. Detected otherwise, and
+                    always none when stdout is not a terminal, so the map
+                    stays readable through a pipe
 
 serve options
   --port PORT      loopback port to bind         (default: 4173)
@@ -102,6 +111,9 @@ const { values, positionals } = parseArgs({
     "allow-live": { type: "boolean", default: false },
     "auth-env": { type: "string" },
     open: { type: "boolean", default: false },
+    width: { type: "string" },
+    height: { type: "string" },
+    color: { type: "string" },
     help: { type: "boolean", default: false },
   },
 });
@@ -124,7 +136,7 @@ if (quickstart) {
   if (!values.json) values.open = true;
 }
 
-if (!["build", "scan", "init", "serve", "findings"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
+if (!["build", "scan", "init", "serve", "findings", "map"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
 
 // No config means defaults plus detection; a config only ever overrides what it names.
 const repo = path.resolve(values.repo);
@@ -203,6 +215,16 @@ async function run() {
   // A command's output goes to stdout, its commentary to stderr; the report is `scan`'s output and `build`'s commentary.
   if (command === "scan") {
     diagnose(payload, diagnostics, (...m) => process.stdout.write(m.join(" ") + "\n"));
+    return;
+  }
+
+  // The map is the output, so it goes to stdout and stays pipeable — with no escape sequences in it, because `colorMode` answers "none" for anything that is not a terminal.
+  if (command === "map") {
+    process.stdout.write(renderMap(payload, {
+      width: values.width ? Number(values.width) : (process.stdout.columns ?? 100) - 2,
+      height: values.height ? Number(values.height) : Math.max(12, (process.stdout.rows ?? 34) - 12),
+      mode: values.color ?? colorMode(process.stdout, process.env),
+    }) + "\n");
     return;
   }
 

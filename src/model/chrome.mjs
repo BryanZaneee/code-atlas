@@ -81,6 +81,29 @@ function oklabToHex(L, a, bb) {
   return `#${h2(gam(clamp01(r)))}${h2(gam(clamp01(g)))}${h2(gam(clamp01(b)))}`;
 }
 
+function hexToOklab(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = lin(((n >> 16) & 255) / 255), g = lin(((n >> 8) & 255) / 255), b = lin((n & 255) / 255);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return { L: 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+           a: 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+           b: 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s };
+}
+
+/** One material, one light: a face shades by stepping L in OKLab, not by scaling RGB. The viewer carries its own copy of this because a concatenated script cannot import a module; `atlas map` can, so the terminal and the browser light a block by the same arithmetic. */
+export function shade(hex, amt) {
+  const c = hexToOklab(hex);
+  return oklabToHex(Math.max(0.03, Math.min(0.99, c.L + amt * 0.34)), c.a, c.b);
+}
+
+/** A hex colour as the three channels a terminal escape wants. */
+export function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
 const oklch = (L, C, hDeg) =>
   oklabToHex(L, C * Math.cos((hDeg * Math.PI) / 180), C * Math.sin((hDeg * Math.PI) / 180));
 
