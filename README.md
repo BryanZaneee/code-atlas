@@ -428,29 +428,48 @@ addresses, and hostnames are never resolved, so `myapp.local` will not work and
 `127.0.0.1:3000` will. Checking a name and then connecting to it leaves a window
 where the name can move, and refusing is the safer side of that trade.
 
+## Contributing
+
+The payload `--json` prints is a public contract, documented field by field with
+a stability tier in **[docs/payload-schema.md](./docs/payload-schema.md)**.
+
+**[CONTRIBUTING.md](./CONTRIBUTING.md)**. The constraints that are not up for
+negotiation are listed there, and the adapters are the documented place to start.
+
+## License
+
+MIT
+
 ## Stretch goals
 
-None of this is built. It is written down so the shape of the project is legible
-before you open an issue asking for one of them.
+Where this could go, written down so the shape of the project is legible before
+you open an issue asking for one of them. A ticked box is something that shipped;
+everything else is unbuilt, and some of it deliberately stays that way — see
+**Not planned** at the end.
 
 ### Editor and IDE integration
 
 Atlas already does the reading half of what an editor does. Click a block and the
 SOURCE panel shows the real file, syntax highlighted; click an endpoint and it
-opens the file at the line the route is declared on. What it does not do is edit,
-and that is a decision rather than a gap: `atlas init` is the only command
-allowed to write into a repository atlas maps, and the code viewer is read-only
-on purpose. The useful direction is a handoff to your real editor, not a worse
-copy of one inside a canvas.
+opens the file at the line the route is declared on. The map is navigable by
+keyboard too — `⌘K` jumps to any file, district, endpoint or finding by name,
+arrows move the selection, and a source line carrying a resolved import offers a
+`→` that follows it. So the items below are not about navigating the map; that
+part is done.
+
+What atlas does not do is edit, and that is a decision rather than a gap:
+`atlas init` is the only command allowed to write into a repository atlas maps,
+and the code viewer is read-only on purpose. The useful direction is a handoff to
+your real editor, not a worse copy of one inside a canvas.
 
 - [ ] **Open in your editor.** A control on every block and endpoint that fires
       `vscode://file/<path>:<line>`, with equivalents for Cursor, Zed and the
       JetBrains family. Atlas stays read-only and your editor does the editing.
       Smallest item here and probably the most useful.
 - [ ] **A VS Code extension** that hosts the viewer as a panel, so the map sits
-      beside the code instead of in a browser tab. A separate package, for the
-      same reason a desktop shell would be: the core stays a CLI that writes one
-      file.
+      beside the code instead of in a browser tab. A separate package, the way
+      `desktop/` already is: its dependency stays out of the core, which remains
+      a CLI that writes one file and installs nothing.
 - [ ] **Watch mode.** `atlas serve --watch` rebuilds as files change, so the map
       keeps up with a refactor instead of going stale behind it.
 - [ ] **Deep links into the map.** A URL that opens an atlas already focused on a
@@ -461,8 +480,15 @@ copy of one inside a canvas.
 - [x] `atlas` with no arguments maps the repository you are standing in, reads
       the working tree rather than HEAD, and opens the result.
 - [x] Offers to write a starter config when most files match no layer rule.
+- [x] **A desktop shell**, in `desktop/`. The Electron main process runs the same
+      loopback server `atlas serve` runs, and points a window at it. Its
+      dependency lives in its own `package.json`, so the core still installs
+      nothing.
 - [ ] **Publish to npm** as `code-atlas`. The package is ready; publishing needs
       an account with rights to the name.
+- [ ] **Ship the desktop app**: code signing, notarization, auto-update and a
+      release pipeline. The window runs today; none of the packaging around it
+      exists.
 - [ ] **A GitHub Action** that builds an atlas per pull request and attaches it,
       so a reviewer can see the shape of a change rather than only its diff.
 - [ ] **Homebrew formula**, for people who would rather not install a global
@@ -522,15 +548,3 @@ that together is that the second never gets to look like the first. A per-hop
 number would break it, because nothing here ever watches a request cross an
 internal hop. If a request amounts to "like Postman" or "like VS Code", the
 answer is no.
-
-## Contributing
-
-The payload `--json` prints is a public contract, documented field by field with
-a stability tier in **[docs/payload-schema.md](./docs/payload-schema.md)**.
-
-**[CONTRIBUTING.md](./CONTRIBUTING.md)**. The constraints that are not up for
-negotiation are listed there, and the adapters are the documented place to start.
-
-## License
-
-MIT
