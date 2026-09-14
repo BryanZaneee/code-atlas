@@ -106,6 +106,15 @@ detects otherwise), `--ref REF` (git ref, or `worktree` / `fs`; default `HEAD`),
 `--port` (default `4173`) and `--open`; `map` takes `--width`, `--height` and
 `--color`. Full list: `node bin/atlas.mjs --help`.
 
+One runnable line each, from a repository root:
+
+```bash
+atlas build --out docs/atlas.html   # one self-contained file to send someone
+atlas scan                          # file counts per layer, and what it skipped
+atlas init                          # writes atlas.config.mjs; refuses to overwrite
+atlas findings --json               # the same graph problems, machine-readable
+```
+
 ### `atlas map`
 
 The same city, in a terminal. Half-block characters give two vertical pixels a
