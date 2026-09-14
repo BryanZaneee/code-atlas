@@ -140,3 +140,92 @@ Cover, at minimum: the language's re-export barrels, its relative-import syntax
 at more than one depth, whatever aliasing its build config allows, one circular
 pair, one import that must stay `external`, and — the row people forget — one
 that must stay **`unresolved`**.
+
+### Worked example: a Go adapter in 30 lines
+
+`fixtures/hostile-go/` ships in this repo: two Go files and a `go.mod`
+declaring the module name (Go has no `keep` extension for `go.mod`, so it is
+read from `ctx.all`, the same way `ts.mjs` reads `tsconfig.json`). Run
+`node bin/atlas.mjs scan --repo fixtures/hostile-go --ref fs` against it today
+and it degrades exactly as "no adapter" should: 0 edges, both files reported
+under "no adapter for the language."
+
+```
+fixtures/hostile-go/
+  go.mod                   // module github.com/example/widget
+  widget.go                // package widget
+  cmd/main.go              // package main; imports "github.com/example/widget"
+```
+
+`cmd/main.go`:
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/example/widget"
+)
+
+func main() { fmt.Println(widget.Name) }
+```
+
+The adapter. One specifier can resolve to many files for a wildcard import,
+so `ids` stays an array even though this fixture only ever returns one:
+
+```js
+// src/adapters/go.mjs
+import path from "node:path";
+
+const IMPORT_BLOCK = /import\s*\(([\s\S]*?)\)/g;
+const IMPORT_LINE = /^\s*(?:\w+\s+)?"([^"]+)"/gm;
+
+export default {
+  id: "go",
+  extensions: [".go"],
+
+  prepare(ctx) {
+    const modFile = ctx.all.find((p) => path.posix.basename(p) === "go.mod");
+    const text = modFile ? ctx.src.get(modFile) ?? "" : "";
+    return { module: text.match(/^module\s+(\S+)/m)?.[1] ?? null };
+  },
+
+  extractImports(text) {
+    const specs = [];
+    for (const block of text.matchAll(IMPORT_BLOCK)) {
+      for (const m of block[1].matchAll(IMPORT_LINE)) specs.push(m[1]);
+    }
+    return specs.map((spec) => ({ spec, kind: "static" }));
+  },
+
+  resolve(from, spec, ctx) {
+    const mod = ctx.go?.module;
+    if (!mod || !spec.startsWith(mod)) return { kind: "external", ids: [spec] };
+    // A Go import names a PACKAGE (a directory), not a file. Every .go file
+    // in that directory is part of it, which is why this returns an array.
+    const dir = spec === mod ? "" : spec.slice(mod.length + 1);
+    const ids = ctx.paths.filter((p) => p.endsWith(".go") && path.posix.dirname(p) === dir);
+    return ids.length ? { kind: "internal", ids: ids.sort() } : { kind: "unresolved", ids: [spec] };
+  },
+};
+```
+
+Register it (`ADAPTERS.push(go)` in `src/adapters/index.mjs`), then add the
+expectation table `test/conformance.test.mjs` asserts against:
+
+```js
+const EXPECT_GO = {
+  "widget.go": [],
+  "cmd/main.go": [
+    { spec: "fmt", kind: "static", resolved: { kind: "external", ids: ["fmt"] } },
+    { spec: "github.com/example/widget", kind: "static",
+      resolved: { kind: "internal", ids: ["widget.go"] } },
+  ],
+};
+conform(go, fixture("hostile-go", go), EXPECT_GO);
+```
+
+`npm test` now runs this table the same way it runs the TypeScript and Python
+ones: exact extraction, exact resolution, no silent regression when a pattern
+stops matching. That is the whole contribution surface: nothing in
+`src/model/` had to change to pick up a fourth language.

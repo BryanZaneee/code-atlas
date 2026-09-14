@@ -44,9 +44,13 @@ function renderInspect() {
   const finding = S.selected || S.pinnedPacket ? null : findSelected();
   if (finding) { renderFinding(b, finding); return; }
 
+  // The composer owns the panel in the request view, until you click a packet
+  // or a block — both of which are questions about the path it just played.
+  if (viewKind(S.view) === "request" && !S.pinnedPacket && !S.selected) { renderComposer(b); return; }
+
   if (S.pinnedPacket) {
     const st = S.pinnedPacket;
-    const f = flowById.get(st.flowId);
+    const f = flowById.get(st.flowId) ?? (S.request?.id === st.flowId ? S.request : null);
     b.append(el("div", "title", st.label || "packet"));
     b.append(el("div", "path", `${f ? f.label + " · " : ""}step ${st.i + 1}`));
     const dl = el("dl", "kv");
@@ -83,12 +87,12 @@ function renderInspect() {
     const d = LAYOUT.districts.find(x => x.id === S.focusDistrict);
     if (d) {
       b.append(el("div", "title", `${svcById.get(d.service)?.label ?? d.service}`));
-      b.append(el("div", "path", `${d.label.toLowerCase()} · ${d.members.length} files`));
+      b.append(el("div", "path", `${d.label.toLowerCase()} · ${d.blocks.length} files`));
       const dl = el("dl", "kv");
-      dl.append(el("dt", null, "LINES"), el("dd", null, fmt(d.members.reduce((a, n) => a + n.loc, 0))));
+      dl.append(el("dt", null, "LINES"), el("dd", null, fmt(d.blocks.reduce((a, n) => a + n.loc, 0))));
       b.append(dl);
       b.append(el("h3", null, "FILES"));
-      for (const n of d.members.slice().sort((a, x) => x.loc - a.loc)) {
+      for (const n of d.blocks.slice().sort((a, x) => x.loc - a.loc)) {
         const r = el("div", "row mini");
         r.append(el("span", "nm", n.name), el("span", "num", `${n.loc}L`));
         r.onclick = () => { S.selected = n.id; renderInspect(); };
@@ -131,7 +135,7 @@ function renderInspect() {
     add("LINES", fmt(n.loc));
     add("EXPORTS", n.exports);
   }
-  add("KIND", n.kind);
+  add("KIND", n.kind, n.why);
   add("IN / OUT", `${n.inDeg} in · ${n.outDeg} out`);
   if (n.testKind) add("SUITE", n.testKind);
   if (n.subject) add("COVERS", byId.get(n.subject)?.name ?? n.subject);

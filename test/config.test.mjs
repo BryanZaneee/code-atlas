@@ -38,6 +38,21 @@ test("defaults place the conventional directories", () => {
   assert.equal(layer("README.md"), "docs");
   assert.equal(layer("db/0001_init.sql"), "migration");
   assert.equal(layer("src/server.ts"), "entry");
+  assert.equal(layer("bin/atlas.mjs"), "entry");
+});
+
+/**
+ * `dist|build|out|coverage` are root-only build products; a nested
+ * `src/build/` is application code that happens to share the name (this
+ * tool's own pipeline lives there). `public|static` stay unanchored: a
+ * framework's asset directory is genuinely nested.
+ */
+test("a nested src/build/ is kept, a root build/ is excluded", () => {
+  const excluded = (p) => DEFAULT_EXCLUDE.some((re) => re.test(p));
+  assert.equal(excluded("src/build/x.mjs"), false);
+  assert.equal(excluded("build/x.mjs"), true);
+  assert.equal(excluded("public/assets/logo.png"), true);
+  assert.equal(excluded("src/public/logo.png"), true);
 });
 
 /**

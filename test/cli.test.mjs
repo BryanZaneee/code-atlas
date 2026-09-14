@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -85,3 +85,63 @@ test("a repository built with its own generated config still renders", (t) => {
   const declared = new Set(payload.services.map((s) => s.id));
   for (const n of payload.nodes) assert.ok(declared.has(n.service), `${n.id} has a stranded service`);
 });
+
+
+
+/** Run the CLI expecting it to refuse: returns `{status, stderr}`. */
+function atlasFails(args) {
+  try {
+    atlas(args);
+    return null;                       // it did not fail, which is the failure
+  } catch (e) {
+    return { status: e.status, stderr: String(e.stderr ?? "") };
+  }
+}
+
+/**
+ * Live mode's flags fail early and loudly.
+ *
+ * Each of these could plausibly have been a warning that still started a
+ * server, and each would have been worse for it: a LIVE toggle permanently
+ * disabled after you asked for it, or every request going out unauthenticated
+ * after you said you had a token. The scan has not run yet at this point
+ * either, so a typo costs a message rather than a walk of the repository.
+ */
+test("live flags are validated before anything else happens", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+
+  const noTarget = atlasFails(["serve", "--repo", dir, "--allow-live"]);
+  assert.ok(noTarget, "--allow-live without --target should not start a server");
+  assert.match(noTarget.stderr, /--allow-live needs --target/);
+
+  const publicTarget = atlasFails(["serve", "--repo", dir, "--allow-live", "--target", "http://example.com"]);
+  assert.ok(publicTarget, "a public target should not start a server");
+  assert.match(publicTarget.stderr, /not a loopback or private/);
+
+  // Link-local is the cloud metadata range. It reads as private and is not.
+  const metadata = atlasFails(["serve", "--repo", dir, "--allow-live", "--target", "http://169.254.169.254"]);
+  assert.ok(metadata, "the metadata address should not start a server");
+  assert.match(metadata.stderr, /not a loopback or private/);
+
+  const noEnv = atlasFails([
+    "serve", "--repo", dir, "--allow-live",
+    "--target", "http://127.0.0.1:3000", "--auth-env", "ATLAS_TEST_UNSET_VAR",
+  ]);
+  assert.ok(noEnv, "an unset auth variable should not start a server");
+  assert.match(noEnv.stderr, /ATLAS_TEST_UNSET_VAR is not set/);
+});
+
+test("live flags on a command that cannot use them warn rather than fail", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+  // execFileSync only hands back stderr when the command fails, so this runs
+  // through spawnSync to read the warning AND prove the build still succeeded.
+  const r = spawnSync(process.execPath, [
+    ATLAS, "build", "--repo", dir, "--ref", "fs", "--json",
+    "--allow-live", "--target", "http://127.0.0.1:3000",
+  ], { encoding: "utf8" });
+
+  assert.equal(r.status, 0, "a misplaced live flag must not fail the build");
+  assert.match(r.stderr, /only applies to serve/);
+  assert.ok(JSON.parse(r.stdout).nodes.length, "and the payload is still produced");
+});
+

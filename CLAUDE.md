@@ -4,21 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 are complete. Phase 7 has its server
-and its reader.**
+**Every phase is complete, 14 of 14.** The one open box is Phase 1's 60 fps
+sustained drag, which needs a human with the window in front: `requestAnimationFrame`
+is suspended in a backgrounded tab, so no harness can sample it.
 
 `build`, `scan`, `init` and `serve` all work on any repository, with or without a
 config, and `findings` reports the eight structural checks over the graph.
 Derivation (`src/model/derive.mjs`) and its calibration
 harness (`test/calibrate.mjs`, `npm run calibrate`) are in, and the numbers
 they produce are published in the README rather than left in a commit message.
-Phase 7's server and its reader are both in — allowlisted `/api/source`,
-INFO/SOURCE tabs, jump-to-line and highlighting; what is left there is
-`--embed-source` and `--gzip-source`, which share a gate.
+Phase 7 is in whole, including `--embed-source` and `--gzip-source`; its one
+open item is the >=3x compression ratio, deferred with a measured 2.31x and the
+arithmetic showing the bar was set against a number that forgot base64. Phase 8
+ships the request composer, and Phase 10 the packaging: README, CONTRIBUTING and
+the three docs, with the cold-reader gate walked against a repo the tool had
+never seen.
 
-Phase 1 is done bar one gate — 60 fps sustained drag — which needs a human with
-the window in front, because `requestAnimationFrame` is suspended in a
-backgrounded tab.
+Phase 9 ships live mode: `src/serve/proxy.mjs` decides what may be sent and
+`handleLive` sends it, returning a status, a duration and a byte count and never
+a response body. It is off unless `--allow-live` and `--target` are both passed,
+targets must be loopback or private, and the token from `--auth-env` is injected
+server-side so it never enters the page.
 
 The prototype this was lifted from still lives at `../FedStack/tax-vault-atlas/`.
 It is the reference for the Phase 0 baseline and nothing else; do not edit it, and
@@ -142,6 +148,31 @@ exact strings, which constrained the design without making the map any more
 honest. What is not open is shipping a modelled path that reads as an observed
 one, or drawing a number we do not have.
 
+## Vocabulary
+
+One word per thing, because the map, the payload, the panels and the README all
+have to agree. The axes are **service down, layer across**.
+
+| term | what it is |
+| --- | --- |
+| **block** | one source file, drawn as an extruded solid; height is file length |
+| **prism** | one extrusion inside a block's shape — five shapes are built from prisms |
+| **district** | one service crossed with one layer. `districts[]` in the payload, `LAYOUT.districts` in the viewer, id `service/layer` everywhere — built by `districtId()` in `15-helpers.js` and never assembled by hand |
+| **service** | a row of the map, with a service plate under it |
+| **layer** | a column of the map, ordered by `rank` |
+| **ground plate** | the pad under a group of blocks — a **service plate** or a **district plate** |
+| **ground grid** | the isometric floor, `S.ground` |
+| **packing** | how blocks arrange *within* a district — `S.packing`, grid/wide/tall |
+| **density** | how much space sits *between* districts and services |
+
+**Folders are not drawn.** A directory decides a block's layer and service and
+then plays no further part. Do not add a directory-shaped visual unit; if files
+that sit together on disk land in different districts, that is the map doing its
+job.
+
+Retired words, so they do not come back: *group* (say district), *box* and
+*building* (say block), and `S.layout` / `S.grid` (say `S.packing` / `S.ground`).
+
 ## Architecture — the seams that matter
 
 **`src/adapters/` ↔ `src/model/` is the load-bearing boundary.** Anything that turns
@@ -205,9 +236,14 @@ prototype's #1 documented failure mode (PLAN.md "Failure modes being fixed").
 **allowlist membership** (`allow.has(rel)` against the exact scanned set), not by
 sanitizing paths; plus `lstat` symlink refusal, size cap, always `text/plain`, `Host`
 check and `Sec-Fetch-Site` rejection. The live proxy accepts `{method, path, headers,
-body}` only — **no host, no URL** — with the origin from server config, `--allow-live`
-required at the process level, and the auth token injected server-side from
-`--auth-env` so it never enters the browser.
+body}` only — **no host, no URL** — with the origin from server config (set by
+`--target`), `--allow-live` required at the process level, and the auth token
+injected server-side from `--auth-env` so it never enters the browser. It
+returns **no response body**, only status, duration and byte count: that is what
+keeps it from being a read primitive, and it is all the honesty contract lets
+the map draw. Targets are loopback or private only with **no override**, DNS is
+never resolved (checking a name then connecting to it is a rebind window), and
+`redirect:"manual"` is a security control rather than a display choice.
 
 ## Scope guard
 

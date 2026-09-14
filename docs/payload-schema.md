@@ -3,7 +3,7 @@
 `atlas build --json` prints this. It is a public contract: other tools are
 expected to read it, so it is versioned from the first release.
 
-- **`meta.schemaVersion`** — integer, currently `1`. Bumped when a field is
+- **`meta.schemaVersion`** — integer, currently `2`. Bumped when a field is
   removed, renamed, or changes meaning. Adding a field does **not** bump it, so
   read defensively and ignore what you do not know.
 - **`meta.generatedAt` is the only field allowed to differ between two runs of
@@ -27,9 +27,29 @@ expected to read it, so it is versioned from the first release.
 | `derivedFlows` | array | experimental | flows this tool inferred. **Separate from `flows` on purpose**: a reader has to be able to tell an asserted path from an inferred one without inspecting a field |
 | `views` | array | stable | which views the strip offers, derived from the flows present |
 | `theme` | object | stable | every colour and style table the viewer draws with |
-| `groups` | array | stable | one per `service/layer` pair that has members — the districts of the map |
+| `districts` | array | stable | one per `service/layer` pair that has blocks — the cells of the map, where a service row crosses a layer column |
 | `findings` | array | experimental | structural findings over the graph — cycles, layering violations, and the rest of `src/model/findings.mjs`'s eight checks |
 | `source` | object | experimental | **present only when built with `--embed-source`** — the scanned repository's own text, baked in. See [`source`](#source) |
+| `live` | object | experimental | **present only under `atlas serve`** — whether this page may send a real request, and the limits the proxy would apply. Never written by `atlas build`, never in `--json`. See [`live`](#live) |
+
+## Vocabulary
+
+The map's two axes are **service down, layer across**, and every noun below
+names something you can point at on it.
+
+| term | what it is | drawn as |
+| --- | --- | --- |
+| **block** | one source file | an extruded solid; height is file length |
+| **district** | one service crossed with one layer | a district plate with a two-character code tab, holding its blocks |
+| **service** | a row of the map | a service plate spanning that row's districts |
+| **layer** | a column of the map, ordered by `rank` | the column axis; it has no plate of its own |
+
+**Folders are not drawn.** A directory has no visual unit. `nodes[].dir` and the
+`dirs:` matcher in layer rules are read to *decide* a block's layer and service,
+and after that the directory tree plays no part in the picture. Files that sat
+together on disk routinely land in different districts, and that is the map
+working rather than failing: it groups by the job a file does, not by where it
+was filed.
 
 ## `services`
 
@@ -43,7 +63,7 @@ The rows of the map.
 | `order` | int | row order |
 | `synthesized` | bool | present and `true` when the tool **added** this row because a node claimed a service the config never declared. Dropping those nodes instead would filter them out of the view with no checkbox to bring them back |
 
-## `groups`
+## `districts`
 
 | field | type | tier | notes |
 | --- | --- | --- | --- |
@@ -63,7 +83,7 @@ of the districts around it.
 
 | field | type | tier | notes |
 | --- | --- | --- | --- |
-| `schemaVersion` | int | stable | `1` |
+| `schemaVersion` | int | stable | `2` |
 | `suiteCount` | int | stable | distinct test-suite kinds found (unit/integration/…) |
 | `repo` | string | stable | basename of the scanned directory |
 | `ref` | string | stable | the ref as requested, not resolved |
@@ -114,7 +134,7 @@ on some kinds.
 | `name` | string | stable | basename, or the label / endpoint id |
 | `dir` | string | stable | parent directory; for an endpoint, its defining file |
 | `service` `layer` | string | stable | ids into `services` / `layers` |
-| `serviceWhy` `layerWhy` | string | stable | the rule that placed it, in prose — `matched rule #4 — a service directory`. File nodes only; INSPECT shows it |
+| `serviceWhy` `layerWhy` | string | stable | why it landed in this service/layer, in prose — `matched rule #4 — a service directory` for a file, a fixed sentence for an endpoint or a datastore, since neither is placed by a rule. INSPECT shows it |
 | `lang` | string | stable | `ts` `py` `sql` `md`, or `-` for non-files |
 | `loc` | int | stable | lines, trailing newline not counted |
 | `kind` | string | stable | `file` · `datastore` · `endpoint` |
@@ -126,7 +146,29 @@ on some kinds.
 | `coverage` | string\|null | stable | see below. **Absent** on non-file nodes |
 | `uncovered` | bool | stable | `coverage === "none"` |
 | `note` | string | experimental | datastore nodes only |
+| `why` | string | experimental | endpoint nodes only — which registration rule matched and where its mount prefix came from, e.g. `matched endpoint rule #0 /router\.(get\|post)…/ · prefix "/api" from the mount chain` |
 | `travelledBy` | string[] | experimental | ids of the flows passing through this node. **Absent**, not empty, when no flow does |
+
+## `live`
+
+Injected by `atlas serve` into the copy of the payload it assembles into HTML.
+`scan()` never produces it, which is deliberate: the payload a build emits stays
+a pure function of the repository, so the golden files do not move and `--json`
+never learns that a server mode exists.
+
+| field | type | tier | notes |
+| --- | --- | --- | --- |
+| `offered` | bool | experimental | may this page select LIVE at all |
+| `reason` | string\|null | experimental | why not, when `offered` is false. The toggle has to be disabled *with the reason*, and only the server knows it |
+| `target` | string\|null | experimental | the origin a live request would go to, so the page can say where rather than imply anywhere |
+| `auth` | string | experimental | `env` when the server injects Authorization, `none` when the page may supply it |
+| `authEnv` | string\|null | experimental | the environment variable's **name**. Never its value — that is what lets `COPY AS cURL` print a runnable command with the token still outside the browser |
+| `methods` `headers` | string[] | experimental | the allowlists, so the composer can warn before a send rather than surface a 400 after one |
+| `maxBodyBytes` `timeoutMs` | int | experimental | the limits the proxy enforces |
+
+The token itself never appears here. `liveInfo()` builds this object from an
+explicit list of keys rather than by spreading the server's live config, so a
+field added there later cannot reach the page merely by existing.
 
 ### `coverage`
 
@@ -213,9 +255,9 @@ branches on `kind`, never on an id.
 
 | field | type | notes |
 | --- | --- | --- |
-| `id` | string | `structure`, `tests`, `findings`, `derived`, or one per distinct `flows[].view` |
+| `id` | string | `structure`, `tests`, `findings`, `derived`, `request`, or one per distinct `flows[].view` |
 | `label` | string | what the strip shows |
-| `kind` | string | `structure` \| `flow` \| `tests` \| `findings` — **the only thing the viewer branches on** |
+| `kind` | string | `structure` \| `flow` \| `tests` \| `request` \| `findings` — **the only thing the viewer branches on** |
 | `title` `hint` | string | heading and explanatory line; config may override |
 | `showPhase` | bool | present on a flow view whose flows carry `phase` |
 | `derived` | bool | present and `true` on the derived-paths view |
@@ -224,8 +266,10 @@ The `structure` and `tests` views are always present, and so is `findings` —
 **including when `findings` is empty**. A repository with nothing wrong with it
 has a result to report, and dropping the view would make "eight checks ran and
 matched nothing" indistinguishable from "this tool does not check". The
-derived-paths view is the one conditional entry: it appears only when there are
-derived paths to play.
+derived-paths view is one conditional entry: it appears only when there are
+derived paths to play. `request` is the other: it appears only when the repo
+has endpoints, since a repo with no HTTP surface has nothing to compose a
+request against.
 
 ## `theme`
 

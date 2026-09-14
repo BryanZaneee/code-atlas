@@ -2,6 +2,10 @@
 function flowsForView(v) { return ALL_FLOWS.filter(f => f.view === v); }
 
 function activeFlows() {
+  // The request view plays exactly one path: whatever S.request holds, armed
+  // by reqSend() in 78-request.js. No entry in ALL_FLOWS backs it, so it is
+  // handled before flowsForView() rather than folded into that lookup.
+  if (viewKind(S.view) === "request") return S.request ? [S.request] : [];
   const fs = flowsForView(S.view);
   if (!fs.length) return [];
   return S.activeFlow === "__all__" ? fs : fs.filter(f => f.id === S.activeFlow);
@@ -30,7 +34,7 @@ function pathSteps() {
 function visibleSet() {
   const keep = new Set();
   const kind = viewKind(S.view);
-  const onPath = isFlowView(S.view) ? pathSteps() : null;
+  const onPath = playsFlow(S.view) ? pathSteps() : null;
   // The blocks the selected finding names. A finding whose evidence a sidebar
   // filter had removed would otherwise light up nothing at all, which reads as
   // "this finding is about nowhere" rather than as "you switched that service
@@ -71,7 +75,7 @@ function visibleEdges(vis) {
 
   return ATLAS.edges.filter(e => {
     if (!ids.has(e.from) || !ids.has(e.to)) return false;
-    if (isFlowView(S.view)) return flowSteps.has(`${e.from}|${e.to}`);
+    if (playsFlow(S.view)) return flowSteps.has(`${e.from}|${e.to}`);
     if (viewKind(S.view) === "tests") return e.kind.startsWith("test:") || e.kind === "coupling";
     if (e.kind.startsWith("test:")) return false;
     if (!S.opts.contract) {

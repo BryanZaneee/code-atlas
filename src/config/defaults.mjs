@@ -105,6 +105,10 @@ export const DEFAULT_LAYER_RULES = [
     ],
     why: "a conventional entrypoint filename",
   },
+  // Still last: a CLI's own `bin/` is an entry the filename list above cannot
+  // catch (`atlas.mjs` names the tool, not a convention), and it has to lose
+  // to every structural rule the same way `index.ts` under routes/ does.
+  { layer: "entry", dirs: ["bin"], why: "the conventional CLI entrypoint directory" },
 ];
 
 /**
@@ -124,7 +128,12 @@ export const DEFAULT_KEEP = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|rb|java|kt|php|sq
 export const DEFAULT_EXCLUDE = [
   /(^|\/)node_modules\//,
   /(^|\/)\.git\//,
-  /(^|\/)(dist|build|out|coverage|public|static)\//,
+  // Anchored to the repo root: a real build product lives at the top, and a
+  // deeper `src/build/` is application code that happens to share the name —
+  // this tool's own `src/build/` is exactly that case. `public|static` stay
+  // unanchored: framework asset directories are genuinely nested.
+  /^(dist|build|out|coverage)\//,
+  /(^|\/)(public|static)\//,
   /(^|\/)\.(next|nuxt|turbo|svelte-kit|venv|tox|mypy_cache|pytest_cache|ruff_cache)\//,
   /(^|\/)(venv|env|__pycache__|target|vendor|site-packages)\//,
   /\.min\.(js|css)$/,

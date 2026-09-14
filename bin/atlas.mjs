@@ -25,6 +25,7 @@ import { makeProgress } from "../src/cli/progress.mjs";
 import { starterConfig } from "../src/config/init.mjs";
 import { loadConfig } from "../src/config/load.mjs";
 import { listen } from "../src/serve/server.mjs";
+import { resolveTarget, makeLive } from "../src/serve/proxy.mjs";
 import { spawn } from "node:child_process";
 
 // Draws nothing unless stderr is a terminal, so a redirect or a pipe is
@@ -66,6 +67,11 @@ build options
 serve options
   --port PORT      loopback port to bind         (default: 4173)
   --open           open the viewer in a browser once it is listening
+  --target URL     origin the live proxy sends to. Loopback or private
+                    addresses only, and never resolved by name — type the IP
+  --allow-live     permit LIVE mode at all; needs --target. MOCK otherwise
+  --auth-env VAR   inject Authorization from this environment variable, so the
+                    token never enters the browser
 `;
 
 /**
@@ -109,6 +115,9 @@ const { values, positionals } = parseArgs({
     strict: { type: "boolean", default: false },
     "gzip-source": { type: "boolean", default: false },
     port: { type: "string", default: "4173" },
+    target: { type: "string" },
+    "allow-live": { type: "boolean", default: false },
+    "auth-env": { type: "string" },
     open: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
   },
@@ -170,6 +179,30 @@ async function run() {
     warn("atlas: --gzip-source has no effect without --embed-source" + (command === "build" ? "" : " (and only applies to build)"));
   }
 
+  // Live-mode flags are validated BEFORE the scan: a typo'd target should cost
+  // a message, not a full walk of somebody's repository first. `--target` is
+  // outbound-only and has nothing to do with the bind host, which is a literal
+  // in listen() with no flag at all — so the two are never read as a pair.
+  let live = null;
+  const liveFlags = ["target", "allow-live", "auth-env"].filter((f) => values[f]);
+  if (command !== "serve" && liveFlags.length) {
+    warn(`atlas: ${liveFlags.map((f) => "--" + f).join(", ")} only applies to serve`);
+  } else if (values["allow-live"]) {
+    if (!values.target) die("--allow-live needs --target URL — the proxy has no origin without one");
+    const t = resolveTarget(values.target);
+    if (!t.ok) die(`--target ${values.target} — ${t.reason}`);
+    let token = null;
+    if (values["auth-env"]) {
+      token = process.env[values["auth-env"]];
+      // Starting anyway would send every request unauthenticated and show a
+      // wall of 401s, after you said you had a token. Failing now is kinder.
+      if (!token) die(`--auth-env ${values["auth-env"]} is not set in this environment`);
+    }
+    live = makeLive({ origin: t.origin, authEnv: values["auth-env"] ?? null, token });
+  } else if (values.target && command === "serve") {
+    warn("atlas: --target has no effect without --allow-live — serving in MOCK only");
+  }
+
   let result;
   try {
     result = scan({
@@ -219,12 +252,16 @@ async function run() {
     const { keep, exclude } = loadConfig(config);
     let server;
     try {
-      server = await listen(Number(values.port), { repo, keep, exclude, payload });
+      server = await listen(Number(values.port), { repo, keep, exclude, payload, live, log: warn });
     } catch (e) {
       die(`could not start server — ${e.message}`);
     }
     const url = `http://127.0.0.1:${server.address().port}`;
     warn(`atlas: serving ${url}`);
+    // Named on startup, so the mode is never a surprise discovered mid-session.
+    warn(live
+      ? `atlas: LIVE enabled -> ${live.origin}${live.authEnv ? ` (Authorization from $${live.authEnv})` : ""}`
+      : "atlas: MOCK only — nothing will be sent");
     if (values.open) openBrowser(url);
     return; // the server keeps the event loop alive; nothing left to do
   }

@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "repo": "mini-monorepo",
     "ref": "fs",
     "commit": "",
@@ -124,6 +124,13 @@
       "kind": "tests"
     },
     {
+      "title": "COMPOSE A REQUEST",
+      "hint": "Pick an endpoint and compose a request against it. The payload is synthetic and nothing is sent — this plays the modelled path a request would take, curated first and derived otherwise, with each hop marked by whether an import backs it.",
+      "id": "request",
+      "label": "REQUEST",
+      "kind": "request"
+    },
+    {
       "title": "STRUCTURAL FINDINGS",
       "hint": "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
       "id": "findings",
@@ -243,6 +250,11 @@
       "warning": "#b5730f",
       "info": "#4a7a8c"
     },
+    "liveStatus": {
+      "ok": "#2f7d4f",
+      "client": "#b5730f",
+      "server": "#b3261e"
+    },
     "dark": {
       "ink": "#e8eaec",
       "bg": "#0e1011",
@@ -256,6 +268,31 @@
         "error": "#ff6b5e",
         "warning": "#f0a03c",
         "info": "#79b8d0"
+      },
+      "liveStatus": {
+        "ok": "#5fd08a",
+        "client": "#f0a03c",
+        "server": "#ff6b5e"
+      }
+    },
+    "density": {
+      "default": "normal",
+      "presets": {
+        "compact": {
+          "spacing": 1.15,
+          "gutLayer": 0.5,
+          "gutSvc": 0.9
+        },
+        "normal": {
+          "spacing": 1.25,
+          "gutLayer": 1,
+          "gutSvc": 1.5
+        },
+        "roomy": {
+          "spacing": 1.5,
+          "gutLayer": 2,
+          "gutSvc": 2.5
+        }
       }
     },
     "legend": {
@@ -526,7 +563,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "GET /api/users/:id",
@@ -543,7 +583,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "POST /api/users",
@@ -560,7 +603,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "GET /health",
@@ -577,7 +623,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/worker/app/main.py",
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule"
     },
     {
       "id": "POST /jobs",
@@ -594,7 +643,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/worker/app/main.py",
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule"
     }
   ],
   "edges": [
@@ -677,6 +729,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 6,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -738,6 +791,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 7,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -799,6 +853,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 8,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -860,6 +915,7 @@
       "service": "worker",
       "definedIn": "services/worker/app/main.py",
       "line": 8,
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -886,6 +942,7 @@
       "service": "worker",
       "definedIn": "services/worker/app/main.py",
       "line": 13,
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -1157,7 +1214,7 @@
       ]
     }
   ],
-  "groups": [
+  "districts": [
     {
       "id": "docs/docs",
       "service": "docs",

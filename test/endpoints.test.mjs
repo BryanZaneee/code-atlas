@@ -28,8 +28,66 @@ test("an Express app in plain JavaScript yields its endpoints", async () => {
     "GET /health",
     "GET /items",
     "GET /items/:id",
+    "GET /shop/orders",
     "POST /login",
+    "POST /shop/orders",
   ]);
+});
+
+/**
+ * A router the file calls something other than `router`.
+ *
+ * The default rules key on a receiver ending in router/app/server, which is not
+ * fussiness: `client.post("/hooks/order")` is an outbound HTTP call, and
+ * matching any receiver at all would turn every HTTP client in a repository
+ * into a phantom endpoint. But `export const orders = Router()` is ordinary
+ * code, and skipping it reported zero endpoints for a perfectly normal service.
+ *
+ * So the receiver is widened by EVIDENCE — a variable this same file declares
+ * from a Router() call — and `orders.mjs` holds both cases at once so the two
+ * cannot be widened apart by accident.
+ */
+test("a router bound to another name is read, and an http client is not", async () => {
+  const { payload } = await scanFixture("express-js");
+  const shop = payload.endpoints.filter((e) => e.definedIn === "src/routes/orders.mjs");
+  assert.deepEqual(shop.map((e) => e.path).sort(), ["/shop/orders", "/shop/orders"],
+    "both registrations are found, and mounted where the server mounts them");
+  assert.match(shop[0].why, /declared from Router\(\)/,
+    "and the endpoint says the file called it a router, rather than naming a rule that did not match");
+  assert.ok(!payload.endpoints.some((e) => e.path.includes("/hooks")),
+    "client.post is an outbound call, not a route this service serves");
+});
+
+/**
+ * The three ways a `Router()` declaration can be a lie.
+ *
+ * Widening the receiver by declaration was worth doing and was got wrong the
+ * first time: the scan read raw source, so a COMMENT mentioning the old code
+ * was enough to seed it, and a name reassigned after its declaration kept the
+ * evidence it no longer deserved. `fixtures/express-js/src/routes/legacy.mjs`
+ * holds all three, and every one of them is a plausible-looking registration —
+ * which is what makes them worth a fixture rather than a code comment.
+ */
+test("a Router() that is a comment, a string, or since reassigned is not evidence", async () => {
+  const { payload } = await scanFixture("express-js");
+  assert.equal(payload.endpoints.filter((e) => e.definedIn === "src/routes/legacy.mjs").length, 0,
+    "nothing in that file registers a route");
+  for (const path of ["/legacy/orders", "/legacy/carts", "/legacy/ping"]) {
+    assert.ok(!payload.endpoints.some((e) => e.path === path), `invented ${path}`);
+  }
+});
+
+/**
+ * The same trap, one level down: the DEFAULT rules match a receiver named
+ * router/app/server and need no declaration at all, so a commented-out
+ * `router.get(…)` was reaching the payload as a live endpoint. That predates
+ * the receiver widening and was found while fixing it.
+ */
+test("a commented-out or quoted route registration is not an endpoint", async () => {
+  const { payload } = await scanFixture("express-js");
+  for (const path of ["/legacy/retired", "/legacy/proposed", "/legacy/from-the-docs"]) {
+    assert.ok(!payload.endpoints.some((e) => e.path === path), `invented ${path}`);
+  }
 });
 
 /**
@@ -67,6 +125,19 @@ test("a non-literal path is skipped and counted, never guessed at", async () => 
 test("a language no adapter claims is reported rather than dropped in silence", async () => {
   const { payload } = await scanFixture("express-js");
   assert.equal(payload.endpoints.unscanned?.length ?? 0, 0, "every file here is JS; nothing should be unscanned");
+});
+
+/**
+ * The two facts a reader needs to correct a wrong endpoint path: which
+ * registration rule matched, and how the mount prefix was decided — one
+ * string, the way `layerWhy` is one string for a file node.
+ */
+test("an endpoint carries the rule that matched and how its mount was decided", async () => {
+  const { payload } = await scanFixture("express-js");
+  const e = payload.endpoints.find((e) => e.path === "/admin/stats");
+  assert.ok(e, "expected the /admin/stats endpoint");
+  assert.match(e.why, /matched endpoint rule #\d+/);
+  assert.match(e.why, /mount chain|declared by the rule|no mount resolved/);
 });
 
 /** Totality: a repo with no routes at all must still scan, not throw. */

@@ -2,8 +2,10 @@
 
 Isometric, interactive maps of a codebase — its structure, how requests move through it, what the tests reach, and what's structurally wrong with it.
 
-> **Status: pre-alpha.** All five commands — `build`, `scan`, `init`, `serve` and
-> `findings` — work on any repository, with or without a config.
+> **Status: v1.0.** All five commands — `build`, `scan`, `init`, `serve` and
+> `findings` — work on any repository, with or without a config. Live mode
+> sends a real request when you explicitly turn it on, and is off by default:
+> everything else the tool draws is read from the repository or modelled from it.
 >
 > See **[PLAN.md](./PLAN.md)** for the design and **[ROADMAP.md](./ROADMAP.md)** for progress.
 
@@ -45,7 +47,7 @@ The tool can show a **real** HTTP response and a **modeled** internal path in th
 | Files, sizes, directories | **Observed** — read from disk |
 | Import edges | **Observed** — parsed from source (regex; under-reports) |
 | Endpoints and mount prefixes | **Observed** — statically resolved through the router graph |
-| HTTP response, status, latency | **Observed** — a real request really was sent |
+| HTTP response, status, latency | **Observed** — in LIVE mode, a real request really was sent. Off unless you pass `--allow-live` |
 | **The internal path a request takes** | **MODELED** — inferred from imports. Never observed. Calibrated at 17% precision / 12% recall against nine hand-curated flows |
 | Per-hop timing | **Never rendered.** We don't have it and won't imply we do. |
 
@@ -87,7 +89,276 @@ detects otherwise), `--ref REF` (git ref, or `worktree` / `fs`; default `HEAD`),
 `--json` (print the payload instead of writing HTML). `serve` also takes
 `--port` (default `4173`) and `--open`. Full list: `node bin/atlas.mjs --help`.
 
-Zero runtime dependencies. No bundler. Node ≥ 20.
+## Features
+
+**Views.** STRUCTURE for the shape of the codebase, TESTS for what the suite
+actually reaches, FINDINGS for eight structural checks drawn on the map rather
+than listed beside it, REQUEST for composing a request against an endpoint, and
+one view per curated flow plus DERIVED PATHS for the ones the tool inferred.
+Curated and derived paths never share a view, because a reader has to be able to
+tell an asserted path from an inferred one without inspecting a field.
+
+**The map.** Services are rows, layers are columns, file length is height. Pan,
+cursor-anchored zoom, rotation, click-to-inspect, text filter, service toggles,
+animated packets with pause and single-step, and districts a reader can drag by
+hand. Every block records the rule that placed it, so a misclassification is a
+config edit rather than a bug report.
+
+**Reading the code.** `atlas serve` adds a SOURCE tab that opens the file behind
+a block at the line that matters: an endpoint's registration, an import, a test's
+subject. `atlas build --embed-source` bakes the text into the HTML instead, so a
+single file can travel without the repository.
+
+**Composing a request.** Pick an endpoint, fill in its parameters, query, headers
+and body, and play the path it would take. Nothing is sent. Each hop says whether
+an import backs it, a hop with nothing behind it is drawn dotted and offered no
+line to open, and **CURATE THIS** emits a config entry that turns the tool's
+guess into your claim.
+
+## Reading the map
+
+**Position is the taxonomy.** Services are rows, layers are columns. A file's
+place is a claim about what it is, and the claim is made by a rule you can read:
+click any block and the panel names the rule that put it there.
+
+**Height is lines of code, logarithmically.** A block twice as tall is not twice
+as long — the scale is `log1p(loc)` normalised against the repository's own 95th
+percentile, so a codebase with one 40,000-line generated file does not flatten
+everything else into the floor. Height is comparable within a map and meaningless
+between two of them. Endpoints are a fixed short block and datastores a fixed
+tall one; for those, height carries nothing at all.
+
+**Colour is identity, not state.** A block's fill is its layer. The `▦ MONO`
+toggle removes it entirely and the map still works, because position already
+carries the same information. What survives MONO is state: the coverage tint in
+the TESTS view, the selection ring, a finding's highlight. That split is
+deliberate — identity writes to fill, state writes to stroke and ring and badge,
+so turning one off can never turn the other off.
+
+**The rest of the furniture.** The isometric floor is the ground grid. Each
+service sits on a plate with a tab naming it; each service-and-layer cell is a
+district with a two-letter code. Thin static lines are import edges. Moving
+diamonds are packets: ambient ones drift along imports to show the graph is
+alive, and sequenced ones play a request path in order.
+
+## Controls
+
+| | |
+| --- | --- |
+| drag | pan |
+| **shift**-drag | rotate |
+| **alt**-drag | move a district. Snaps to whole cells; a refused drop flashes |
+| scroll | zoom, anchored on the cursor |
+| `Q` `E` | rotate 15° |
+| `R` | reset the camera **and** put every dragged district back |
+| `Space` | play / pause the flow |
+| `←` `→` | step one hop |
+| `Esc` | close the reader, else clear the selection, packet, finding or armed request |
+| click | inspect a block, a district, or a moving packet |
+
+## The views
+
+**STRUCTURE** is the whole repository. **TESTS** recolours every block by what
+the suite reaches — orange means no test reaches this file at all, a muted tint
+means it is reached only indirectly, and normal colour means a test names it
+directly. **FINDINGS** veils the map and lights only the blocks and edges one
+finding names, in place: it does not re-pack the map, because a finding answers
+*where* and moving things would delete the answer.
+
+**Flow views** are different: entering one **isolates** the path and re-packs it
+into its own districts, because seeing a path alone is what makes it readable.
+Curated paths and derived paths never share a view, so you can always tell from
+the strip alone whether a person asserted what you are watching or the tool
+inferred it. **REQUEST** is the composer, below.
+
+## The eight structural checks
+
+`atlas findings` prints them; the FINDINGS view draws them on the map.
+
+| check | what it means | severity |
+| --- | --- | --- |
+| `cycle` | a group of files that import each other in a ring | error at 4+ members, else warning |
+| `layering` | an import pointing backwards up the layer stack | error at 3+ layers of distance, else warning |
+| `oversized-file` | a file past `locThreshold` (default 400) and well past the repo's own p95 | error / warning / info by how far |
+| `untested-endpoint` | an endpoint no test reaches | warning |
+| `orphan` | a file with no imports in and none out | info |
+| `unreachable` | a file no entrypoint reaches by import | warning |
+| `god-node` | a file imported by far more than its peers (default: p95 and at least 5) | error at twice the threshold, else warning |
+| `cross-service` | an import crossing a service boundary | warning |
+
+Every threshold is a magnitude, not a verdict: 400 lines says "worth a second
+look", not "this is bad". All of them are config keys, and a finding you have
+decided to live with can be muted by id — it stays in the payload marked
+`muted`, drawn dashed, so silencing one never makes the map quietly incomplete.
+
+## How to tell what the tool knows from what it guessed
+
+This is the part worth reading twice, because the whole design turns on it.
+
+**The canvas badge, top right.** `CURATED · MODELLED PATH` means a person wrote
+this path down; the ordering is their claim, and imports cannot express ordering,
+so it is still modelled. `DERIVED · NOT VERIFIED` means the tool inferred the
+whole thing. `LIVE · STATUS OBSERVED · PATH STILL MODELLED` means a real request
+really was sent and came back — and that the hops drawn behind it are exactly as
+inferred as they were a moment earlier.
+
+**Solid and dotted hops.** A solid hop has an import edge behind it and the panel
+will open the line that justifies it. A dotted hop has nothing behind it, and is
+offered no button rather than one that lands somewhere plausible. If the tool
+cannot produce the evidence, it downgrades the hop to dotted rather than drawing
+a confident line it cannot back.
+
+**`PACKET PAYLOAD (SYNTHETIC)`.** Every payload shown on a hop is invented. Even
+in LIVE mode, what you composed is displayed under that heading, because the
+request is real but the per-hop payload never was.
+
+**No per-hop timings.** Not "not yet" — the tool never watches a request cross an
+internal hop, so any number there would be invented, and inventing it is the one
+thing the design forbids outright.
+
+**Authorization is treated as radioactive.** With `--auth-env` the server injects
+it and the page is shown only the variable name. Without it, a token you type
+lives in `sessionStorage` for that tab and has a CLEAR button. Either way, the
+composer's saved fields keep the header *name* with an empty value — a row that
+vanished on reload would read as a bug; one that comes back empty reads as a
+decision, and only the second is true.
+
+**The footer badge** says where source comes from: served live, embedded in this
+file, or not available.
+
+## Composing a request
+
+Pick an endpoint in the REQUEST view, fill in its path parameters, query, headers
+and body, and press `SEND (MODELED)`. Nothing is sent: the map plays the path the
+request *would* take, curated first and derived otherwise, with each hop marked
+by whether an import backs it.
+
+**CURATE THIS** emits a config entry for the path you just watched — paste it
+into `flows` and the tool's guess becomes your claim, which is the point.
+
+### Live mode
+
+Off unless you ask for it, and it needs the server:
+
+```bash
+atlas serve --repo . --allow-live --target http://127.0.0.1:3000
+atlas serve --repo . --allow-live --target http://127.0.0.1:3000 --auth-env AUTH_TOKEN
+```
+
+The button becomes `SEND (LIVE)` and the endpoint node gains a status ring and
+the round-trip time. A non-2xx **stops the path at the first hop**: the request
+reached the endpoint, and everything past that is a route the tool modelled for
+a journey that did not finish. Repeat sends accumulate `n`, min, median and p95,
+and the p95 is withheld until there are at least five samples, because a 95th
+percentile over two numbers is the larger number wearing a statistic's name.
+
+The proxy takes `{method, path, headers, body}` and **no host and no URL** — the
+origin is the one you named on the command line, and the page cannot choose a
+destination. Targets must be loopback or private addresses, names are never
+resolved, redirects are reported and never followed, and **no response body is
+ever returned to the page**: you get a status, a duration and a byte count.
+
+## When the map looks wrong
+
+**Run `atlas scan` first.** It prints what the scanner found and what it could
+not: unresolved imports, files it has no adapter for, endpoint registrations it
+skipped, and how many files fell through to the fallback layer.
+
+**Then click the thing that looks wrong.** Every block records why it landed
+where it did. That turns "the tool put my file in the wrong column" into a config
+edit rather than a bug report.
+
+| what you see | usually means |
+| --- | --- |
+| everything in one service | no manifests to detect. Run `atlas init` and edit the `services` it writes |
+| a high `unsorted` count | your directory names do not match the default rules. Add `layerRules` |
+| no endpoints | routes registered through a helper, or a framework the default rules do not match. `atlas scan` counts what it skipped; add an `endpointRules` entry |
+| almost no import edges | a language with no adapter. `scan` reports those files; the map still shows structure |
+| a file you just wrote is missing | `--ref` defaults to `HEAD`. Pass `--ref worktree` (or `fs`) to include uncommitted work |
+| too dense to read | `theme.density`, the service toggles, or map a subdirectory with `--repo` |
+| nothing to play | no curated flows and derivation found no path. The composer says so per endpoint |
+
+## Configuration
+
+None is required. Without a config, services are detected from manifests and
+layers from directory names, and every placement still records its reason.
+`atlas init` writes a starter config by inspecting the repository.
+
+Two worked examples ship in the repo:
+
+- **`fixtures/mini-monorepo/atlas.config.mjs`** — the small case, where layers
+  come straight from directory names and three services are declared outright.
+- **`examples/taxvault.config.mjs`** — a five-service polyglot monorepo: custom
+  layer rules, endpoint rules with mount prefixes, curated datastores and the
+  edges no import expresses.
+
+Every key is documented in **[docs/config.md](./docs/config.md)**.
+
+## Running the servers
+
+`atlas serve` binds `127.0.0.1` and that is hardcoded rather than a flag. It is
+read-only on your repository: nothing either command does can write to the code
+it maps, and `atlas init` is the only command permitted to write to a target
+repo at all.
+
+File access is defended by **allowlist membership** against the exact set the
+scan produced, not by sanitizing paths, plus symlink refusal, a size cap, an
+always-`text/plain` content type, a `Host` check and `Sec-Fetch-Site` rejection.
+The traversal cases are covered verbatim in `test/serve.test.mjs`.
+
+## Tech stack, and why
+
+| Layer | Choice | Why |
+| --- | --- | --- |
+| Runtime | Node ≥ 20, ESM `.mjs` | runs as ESM with no `package.json` ceremony |
+| Build | none — no bundler, no TypeScript | the tool has to stay readable by whoever is debugging it at 3am |
+| Viewer | vanilla JS, Canvas 2D, CSS custom properties | no framework and no external fetch, so a built atlas works over `file://` |
+| Parsing | regex, not AST | see Limitations. The cost is under-reporting, and it is measured |
+| Highlighting | Prism 1.29.0, vendored | a real highlighter without an install step or a bundler |
+| Tests | `node:test` | in the runtime already |
+
+There is no npm dependency today, and that is a default rather than a rule. It is
+what makes the single-file promise cheap and keeps install friction at zero for a
+tool people run against someone else's repository. Where a library earns its
+place it gets taken, and vendoring is the third option — Phase 7 took it.
+
+## Limitations
+
+**Imports are read with regexes, not a parser.** Dynamic imports, unusual
+formatting and computed specifiers are missed. Under-reporting is the accepted
+cost, and `atlas scan` prints what it could not resolve rather than hiding it.
+
+**A non-literal route path is never guessed at.** A route registered through a
+helper is skipped and counted, because a phantom endpoint is worse than a
+missing one.
+
+**The internal path a request takes is modelled, and the numbers are above:**
+17% precision, 12% recall against nine hand-curated flows. That is the honest
+size of the guess, and it is in the README rather than a footnote because it
+sets expectations before first use.
+
+**Only TypeScript/JavaScript and Python have adapters.** Any other language
+still renders — files, sizes, layers and endpoints where the rules match — but
+contributes no import edges, and `atlas scan` reports that as a coverage answer.
+Adding a language is about thirty lines: **[docs/adapters.md](./docs/adapters.md)**.
+
+**No call graph, and no per-hop timings.** Live mode sends one real request and
+reports what came back; it does not trace anything inside your application.
+Per-hop timing is not a missing feature, it is a number this tool does not have
+and will not invent.
+
+**Live mode only reaches your own machine.** Targets must be loopback or private
+addresses, and hostnames are never resolved, so `myapp.local` will not work and
+`127.0.0.1:3000` will. Checking a name and then connecting to it leaves a window
+where the name can move, and refusing is the safer side of that trade.
+
+## Contributing
+
+The payload `--json` prints is a public contract, documented field by field with
+a stability tier in **[docs/payload-schema.md](./docs/payload-schema.md)**.
+
+**[CONTRIBUTING.md](./CONTRIBUTING.md)**. The constraints that are not up for
+negotiation are listed there, and the adapters are the documented place to start.
 
 ## License
 

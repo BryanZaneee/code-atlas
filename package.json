@@ -1,7 +1,7 @@
 {
   "name": "code-atlas",
-  "version": "0.1.0",
-  "description": "Isometric, interactive maps of a codebase — structure, API flow, tests, and findings. Zero dependencies.",
+  "version": "1.0.0",
+  "description": "Isometric, interactive maps of a codebase: structure, API flow, tests, and findings.",
   "type": "module",
   "bin": { "atlas": "./bin/atlas.mjs" },
   "engines": { "node": ">=20" },

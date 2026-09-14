@@ -30,7 +30,7 @@ import { scanFixture, requireCorpus, scanTaxvault } from "./helpers.mjs";
 const MODULES = [
   "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
   "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "72-source.js",
-  "75-findings.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
+  "75-findings.js", "79-live.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
 ];
 
 function fakeContext(counts) {

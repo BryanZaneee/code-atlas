@@ -32,6 +32,7 @@
  */
 import { resolveMounts } from "./mounts.mjs";
 import { adapterFor } from "../adapters/index.mjs";
+import { blank } from "../adapters/ts.mjs";
 import { langOf } from "./graph.mjs";
 
 // Prose and data. A `.md` or `.json` file having no endpoints is not a gap in
@@ -46,6 +47,55 @@ const lineOf = (text, index) => text.slice(0, index).split("\n").length;
 
 /** `{id}` -> `:id`, so a path is one logical node regardless of which framework's param syntax wrote it. */
 const normalizePath = (p) => p.replace(/\{(\w+)\}/g, ":$1");
+
+/** `const orders = Router()` / `= express.Router()` — the file naming a router. */
+const ROUTER_DECL = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:(\w+)\s*\.\s*)?Router\s*\(/g;
+
+/** The same name later pointed at something that is not a Router. */
+const reassigned = (name) =>
+  new RegExp(`\\b${name}\\s*=\\s*(?!\\s*(?:\\w+\\s*\\.\\s*)?Router\\s*\\()`);
+
+/**
+ * `import { Router } …` / `import Router from …` — the file saying where Router
+ * came from. Deliberately does not look for the specifier's quotes: this runs
+ * over text whose string literals have been blanked away entirely.
+ */
+const ROUTER_IMPORT = /\bimport\s[^;\n]*\bRouter\b[^;\n]*\bfrom\b|\brequire\s*\(/;
+
+/**
+ * The routers a file declares, by name.
+ *
+ * Read from BLANKED source, which is the whole reason this is a function and
+ * not an inline match. Every other extractor in this codebase blanks comments
+ * and template literals before matching — `ts.mjs`, `py.mjs`, and `derive.mjs`,
+ * whose comment says "so a symbol name in a comment cannot seed a hop". Reading
+ * raw text here reintroduced exactly that: a note saying `const orders =
+ * Router()` above code that no longer serves HTTP was enough to turn an
+ * unrelated `orders.get(…)` into a phantom endpoint.
+ *
+ * Quoted strings are blanked too, unlike in import extraction where the
+ * specifier lives inside them. A router declaration never does.
+ *
+ * Two more guards, both about the same thing — evidence, not resemblance:
+ * a name reassigned to anything else afterwards is dropped, because
+ * `let x = Router(); x = axios.create()` makes the declaration a lie by the
+ * time the calls run; and `Router` has to arrive by import or as a member of
+ * something, so a local factory that happens to share the name is not taken as
+ * proof. Both fail toward finding nothing, which is the direction this file is
+ * allowed to be wrong in.
+ */
+function declaredRouters(text) {
+  const code = blank(text).replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (m) => " ".repeat(m.length));
+  const names = [];
+  for (const m of code.matchAll(ROUTER_DECL)) {
+    const [, name, receiver] = m;
+    if (/(?:router|app|server)$/i.test(name)) continue;   // the default rules already have it
+    if (!receiver && !ROUTER_IMPORT.test(code)) continue;  // a bare Router() nobody imported
+    if (reassigned(name).test(code.slice(m.index + m[0].length))) continue;
+    names.push(name);
+  }
+  return [...new Set(names)];
+}
 
 // The quoted-literal tail every default and config endpoint rule ends with.
 // Stripping it from a rule's source turns the rule into "the call this rule's
@@ -98,7 +148,7 @@ function fileRouteUrl(p) {
 
 export function extractEndpoints(ctx) {
   const { endpointRules = [], layerOf, serviceOf } = ctx.config;
-  const rules = endpointRules.map((r) => ({ ...r, callRe: callShape(r) }));
+  const rules = endpointRules.map((r, i) => ({ ...r, i, callRe: callShape(r) }));
   const endpoints = [];
   const seen = new Set();          // service|method|path — dedupe within a service
   const routeCount = new Map();    // method|path -> how many services declare it
@@ -114,7 +164,7 @@ export function extractEndpoints(ctx) {
   // fact about its repository, and discovery must not overrule it.
   const mounts = resolveMounts(ctx);
 
-  const add = (method, rawPath, p, line, service) => {
+  const add = (method, rawPath, p, line, service, why) => {
     matchedLines.add(`${p}|${line}`);
     const path = rawPath || "/";
     // `path` stays exactly what the source declared — the payload documents
@@ -127,7 +177,7 @@ export function extractEndpoints(ctx) {
     seen.add(key);
     const route = `${method}|${norm}`;
     routeCount.set(route, (routeCount.get(route) ?? 0) + 1);
-    endpoints.push({ id: `${method} ${path}`, method, path, service, definedIn: p, line });
+    endpoints.push({ id: `${method} ${path}`, method, path, service, definedIn: p, line, why });
   };
 
   for (const p of ctx.paths) {
@@ -149,10 +199,31 @@ export function extractEndpoints(ctx) {
       if (!NOT_CODE.has(langOf(p))) unscanned.set(langOf(p), (unscanned.get(langOf(p)) ?? 0) + 1);
       continue;
     }
-    const text = ctx.src.get(p);
+    // Blanked, for the same reason every other extractor in this repository
+    // blanks: a route registration inside a comment or a template literal is
+    // not a route. A commented-out `app.get("/deleted-last-year", …)` was
+    // reaching the payload as a live endpoint, and a phantom endpoint is the
+    // one thing this file is not allowed to produce. blank() preserves length
+    // and newlines, so every offset and line number below still lines up, and
+    // it leaves ordinary quoted strings intact, which is where the path is.
+    const text = blank(ctx.src.get(p));
     const { service } = serviceOf(p);
 
-    for (const rule of rules) {
+    // A router the file names something else. The default rules key on a
+    // receiver ending in router/app/server, and that is not fussiness:
+    // `axios.post("/orders")` is an outbound call, and matching any receiver
+    // would make every HTTP client a phantom endpoint. `declaredRouters` widens
+    // it by evidence instead — see its docstring for what that costs.
+    const declared = declaredRouters(ctx.src.get(p));
+    const fileRules = declared.length
+      ? [...rules, ...declared.map((name) => ({
+        i: `#router:${name}`,
+        re: new RegExp(`\\b${name}\\s*\\.\\s*(get|post|patch|put|delete)\\s*\\(\\s*["']([^"']+)["']`, "g"),
+        declared: name,
+      }))]
+      : rules;
+
+    for (const rule of fileRules) {
       for (const m of text.matchAll(rule.re)) {
         const raw = m[2];
         const line = lineOf(text, m.index);
@@ -162,7 +233,15 @@ export function extractEndpoints(ctx) {
         const prefixes = rule.mount != null ? [rule.mount] : [...(mounts.get(p) ?? [""])].sort();
         for (const prefix of prefixes) {
           const full = raw.startsWith(prefix) ? raw : joinPath(prefix, raw);
-          add(m[1].toUpperCase(), full, p, line, service);
+          const mountedAt = rule.mount != null
+            ? `prefix "${rule.mount}" declared by the rule`
+            : prefix
+              ? `prefix "${prefix}" from the mount chain`
+              : "no mount resolved — the path is the one this file declares";
+          const why = rule.declared
+            ? `${rule.declared} is declared from Router() in this file · ${mountedAt}`
+            : `matched endpoint rule #${rule.i} ${rule.re.source} · ${mountedAt}`;
+          add(m[1].toUpperCase(), full, p, line, service, why);
         }
       }
       if (rule.callRe) {
@@ -195,12 +274,13 @@ export function extractEndpoints(ctx) {
     const { service } = serviceOf(p);
 
     if (base.startsWith("page.")) {
-      add("GET", url, p, 1, service);
+      add("GET", url, p, 1, service, `file-based route — an app-router page under ${p.split("/").slice(0, -1).join("/")}`);
       continue;
     }
-    const text = ctx.src.get(p);
+    const text = blank(ctx.src.get(p));
     for (const m of text.matchAll(METHOD_EXPORT)) {
-      add(m[1] ?? m[2], url, p, lineOf(text, m.index), service);
+      const method = m[1] ?? m[2];
+      add(method, url, p, lineOf(text, m.index), service, `file-based route — ${method} exported from an app-router route file`);
     }
     // A route.ts with no recognised HTTP export is not guessed at or reported
     // as a skip: it is not a registration this tool saw and could not

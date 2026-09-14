@@ -28,3 +28,19 @@ function pickNode(sx, sy) {
   return null;
 }
 
+
+/**
+ * The district under the cursor, by the same quad `drawStatic` fills for it.
+ *
+ * Blocks are not consulted: a district is grabbed with alt held, so there is
+ * nothing to disambiguate against, and having to find bare plate to grab would
+ * make a dense district the hardest one to move.
+ */
+function pickDistrict(sx, sy) {
+  const w = toWorld({ x: sx, y: sy });
+  for (const d of LAYOUT.districts) {
+    const quad = [project(d.x0, d.y0, 0), project(d.x1, d.y0, 0), project(d.x1, d.y1, 0), project(d.x0, d.y1, 0)];
+    if (inPoly(w.x, w.y, quad)) return d;
+  }
+  return null;
+}

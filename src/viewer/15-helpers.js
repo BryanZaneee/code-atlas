@@ -4,6 +4,12 @@ const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const fmt = (n) => n.toLocaleString("en-US");
 
+// A district is one service crossed with one layer, and this is its id in every
+// surface that names one: the payload publishes it, the viewer lays it out by
+// it, and `S.focusDistrict` holds it. One format, built in one place, because
+// two formats for one identity is two keyspaces that silently miss each other.
+const districtId = (service, layer) => `${service}/${layer}`;
+
 /**
  * A theme colour at an alpha. Canvas has no colour-mix, and the alternative is
  * a named token per opacity — thirteen of them, in one palette, which is how
@@ -47,6 +53,20 @@ function setYaw(yaw) {
 }
 
 const project = (gx, gy, h) => ({ x: gx * A.x + gy * B.x, y: gx * A.y + gy * B.y - h });
+
+/**
+ * `project` inverted, on the ground plane.
+ *
+ * The projection is a 2x2 matrix built from the yaw basis, so undoing it is
+ * that matrix inverted — no search, no approximation, and correct at every
+ * angle for the same reason `project` is. Height has no inverse: a screen point
+ * names a ground cell only once you have decided it is on the ground, which is
+ * exactly what a drag along the floor has decided.
+ */
+function unproject(x, y) {
+  const det = A.x * B.y - B.x * A.y;
+  return { gx: (x * B.y - y * B.x) / det, gy: (y * A.x - x * A.y) / det };
+}
 
 /**
  * Painter's-algorithm key: the screen depth of a cell's ground footprint.

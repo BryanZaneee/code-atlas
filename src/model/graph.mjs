@@ -121,6 +121,9 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
       id: d.id, name: d.label, dir: "infrastructure", service: "infra", layer: "datastore",
       lang: "-", loc: d.loc ?? 0, kind: "datastore", exports: 0, externals: [],
       testKind: null, subject: null, inDeg: 0, outDeg: 0, uncovered: false, note: d.note,
+      // A datastore is config-declared, not rule-placed — that IS its provenance.
+      layerWhy: "declared as a datastore in the config",
+      serviceWhy: "datastores are grouped under the infra service",
     });
   }
 
@@ -129,6 +132,9 @@ export function buildNodes(ctx, { imports, endpoints, testKind, subjectOf }) {
       id: e.id, name: e.id, dir: e.definedIn, service: e.service, layer: "endpoint",
       lang: "-", loc: 0, kind: "endpoint", exports: 0, externals: [],
       testKind: null, subject: null, inDeg: 0, outDeg: 0, uncovered: false,
+      layerWhy: "an endpoint is its own layer, not a file's",
+      serviceWhy: `the service of ${e.definedIn}`,
+      why: e.why,
     });
   }
 
@@ -209,8 +215,8 @@ function codeFor(service, layer, taken) {
   return head + String(taken.size % 10);
 }
 
-export function buildGroups(nodes, layers) {
-  const groups = [];
+export function buildDistricts(nodes, layers) {
+  const districts = [];
   const byGid = new Map();
   for (const n of nodes) {
     const gid = `${n.service}/${n.layer}`;
@@ -221,7 +227,7 @@ export function buildGroups(nodes, layers) {
       // not also break the payload contract.
       g = { id: gid, service: n.service, layer: n.layer, parentId: n.service, code: "", label: layers.find((l) => l.id === n.layer)?.label ?? n.layer, members: [] };
       byGid.set(gid, g);
-      groups.push(g);
+      districts.push(g);
     }
     g.members.push(n.id);
   }
@@ -230,9 +236,9 @@ export function buildGroups(nodes, layers) {
   // first-appearance order is deterministic for one input but moves when a file
   // is added, and a code that moves is worse than no code at all.
   const taken = new Set();
-  for (const g of [...groups].sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const g of [...districts].sort((a, b) => a.id.localeCompare(b.id))) {
     g.code = codeFor(g.service, g.layer, taken);
     taken.add(g.code);
   }
-  return groups;
+  return districts;
 }

@@ -274,7 +274,7 @@ Controls: `Q`/`E` and `⟲ ⟳` rotate 15°; **Shift+drag** rotates freely; `R` 
 
 **Why a proxy at all:** viewer on `127.0.0.1:4173`, app on `:3000` — different origin, so browser `fetch` is blocked and `Authorization` adds a preflight; in `build` mode the origin is `null`. Requiring you to change your app's CORS config so a visualization tool can call it is unacceptable. Server-side fetch has no CORS.
 
-**Not an open relay:** the proxy takes `{method, path, headers, body}` — **no host, no URL**. Target origin comes from server config; the final URL is asserted against it. `--allow-live` required at the *process* level. Target must be loopback/private unless explicitly overridden. Method + header allowlists, timeout, 256 KB cap, `redirect:"manual"`, rate bucket, one stderr line per proxied request.
+**Not an open relay:** the proxy takes `{method, path, headers, body}` — **no host, no URL**. Target origin comes from server config; the final URL is asserted against it. `--target` is what SETS that server config, read once in `bin/atlas.mjs` and validated before the server starts — so PLAN's `--target URL` and ROADMAP's "origin from server config" are the same statement, not two. **Built with no non-loopback override**, despite the line below allowing one: the check sits in one named function so adding it later stays a deliberate act. `--allow-live` required at the *process* level. Target must be loopback/private unless explicitly overridden. Method + header allowlists, timeout, 256 KB cap, `redirect:"manual"`, rate bucket, one stderr line per proxied request.
 
 **Auth token stays out of the browser.** `--auth-env AUTH_TOKEN`; the server injects the header, the viewer shows `AUTH: from env` and offers no field. Fallback is `sessionStorage` (never `localStorage`) with explicit clear. `[ COPY AS cURL ]` verifies what would be sent *without sending it*.
 
@@ -289,6 +289,31 @@ Highlighting is **Prism 1.29.0, vendored** — committed into `src/viewer/` as a
 What does not change is the constraint underneath it: **never `innerHTML` on raw source.** Prism is used as a tokenizer only — `Prism.tokenize`, never `highlight`/`highlightElement` — and the DOM is built by hand from text nodes. A file containing `<script>` is a file. `test/source.test.mjs` enforces this by running the real paint against a DOM whose `innerHTML` setter throws.
 
 **Static mode.** Default shows *"Source is not embedded. Run `atlas serve`, or rebuild with --embed-source."* `--embed-source [glob]` opts in, and the consequence is stated plainly: **the shareable HTML then contains your entire codebase.** `--gzip-source` stores it as a base64 gzip blob inflated with `DecompressionStream("gzip")` — both `node:zlib` and `DecompressionStream` are built in, so it stays zero-dep, and source text compresses ~3-4×, but the blob has to survive JSON as base64, which multiplies it back by 4/3 — so the figure that lands in the FILE is 2.31× on this repository (696,953 B → 301,282 B, against 3.10× for raw gzip with no wrapping), not the ~4× an earlier draft of this line claimed from Shuttrr's ~950 KB → ~240 KB. That estimate quoted the gzip size and forgot the encoding. Compress the whole file map as ONE stream, never per file: independent streams share no dictionary, and source files in one repo resemble each other enormously. Costs `view-source` legibility and an async boot step, so it's a flag, not the default. A permanent `SOURCE EMBEDDED` footer badge and a CLI size warning either way.
+
+### Layout density, and arranging by hand
+
+Spacing was three constants in the viewer — pitch 1.5, gutters 2 and 2.5 — and
+the gutters held most of the air, so a district was mostly the space around it.
+They ship as named presets in the payload now, for the same reason colour does:
+the viewer *uses* presentation tables and must not be the place they are defined,
+or the tool ends up knowing one repository's idea of roomy.
+
+**The pitch is clamped, not validated.** A block's footprint is one cell, so a
+pitch at or below 1 lets footprints overlap, and then painter's order and hit
+testing disagree — the map draws one block and answers with another. A sparse
+atlas is a preference; that is a bug, so a config asking for it is corrected.
+
+**Alt-drag moves a district, in whole cells.** The district is the unit because
+it is the unit the map is built out of: pulling one file loose from its service
+and layer would assert something about the code that is not true. Whole cells
+because the lattice is what keeps the depth sort exact through a drag. A drop
+onto an occupied district is refused — two districts on the same cells is two
+blocks on one lattice point, which the depth sort has no answer for.
+
+Offsets are viewer state and never payload: two runs of the same input have to
+serialize identically or every golden stops meaning anything. They are in memory
+only, so **persisted layouts stays deferred** below rather than being crossed in
+passing; `R` is the way back to the computed map.
 
 ### Progress reporting
 
@@ -315,7 +340,7 @@ Reordered from the original: **perf moved into Phase 1**, because the `RangeErro
 | **4** | Endpoints v2 | Shuttrr yields `POST /api/photos/upload`, `GET /api/photos/gallery`, `GET /health`, ≥12 `/api/ai/*` through the two-level mount, `/sign-in`, `/auth/callback`; `(auth)`/`(dashboard)` absent from every path; ≥8 non-literal registrations reported naming `presets.ts` |
 | **5** | Findings engine + FINDINGS view + `atlas findings --json` | On TaxVault: reports `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true); zero false layering violations against a repo that enforces layering by policy. Cycles found in a synthetic fixture with a known cycle. |
 | **6** | Derivation + `tools/calibrate.mjs` | Every endpoint across all targets gives a ≥2-hop path with no crash. **Calibration diffs derived vs curated across all 9 flows**, emits per-flow and aggregate precision/recall, and the numbers go in the README. |
-| **7** | `atlas serve` + code viewer + `--embed-source` + `--gzip-source` | Traversal list all 404: `../../../etc/passwd`, `/etc/passwd`, `.env`, `node_modules/x`, in-repo symlink pointing out, `..%2f..%2f`, `Host: evil.example`. Clicking `POST /api/photos/upload` opens `photos.ts` at line 12. Gzip round-trips and cuts embedded size ≥3×. |
+| **7** | `atlas serve` + code viewer + `--embed-source` + `--gzip-source` | Traversal list all 404: `../../../etc/passwd`, `/etc/passwd`, `.env`, `node_modules/x`, in-repo symlink pointing out, `..%2f..%2f`, `Host: evil.example`. Clicking `POST /api/photos/upload` opens `photos.ts` at line 12. Gzip round-trips losslessly and cuts embedded size as far as a text-safe wrapper allows — measured 2.31×, because base64's 4/3 sits on top of gzip's 3.10×. |
 | **8** | Request composer UI | Compose → `SEND (MODELED)` animates the derived path with substituted values; curated-vs-derived badge visible on canvas; `[+ CURATE THIS]` output pastes into a config and validates |
 | **9** | Live mode | Real 200 + latency from a running Shuttrr; 401 halts at hop 1 and says so; proxy refuses `path:"http://example.com/"`, refuses non-loopback target, 403s without `--allow-live`; no token in stderr or `outerHTML` |
 | **10** | Open-source packaging | README, LICENSE, CONTRIBUTING, `docs/{payload-schema,adapters,config}.md`. Gate: a reader who has never seen the repo goes from `git clone` to a rendered atlas of **their own** project using only the README, on a repo with no config. |
@@ -326,7 +351,7 @@ Regex, not AST — under-reports, quantified by the conformance fixtures. File-l
 
 ## Explicitly deferred
 
-Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (`generic.mjs` still renders them) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
+Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (a language with no adapter still renders, with no edges and a coverage line in `atlas scan`) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
 
 **A desktop shell** stays deferred until after v1.0, as a separate package.
 

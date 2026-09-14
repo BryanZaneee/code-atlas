@@ -51,12 +51,13 @@
       <div class="sec">
         <h3>VISUAL</h3>
         <label class="pick"><span>shape</span><select id="vShape"></select></label>
-        <label class="pick"><span>packing</span><select id="vLayout">
+        <label class="pick"><span>density</span><select id="vDensity"></select></label>
+        <label class="pick"><span>packing</span><select id="vPacking">
           <option value="grid">grid</option>
           <option value="wide">wide</option>
           <option value="tall">tall</option>
         </select></label>
-        <label class="chk"><input type="checkbox" id="vGrid" checked> ground grid</label>
+        <label class="chk"><input type="checkbox" id="vGround" checked> ground grid</label>
       </div>
       <div class="sec">
         <h3>OPTIONS</h3>
@@ -70,10 +71,10 @@
     </aside>
 
     <main id="stage">
-      <canvas id="cv"></canvas>
+      <canvas title="drag to pan · shift-drag to rotate · alt-drag to move a district · R to put everything back" id="cv"></canvas>
       <div class="ov" id="ovTop"><b>THE CODEBASE</b></div>
       <div class="ov" id="ovRight"><b id="ovWarn"></b><span id="ovStatus">FLOW ACTIVE</span></div>
-      <div class="ov" id="ovHint">SPACE PLAYS · ← → STEP · ESC CLEARS · DRAG PANS · SCROLL ZOOMS · Q E R TURN</div>
+      <div class="ov" id="ovHint">SPACE PLAYS · ← → STEP · ESC CLEARS · DRAG PANS · SHIFT-DRAG TURNS · ALT-DRAG MOVES · SCROLL ZOOMS · Q E R TURN</div>
       <div id="tip"></div>
       <div class="ov" id="caption"></div>
     </main>

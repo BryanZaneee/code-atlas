@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { serialize, scanFixture, FIXTURE_DIR } from "./helpers.mjs";
 import { SCHEMA_VERSION } from "../src/build/build.mjs";
+import { buildViews } from "../src/model/chrome.mjs";
 
 const payloadOf = async () => (await scanFixture("mini-monorepo")).payload;
 
@@ -65,18 +66,18 @@ test("meta's coverage counters agree with the payload", async () => {
  */
 test("district codes are unique and survive a new file", async () => {
   const p = await payloadOf();
-  const codes = p.groups.map((g) => g.code);
+  const codes = p.districts.map((g) => g.code);
   assert.equal(new Set(codes).size, codes.length);
   assert.ok(codes.every((c) => /^[A-Z][A-Z0-9]$/.test(c)), codes.join(", "));
-  assert.ok(p.groups.every((g) => g.parentId === g.service));
+  assert.ok(p.districts.every((g) => g.parentId === g.service));
 
   // Dropping the first district's members simulates the file churn that
   // first-appearance ordering would have reshuffled the whole set on.
-  const { buildGroups } = await import("../src/model/graph.mjs");
-  const survivors = p.groups.slice(1).flatMap((g) => g.members);
+  const { buildDistricts } = await import("../src/model/graph.mjs");
+  const survivors = p.districts.slice(1).flatMap((g) => g.members);
   const kept = p.nodes.filter((n) => survivors.includes(n.id));
-  const after = new Map(buildGroups(kept, p.layers).map((g) => [g.id, g.code]));
-  for (const g of p.groups.slice(1)) assert.equal(after.get(g.id), g.code, `${g.id} was renamed`);
+  const after = new Map(buildDistricts(kept, p.layers).map((g) => [g.id, g.code]));
+  for (const g of p.districts.slice(1)) assert.equal(after.get(g.id), g.code, `${g.id} was renamed`);
 });
 
 test("travelledBy indexes the flows and is absent when empty", async () => {
@@ -86,6 +87,19 @@ test("travelledBy indexes the flows and is absent when empty", async () => {
     if (!expected.length) assert.equal("travelledBy" in n, false, `${n.id} carries an empty index`);
     else assert.deepEqual(n.travelledBy, expected.sort());
   }
+});
+
+test("a payload with endpoints offers a request view", async () => {
+  const p = await payloadOf();
+  assert.ok(p.endpoints.length > 0, "fixture must have endpoints for this to mean anything");
+  const v = p.views.find((v) => v.kind === "request");
+  assert.ok(v, "an endpoint surface gets a view to compose a request against");
+  assert.equal(v.id, "request");
+});
+
+test("a repo with no endpoints gets no request view", () => {
+  const views = buildViews({}, [], [], []);
+  assert.equal(views.some((v) => v.kind === "request"), false);
 });
 
 test("node ids are unique", async () => {
@@ -155,9 +169,9 @@ test("every node's layer exists in layers", async () => {
   assert.deepEqual(orphans, []);
 });
 
-test("groups partition the node set exactly", async () => {
+test("districts partition the node set exactly", async () => {
   const p = await payloadOf();
-  const members = p.groups.flatMap((g) => g.members);
+  const members = p.districts.flatMap((g) => g.members);
   assert.equal(members.length, p.nodes.length);
   assert.deepEqual(new Set(members).size, p.nodes.length);
 });
@@ -243,4 +257,32 @@ test("classification provenance is present on every file node", async () => {
     assert.ok(n.layerWhy, `${n.id} has no reason for its layer`);
     assert.ok(n.serviceWhy, `${n.id} has no reason for its service`);
   }
+});
+
+test("endpoint nodes carry the same serviceWhy/layerWhy shape file nodes do, plus which rule placed them", async () => {
+  const p = await payloadOf();
+  const endpointNodes = p.nodes.filter((n) => n.kind === "endpoint");
+  assert.ok(endpointNodes.length > 0, "expected at least one endpoint node");
+  for (const n of endpointNodes) {
+    assert.ok(n.layerWhy, `${n.id} has no reason for its layer`);
+    assert.ok(n.serviceWhy, `${n.id} has no reason for its service`);
+    assert.ok(n.why, `${n.id} has no reason for its registration rule`);
+  }
+});
+
+test("datastore nodes are provenanced as declared in config", async () => {
+  const { buildNodes } = await import("../src/model/graph.mjs");
+  const ctx = {
+    paths: [],
+    src: new Map(),
+    config: {
+      layerOf: () => ({ layer: "unsorted", why: "no rule matched", matched: false }),
+      serviceOf: () => ({ service: "app", why: "fell back" }),
+      datastores: [{ id: "db:main", label: "MAIN DB" }],
+    },
+  };
+  const { nodes } = buildNodes(ctx, { imports: new Map(), endpoints: [], testKind: () => null, subjectOf: () => null });
+  const store = nodes.find((n) => n.kind === "datastore");
+  assert.equal(store.layerWhy, "declared as a datastore in the config");
+  assert.equal(store.serviceWhy, "datastores are grouped under the infra service");
 });

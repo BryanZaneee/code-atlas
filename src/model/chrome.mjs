@@ -17,6 +17,7 @@
  *   structure  every node, filtered by the sidebar toggles
  *   flow       only the nodes and edges named by this view's curated flows
  *   tests      test edges and coverage tint
+ *   request    compose a request against one endpoint and play its modelled path
  *   findings   the whole map, with one finding's evidence lit and the rest dimmed
  *
  * A flow view is created for every distinct `flows[].view`, so curation adds a
@@ -41,6 +42,8 @@ const DEFAULT_HINTS = {
     "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
   tests:
     "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+  request:
+    "Pick an endpoint and compose a request against it. The payload is synthetic and nothing is sent — this plays the modelled path a request would take, curated first and derived otherwise, with each hop marked by whether an import backs it.",
   findings:
     "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
 };
@@ -49,10 +52,11 @@ const DEFAULT_TITLES = {
   structure: "THE CODEBASE",
   flow: "REQUEST PATH",
   tests: "TEST COVERAGE",
+  request: "COMPOSE A REQUEST",
   findings: "STRUCTURAL FINDINGS",
 };
 
-export function buildViews(config, flows = [], derived = []) {
+export function buildViews(config, flows = [], derived = [], endpoints = []) {
   const flowViews = [...new Set(flows.map((f) => f.view).filter(Boolean))];
 
   const base = [
@@ -70,6 +74,10 @@ export function buildViews(config, flows = [], derived = []) {
     // are about to watch was asserted by a person or inferred by this tool.
     ...(derived.length ? [{ id: "derived", label: "DERIVED PATHS", kind: "flow", derived: true }] : []),
     { id: "tests", label: "TESTS", kind: "tests" },
+    // Conditional, like the derived entry above and unlike findings below: a
+    // repo with no HTTP surface has nothing to compose a request against, and
+    // an empty composer is not a result the way an empty findings list is.
+    ...(endpoints.length ? [{ id: "request", label: "REQUEST", kind: "request" }] : []),
     // Unconditional, unlike the derived entry above: a repository with no
     // findings has a RESULT to show, and it is one worth being able to read.
     // Dropping the view when the list is empty would make "eight checks ran and
@@ -88,7 +96,7 @@ export function buildViews(config, flows = [], derived = []) {
     // A config that predates derivation — or findings — should not lose the
     // view because it did not know to list it.
     const extra = base.filter(
-      (v) => (v.derived || v.kind === "findings") && !config.views.some((c) => c.id === v.id),
+      (v) => (v.derived || v.kind === "findings" || v.kind === "request") && !config.views.some((c) => c.id === v.id),
     );
     return [...named, ...extra.map(withDefaults)];
   }
@@ -154,6 +162,17 @@ export const DEFAULT_THEME = {
   findingSeverity: { error: "#b3261e", warning: "#b5730f", info: "#4a7a8c" },
 
   /**
+   * A live response's status class, for the ring on the endpoint node.
+   *
+   * Three classes, not a gradient: the reader needs to know whether the
+   * endpoint answered, complained, or failed, and a shade between those is a
+   * distinction the map cannot back. `ok` is the only green in the palette and
+   * exists solely for this — a status is the one genuinely observed thing live
+   * mode adds, so it is allowed a colour nothing modelled ever wears.
+   */
+  liveStatus: { ok: "#2f7d4f", client: "#b5730f", server: "#b3261e" },
+
+  /**
    * The dark theme, as a delta rather than a second palette.
    *
    * Only the scalars flip. Everything mixed from them — plates, outlines, label
@@ -176,6 +195,7 @@ export const DEFAULT_THEME = {
     // into a near-black ground. Lightened rather than re-hued, so the three
     // stay the same three severities.
     findingSeverity: { error: "#ff6b5e", warning: "#f0a03c", info: "#79b8d0" },
+    liveStatus: { ok: "#5fd08a", client: "#f0a03c", server: "#ff6b5e" },
   },
 
   /**
@@ -183,6 +203,25 @@ export const DEFAULT_THEME = {
    * above rather than repeating its colour, which is what stops the legend and
    * the map from disagreeing.
    */
+  // How much air sits between things. Presentation, like colour, so it ships in
+  // the payload rather than being known by the viewer — and overridable, because
+  // "too sparse" is a judgement about one repository's shape, not a fact.
+  //
+  // `spacing` is the cell pitch and the two gutters are the gaps between layer
+  // columns and service rows. The gutters are where the air actually is: at the
+  // old 1.5/2/2.5 a district was mostly gap. Only `spacing` carries an
+  // invariant — a block's footprint is one cell, so it must stay above 1 or
+  // footprints overlap and the depth sort stops being exact. The viewer clamps
+  // it; this table stays clear of the floor on purpose.
+  density: {
+    default: "normal",
+    presets: {
+      compact: { spacing: 1.15, gutLayer: 0.5, gutSvc: 0.9 },
+      normal: { spacing: 1.25, gutLayer: 1, gutSvc: 1.5 },
+      // What every atlas before Phase 2.7 was drawn at.
+      roomy: { spacing: 1.5, gutLayer: 2, gutSvc: 2.5 },
+    },
+  },
   legend: {
     default: [
       { edge: "import", label: "IMPORT" },
@@ -219,7 +258,9 @@ export function buildTheme(config) {
     packetColor: { ...DEFAULT_THEME.packetColor, ...t.packetColor },
     coverTint: { ...DEFAULT_THEME.coverTint, ...t.coverTint },
     findingSeverity: { ...DEFAULT_THEME.findingSeverity, ...t.findingSeverity },
+    liveStatus: { ...DEFAULT_THEME.liveStatus, ...t.liveStatus },
     dark: { ...DEFAULT_THEME.dark, ...t.dark },
+    density: { ...DEFAULT_THEME.density, ...t.density, presets: { ...DEFAULT_THEME.density.presets, ...t.density?.presets } },
     legend: { ...DEFAULT_THEME.legend, ...t.legend },
   };
 }

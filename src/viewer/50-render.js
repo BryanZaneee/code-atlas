@@ -4,7 +4,7 @@ const off = document.createElement("canvas"), octx = off.getContext("2d");
 let staticDirty = true, W = 0, H = 0, DPR = 1;
 
 /**
- * The static layer — plates, districts, ambient edges, buildings, labels — is
+ * The static layer — plates, districts, ambient edges, blocks, labels — is
  * cached in WORLD space, not screen space.
  *
  * Screen-space caching was worth nothing: panning changes the screen position
@@ -43,7 +43,7 @@ function cacheKey() {
   // unaffordable at any frame rate. They are drawn in the live pass instead.
   return [
     S.view, S.query, S.focusDistrict, S.yaw, S.colorMode, S.isolate,
-    S.shape, S.layout, S.grid, LAYOUT.nodes.length,
+    S.shape, S.packing, S.density, S.ground, LAYOUT.nodes.length, layoutEpoch,
     o.docs, o.tests, o.contract, o.labels,
   ].join("|");
 }
@@ -74,7 +74,7 @@ function dimOf(n) {
     const q = S.query.toLowerCase();
     if (!n.id.toLowerCase().includes(q) && !(n.name ?? "").toLowerCase().includes(q)) return true;
   }
-  if (S.focusDistrict && `${n.service}|${n.layer}` !== S.focusDistrict) return true;
+  if (S.focusDistrict && districtId(n.service, n.layer) !== S.focusDistrict) return true;
   return false;
 }
 
@@ -122,9 +122,9 @@ function tab(x, at, dx, dy, text, px) {
  * lines run through the block origins instead of near them.
  */
 function drawGrid(x, ext, px) {
-  if (!S.grid || !LAYOUT.plates.length) return;
+  if (!S.ground || !LAYOUT.servicePlates.length) return;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const p of LAYOUT.plates) {
+  for (const p of LAYOUT.servicePlates) {
     if (p.x0 < x0) x0 = p.x0;
     if (p.y0 < y0) y0 = p.y0;
     if (p.x1 > x1) x1 = p.x1;
@@ -163,11 +163,11 @@ function drawGrid(x, ext, px) {
   x.restore();
 }
 
-/** World extent to cache: the buildings, the plates under them, and slack for text. */
+/** World extent to cache: the blocks, the plates under them, and slack for text. */
 function cacheExtent() {
   const b = LAYOUT.bbox ?? { x0: 0, y0: 0, x1: 1, y1: 1 };
   let x0 = b.x0, y0 = b.y0, x1 = b.x1, y1 = b.y1;
-  for (const p of LAYOUT.plates) {
+  for (const p of LAYOUT.servicePlates) {
     for (const [gx, gy] of [[p.x0, p.y0], [p.x1, p.y0], [p.x1, p.y1], [p.x0, p.y1]]) {
       const q = project(gx, gy, 0);
       if (q.x < x0) x0 = q.x;
@@ -207,7 +207,7 @@ function drawStatic() {
   drawGrid(octx, ext, px);
 
   // service plates, then district plates
-  for (const p of LAYOUT.plates) {
+  for (const p of LAYOUT.servicePlates) {
     quad(octx, [project(p.x0, p.y0, 0), project(p.x1, p.y0, 0), project(p.x1, p.y1, 0), project(p.x0, p.y1, 0)],
       alpha(THEME.plate, .075), alpha(THEME.plate, .16), px(1));
     // Anchored to the plate's leftmost corner and leaning further left, so the
@@ -236,10 +236,10 @@ function drawStatic() {
     }
   }
 
-  // Ambient edges sit on the ground, under the boxes. Bucketed by style so the
+  // Ambient edges sit on the ground, under the blocks. Bucketed by style so the
   // stroke state is set once per bucket instead of once per edge — with a
   // save()/restore() pair each, that was the single hottest loop here.
-  if (!isFlowView(S.view)) {
+  if (!playsFlow(S.view)) {
     const buckets = new Map();
     for (const e of LAYOUT.edges) {
       const a = byId.get(e.from), b = byId.get(e.to);
@@ -268,7 +268,7 @@ function drawStatic() {
     }
   }
 
-  // boxes, painter's order
+  // blocks, painter's order
   const edgeStroke = px(1);
   for (const n of LAYOUT.nodes) {
     octx.globalAlpha = dimOf(n) ? 0.16 : 1;
@@ -276,7 +276,7 @@ function drawStatic() {
   }
   octx.globalAlpha = 1;
 
-  // Labels in a second pass, nearest first, so a foreground box never paints
+  // Labels in a second pass, nearest first, so a foreground block never paints
   // over a label and colliding labels drop out instead of turning to mush.
   const showLabels = S.opts.labels && zf >= 0.55;
   const size = clamp(10 * zf, 8, 13);
@@ -303,9 +303,9 @@ function drawStatic() {
     const n = LAYOUT.nodes[i];
     if (dimOf(n)) continue;
     const w = widthOf(n.name);
-    const box = { x: n.top.x - w / 2, y: n.top.y - px(5) - px(size), w, h: px(size + 3) };
-    if (hits(box)) continue;
-    taken.push(box);
+    const labelRect = { x: n.top.x - w / 2, y: n.top.y - px(5) - px(size), w, h: px(size + 3) };
+    if (hits(labelRect)) continue;
+    taken.push(labelRect);
     octx.strokeText(n.name, n.top.x, n.top.y - px(5));
     octx.fillText(n.name, n.top.x, n.top.y - px(5));
   }
@@ -377,9 +377,43 @@ function drawDiamond(x, p, r, fill) {
 }
 
 /**
+ * Where an alt-drag would drop the district, drawn in the LIVE pass.
+ *
+ * Same reason selection and hover live here: a drag changes on every mouse
+ * move, and baking it into the world cache would re-rasterise the city per
+ * frame. A refused drop is drawn in the error colour rather than just springing
+ * back, so "nothing happened" is never the whole of the feedback.
+ */
+function drawDragGhost() {
+  const d = S.dragDistrict && LAYOUT.districts.find((x) => x.id === S.dragDistrict);
+  if (!d) return;
+  const { dx, dy } = S.dragCells;
+  if (!dx && !dy) return;
+  const off = districtOffset(d.id);
+  const next = { dx: off.dx + dx, dy: off.dy + dy };
+  const r = districtRectAt(d, next);
+  const blocked = districtWouldOverlap(d.id, next);
+  const c = blocked ? THEME.findingSeverity.error : THEME.accent;
+  ctx.save();
+  ctx.setLineDash([6, 5]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = alpha(c, .9);
+  ctx.fillStyle = alpha(c, blocked ? .1 : .07);
+  ctx.beginPath();
+  const pts = [[r.x0, r.y0], [r.x1, r.y0], [r.x1, r.y1], [r.x0, r.y1]]
+    .map(([gx, gy]) => toScreen(project(gx, gy, 0)));
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
  * Convex hull of a point set, monotone chain.
  *
- * A box in axonometric projection silhouettes to a hexagon whose vertices are
+ * A block in axonometric projection silhouettes to a hexagon whose vertices are
  * six of its eight projected corners. There is a closed form, but it has to
  * case on which quadrant the camera is in; a hull is total at every yaw for the
  * same dozen lines. It runs for the one or two nodes an overlay touches, never
@@ -411,7 +445,7 @@ function footprintOf(n) {
 
 /**
  * The outline of whatever was actually drawn. Taken from the face list rather
- * than from a box assumed around the node, so the selection ring cannot drift
+ * than from a rectangle assumed around the node, so the selection ring cannot drift
  * away from the shape under it.
  */
 function silhouetteOf(n) {
@@ -525,6 +559,8 @@ function draw() {
   // Before the overlay, after the city: a finding veils the map, and the
   // selection ring has to stay legible on top of the veil.
   drawFindings();
+  drawLive();
+  drawDragGhost();
   drawOverlay();
   livePackets = [];
 
@@ -589,7 +625,7 @@ function frame(now) {
   // Eased, not cut: the transition is what says the map changed rather than
   // reloaded. Nothing else in the frame depends on it, so it never invalidates.
   // Nothing to veil when the map holds only the flow already.
-  const target = isFlowView(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
+  const target = playsFlow(S.view) && LAYOUT.steps.size && !S.isolate ? 0.82 : 0;
   veil += (target - veil) * Math.min(1, dt * 7);
   easeFindings(dt);
   if (S.running || S.stepBudget > 0) advance(dt);

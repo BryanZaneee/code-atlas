@@ -10,6 +10,7 @@
     --ink:#16181a; --dim:#697076; --faint:#9aa1a7;
     --accent:#2563eb; --warn:#c2410c;
     --hover:#eef1f3; --note-ink:#26292b; --sample-bg:#f7f8f9;
+    --live-ok:#2f7d4f;
     --swatch-edge:#00000038;
     /* Findings severity. The same three the payload theme carries for the
        canvas — canvas cannot read a custom property and CSS cannot read the
@@ -34,6 +35,7 @@
     --ink:#e8eaec; --dim:#98a0a6; --faint:#767d82;
     --accent:#5b8dff; --warn:#f97316;
     --hover:#1e2325; --note-ink:#d5d8da; --sample-bg:#161a1c;
+    --live-ok:#5fd08a;
     --swatch-edge:#ffffff45;
     --sev-error:#ff6b5e; --sev-warning:#f0a03c; --sev-info:#79b8d0;
     --src-bg:#121517; --src-gutter:#767d82; --src-hit:#1a2434; --src-hit-edge:#5b8dff;
@@ -101,11 +103,20 @@
   }
   .hint { color:var(--faint); font-family:var(--sans); font-size:10px; line-height:1.5; }
 
-  input[type=text] {
+  input[type=text], textarea {
     width:100%; font-family:var(--mono); font-size:10px; padding:5px 7px;
     background:var(--bg); border:1px solid var(--border); color:var(--ink); border-radius:1px;
   }
-  input[type=text]::placeholder { color:var(--faint); }
+  input[type=text]::placeholder, textarea::placeholder { color:var(--faint); }
+  textarea { resize:vertical; line-height:1.45; }
+
+  /* One composer field. The label is the field's name, not a heading: the
+     section heading above it already says which group it belongs to. */
+  .reqField { margin-top:5px; }
+  .reqField label {
+    display:block; font-size:9px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--faint); margin-bottom:2px;
+  }
 
   .row {
     display:flex; align-items:center; gap:7px; padding:3px 4px; cursor:pointer;

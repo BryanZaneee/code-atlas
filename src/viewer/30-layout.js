@@ -1,15 +1,26 @@
 /* ════════════════════ layout ════════════════════ */
-let LAYOUT = { nodes: [], districts: [], plates: [], bbox: null };
+let LAYOUT = { nodes: [], districts: [], servicePlates: [], bbox: null };
+// Bumped whenever a drag commits. The raster cache keys on what the static
+// layer LOOKS like, and node count alone cannot see a district that moved
+// without changing size — so the epoch is what tells it something did.
+let layoutEpoch = 0;
+
+/** How far a reader has pulled a district, in cells. Absent means unmoved. */
+const districtOffset = (id) => S.districtOffsets.get(id) ?? { dx: 0, dy: 0 };
 
 function relayout() {
+  setDensity(S.density);
   const vis = visibleSet();
+  // Keyed by the district id the payload publishes, and carrying its service
+  // and layer rather than re-splitting the id: a service id may contain the
+  // separator, so parsing the key back apart would be a silent bug.
   const plots = new Map();
   for (const n of vis) {
-    const k = `${n.service}|${n.layer}`;
-    if (!plots.has(k)) plots.set(k, []);
-    plots.get(k).push(n);
+    const k = districtId(n.service, n.layer);
+    if (!plots.has(k)) plots.set(k, { service: n.service, layer: n.layer, blocks: [] });
+    plots.get(k).blocks.push(n);
   }
-  for (const a of plots.values()) a.sort((x, y) => x.name.localeCompare(y.name));
+  for (const p of plots.values()) p.blocks.sort((x, y) => x.name.localeCompare(y.name));
 
   const layers = [...new Set(vis.map(n => n.layer))].sort((a, b) => (layerById.get(a)?.rank ?? 99) - (layerById.get(b)?.rank ?? 99));
   const svcOrder = ATLAS.services.slice().sort((a, b) => a.order - b.order).map(s => s.id);
@@ -20,34 +31,35 @@ function relayout() {
   // design, and rearranging them would be a different diagram rather than a
   // different look. What a reader gains from here is aspect: a wide district
   // reads along the layer axis, a tall one reads down the service axis.
-  const PACK = { grid: 1, wide: 1.9, tall: 0.5 }[S.layout] ?? 1;
+  const PACK = { grid: 1, wide: 1.9, tall: 0.5 }[S.packing] ?? 1;
   const cols = (n) => Math.max(1, Math.round(Math.sqrt(n) * PACK) || 1);
   const rowsOf = (n) => Math.ceil(n / cols(n));
 
   const layerW = {}, svcH = {};
-  for (const L of layers) layerW[L] = Math.max(1, ...services.map(Sv => { const a = plots.get(`${Sv}|${L}`); return a ? cols(a.length) : 0; }));
-  for (const Sv of services) svcH[Sv] = Math.max(1, ...layers.map(L => { const a = plots.get(`${Sv}|${L}`); return a ? rowsOf(a.length) : 0; }));
+  for (const L of layers) layerW[L] = Math.max(1, ...services.map(Sv => { const p = plots.get(districtId(Sv, L)); return p ? cols(p.blocks.length) : 0; }));
+  for (const Sv of services) svcH[Sv] = Math.max(1, ...layers.map(L => { const p = plots.get(districtId(Sv, L)); return p ? rowsOf(p.blocks.length) : 0; }));
 
   const ox = {}, oy = {};
   let x = 0; for (const L of layers) { ox[L] = x; x += layerW[L] * SPACING + GUT_LAYER; }
   let y = 0; for (const Sv of services) { oy[Sv] = y; y += svcH[Sv] * SPACING + GUT_SVC; }
 
   const districts = [];
-  for (const [k, arr] of plots) {
-    const [Sv, L] = k.split("|");
+  for (const [k, plot] of plots) {
+    const { service: Sv, layer: L, blocks } = plot;
     if (!(L in ox) || !(Sv in oy)) continue;
-    const c = cols(arr.length);
+    const c = cols(blocks.length);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    arr.forEach((n, i) => {
-      n.gx = ox[L] + (i % c) * SPACING;
-      n.gy = oy[Sv] + Math.floor(i / c) * SPACING;
+    const off = districtOffset(k);
+    blocks.forEach((n, i) => {
+      n.gx = ox[L] + (i % c) * SPACING + off.dx * SPACING;
+      n.gy = oy[Sv] + Math.floor(i / c) * SPACING + off.dy * SPACING;
       n.h = heightOf(n);
       x0 = Math.min(x0, n.gx); y0 = Math.min(y0, n.gy);
       x1 = Math.max(x1, n.gx); y1 = Math.max(y1, n.gy);
     });
-    districts.push({ id:k, service:Sv, layer:L, members:arr,
+    districts.push({ id:k, service:Sv, layer:L, blocks,
       x0:x0 - 0.45, y0:y0 - 0.45, x1:x1 + 1.45, y1:y1 + 1.45,
-      code: codeByGroup.get(`${Sv}/${L}`) ?? "",
+      code: codeByDistrict.get(k) ?? "",
       label: layerById.get(L)?.label ?? L });
   }
 
@@ -57,7 +69,7 @@ function relayout() {
     if (!byService.has(d.service)) byService.set(d.service, []);
     byService.get(d.service).push(d);
   }
-  const plates = services.map(Sv => {
+  const servicePlates = services.map(Sv => {
     const ds = byService.get(Sv);
     if (!ds?.length) return null;
     const b = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
@@ -77,9 +89,9 @@ function relayout() {
   // all: a node selected from the panel may have been filtered out since, and
   // its cached faces would still be sitting on it from an earlier layout.
   LAYOUT = {
-    nodes: vis, districts, plates, bbox: null,
+    nodes: vis, districts, servicePlates, bbox: null,
     ids: new Set(vis.map(n => n.id)),
-    steps: isFlowView(S.view) ? pathSteps() : new Map(),
+    steps: playsFlow(S.view) ? pathSteps() : new Map(),
     edges: visibleEdges(vis),
   };
   reproject();
@@ -90,7 +102,7 @@ function relayout() {
 /**
  * Everything that depends on the camera angle and nothing that depends on the
  * layout. Rotating re-runs this; it does not repack districts or move a single
- * building. Hit testing needs no counterpart because it inverse-transforms to
+ * block. Hit testing needs no counterpart because it inverse-transforms to
  * world space and ray-casts these same polygons.
  */
 function reproject() {
@@ -164,7 +176,7 @@ function reproject() {
   // Without them a row whose plate reaches past its tallest block gets cropped,
   // and so does the tab hanging off that plate's corner.
   if (bbox) {
-    for (const p of LAYOUT.plates) {
+    for (const p of LAYOUT.servicePlates) {
       for (const [gx, gy] of [[p.x0, p.y0], [p.x1, p.y0], [p.x1, p.y1], [p.x0, p.y1]]) {
         const q = project(gx, gy, 0);
         if (q.x < bbox.x0) bbox.x0 = q.x;
@@ -178,3 +190,60 @@ function reproject() {
   staticDirty = true;
 }
 
+
+/**
+ * The rectangle a district would occupy if it were pulled to `off`.
+ *
+ * `d`'s own rect already carries its current offset, since relayout() applied
+ * it, so this is the delta from there rather than from the computed position.
+ */
+function districtRectAt(d, off) {
+  const cur = districtOffset(d.id);
+  const sx = (off.dx - cur.dx) * SPACING, sy = (off.dy - cur.dy) * SPACING;
+  return { x0: d.x0 + sx, y0: d.y0 + sy, x1: d.x1 + sx, y1: d.y1 + sy };
+}
+
+/**
+ * Would this drop land on top of a neighbour?
+ *
+ * Districts are allowed to be rearranged, not to be stacked: two districts on
+ * the same cells put two blocks on one lattice point, and the depth sort has no
+ * answer for that. A refused drop springs back, which is a smaller thing to
+ * explain than a map that quietly draws one block over another.
+ */
+function districtWouldOverlap(id, off) {
+  const me = LAYOUT.districts.find((x) => x.id === id);
+  if (!me) return false;
+  const r = districtRectAt(me, off);
+  return LAYOUT.districts.some((o) => o.id !== id && r.x0 < o.x1 && o.x0 < r.x1 && r.y0 < o.y1 && o.y0 < r.y1);
+}
+
+/**
+ * Commit a drag. Returns false, and moves nothing, if the drop overlaps.
+ *
+ * buildPackets() is not optional: a packet's arc is frozen from its endpoints'
+ * projected tops when the packet is built, so a district that moves without it
+ * leaves every flow arc pointing at where the district used to be.
+ */
+function moveDistrict(id, cells) {
+  const cur = districtOffset(id);
+  const next = { dx: cur.dx + cells.dx, dy: cur.dy + cells.dy };
+  // A drag that ended where it started is a click with a wobble in it. Bumping
+  // the epoch for it would re-rasterise the whole city to draw the same picture.
+  if (next.dx === cur.dx && next.dy === cur.dy) return true;
+  if (districtWouldOverlap(id, next)) return false;
+  if (next.dx === 0 && next.dy === 0) S.districtOffsets.delete(id);
+  else S.districtOffsets.set(id, next);
+  layoutEpoch++;
+  relayout();
+  return true;
+}
+
+/** Back to the computed layout. Nothing to redraw if nothing had been moved. */
+function resetDistrictOffsets() {
+  if (!S.districtOffsets.size) return false;
+  S.districtOffsets.clear();
+  layoutEpoch++;
+  relayout();
+  return true;
+}

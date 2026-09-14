@@ -17,7 +17,7 @@ import path from "node:path";
 import { VIEWER_DIR } from "../src/build/assemble.mjs";
 import { DEFAULT_THEME, buildViews } from "../src/model/chrome.mjs";
 
-const MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "50-render.js", "75-findings.js"];
+const MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "50-render.js", "75-findings.js", "79-live.js"];
 
 /**
  * Just enough canvas to count what the renderer asks for.
@@ -81,7 +81,7 @@ function runRenderer(atlas) {
     resize();
     const _drawStatic = drawStatic;
     globalThis.scope = {
-      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, LAYOUT, stepStyle, counts: __counts,
+      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, get LAYOUT() { return LAYOUT; }, stepStyle, counts: __counts, moveDistrict, resetDistrictOffsets,
       wrap: () => { drawStatic = function () { __counts.drawStatic++; return _drawStatic.apply(this, arguments); }; },
     };
     `;
@@ -112,8 +112,8 @@ function payload(n) {
     from: nodes[i % n].id, to: nodes[(i * 7 + 1) % n].id, kind: "import", cross: false,
   }));
   return {
-    meta: { schemaVersion: 1, repo: "synthetic", suiteCount: 0 },
-    services, layers, nodes, edges, endpoints: [], flows: [], groups: [],
+    meta: { schemaVersion: 2, repo: "synthetic", suiteCount: 0 },
+    services, layers, nodes, edges, endpoints: [], flows: [], districts: [],
     views: buildViews({}, []), theme: DEFAULT_THEME,
   };
 }
@@ -322,4 +322,164 @@ test("a derived hop draws how sure it is, not only what kind it is", () => {
   assert.equal(scope.counts.arcs.filter((a) => a.dash).length, 1, "exactly the inferred hop is dotted");
   const drawn = new Set(scope.counts.arcs.map((a) => `${a.w}|${a.alpha}|${a.dash}`));
   assert.equal(drawn.size, 3, "three certainties must not collapse into one line");
+});
+
+/**
+ * Moving a district must re-render exactly once, and must re-render at all.
+ *
+ * The cache key encodes node COUNT, which a drag never changes — so without the
+ * layout epoch in the key a district could move and the raster would happily
+ * keep serving the picture from before it did. The other half matters just as
+ * much: a drag is not allowed to cost more than one rasterisation, or arranging
+ * the map becomes the one interaction that stutters.
+ */
+test("a committed drag re-renders the static layer exactly once", () => {
+  const scope = runRenderer(payload(600));
+  scope.draw();
+  const before = scope.counts.drawStatic;
+
+  assert.equal(scope.moveDistrict(scope.LAYOUT.districts[0].id, { dx: 40, dy: 30 }), true);
+  scope.draw();
+
+  assert.equal(scope.counts.drawStatic, before + 1, "a drag re-rendered more than once, or not at all");
+});
+
+test("panning after a drag is still free", () => {
+  const scope = runRenderer(payload(600));
+  scope.draw();
+  scope.moveDistrict(scope.LAYOUT.districts[0].id, { dx: 40, dy: 30 });
+  scope.draw();
+  const after = scope.counts.drawStatic;
+
+  for (let i = 0; i < 120; i++) { scope.S.panX += 7; scope.S.panY -= 3; scope.draw(); }
+  assert.equal(scope.counts.drawStatic, after, "the drag left the cache invalidating on every pan");
+});
+
+/** A drop that moves nothing must not cost a rasterisation either. */
+test("a drop that changes nothing does not re-render", () => {
+  const scope = runRenderer(payload(600));
+  scope.draw();
+  const [a, b] = scope.LAYOUT.districts;
+  // A drop of zero cells is the simplest thing that is guaranteed to change
+  // nothing; the overlap case is pinned in layout.test.mjs, where the pitch is
+  // in scope and the refusal can be asserted on its own terms.
+  const before = scope.counts.drawStatic;
+
+  assert.equal(scope.moveDistrict(a.id, { dx: 0, dy: 0 }), true);
+  assert.equal(scope.LAYOUT.districts[0].x0, a.x0, "a zero-cell drop moved something");
+  scope.draw();
+  assert.equal(scope.counts.drawStatic, before, "a drop that moved nothing still re-rasterised the city");
+});
+
+/* ════════════════════ the on-canvas modelled-path badge ════════════════════
+ *
+ * `syncControls()` used to raise `#ovWarn` for a tool-derived flow only. A
+ * curated flow's hops are just as modelled — build.mjs counts them in
+ * meta.derivedCount for exactly that reason — but its badge was silent, which
+ * is the dishonest case the honesty contract in CLAUDE.md rules out. This
+ * needs the interaction layer (88-interact.js) and a DOM that keeps state
+ * across `$()` calls, so it gets its own small harness rather than reusing
+ * `runRenderer`, whose fake document hands back a fresh, disconnected element
+ * every time.
+ */
+
+const BADGE_MODULES = [
+  "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
+  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "72-source.js",
+  "75-findings.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
+];
+
+function fakeBadgeElement() {
+  const kids = [];
+  const node = {
+    nodeType: 1, className: "", childNodes: kids,
+    style: { setProperty() {} }, dataset: {}, hidden: false, disabled: false,
+    width: 0, height: 0, value: "", checked: false, open: false, title: "",
+    classList: {
+      add(c) { node.className = `${node.className} ${c}`.trim(); },
+      remove(c) { node.className = node.className.split(/\s+/).filter((x) => x && x !== c).join(" "); },
+      toggle(c, on) { on ? this.add(c) : this.remove(c); },
+      contains(c) { return node.className.split(/\s+/).includes(c); },
+    },
+    get textContent() { return kids.map((k) => (typeof k === "string" ? k : "")).join(""); },
+    set textContent(v) { kids.length = 0; kids.push(String(v)); },
+    set innerHTML(v) { if (v !== "") throw new Error("no markup"); kids.length = 0; },
+    append() {}, replaceChildren() {}, addEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800 }),
+    getContext: () => fakeContext({ drawStatic: 0, drawImage: 0, arcs: [] }),
+    querySelector: () => fakeBadgeElement(),
+  };
+  return node;
+}
+
+function loadBadgeScope(atlas) {
+  const bySelector = new Map();
+  const document = {
+    createElement: () => fakeBadgeElement(),
+    createTextNode: (d) => d,
+    querySelector: (sel) => {
+      if (!bySelector.has(sel)) bySelector.set(sel, fakeBadgeElement());
+      return bySelector.get(sel);
+    },
+    querySelectorAll: () => [],
+    documentElement: { setAttribute() {} },
+    addEventListener() {},
+  };
+  const source = BADGE_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("\n");
+  const ctx = {
+    ATLAS: atlas, console,
+    location: { protocol: "http:" },
+    performance: { now: () => 0 },
+    requestAnimationFrame: () => 0,
+    fetch: () => Promise.reject(new Error("no network in a test")),
+    addEventListener: () => {},
+    innerWidth: 1400,
+  };
+  ctx.window = ctx; ctx.self = ctx; ctx.document = document;
+  ctx.window.devicePixelRatio = 1;
+  vm.createContext(ctx);
+  vm.runInContext(
+    `"use strict";\n${source}\n
+     setYaw(S.yaw);
+     resize();
+     globalThis.scope = { S, syncControls, $: (sel) => document.querySelector(sel) };`,
+    ctx,
+    { timeout: 60_000 },
+  );
+  return ctx.scope;
+}
+
+function badgePayload() {
+  const p = payload(20);
+  const id = (i) => p.nodes[i].id;
+  const derived = {
+    id: "derived:x", label: "GET /x", view: "derived", derived: true,
+    steps: [{ from: id(0), to: id(1), kind: "request", certainty: "inferred", inferred: true }],
+  };
+  const curated = {
+    id: "curated:x", label: "curated", view: "curated",
+    steps: [{ from: id(0), to: id(1), kind: "request" }],
+  };
+  p.flows = [curated];
+  p.derivedFlows = [derived];
+  p.views = buildViews({}, [curated], [derived]);
+  return p;
+}
+
+test("the canvas badge says DERIVED for a derived flow, CURATED for a curated one, and nothing for neither", () => {
+  const scope = loadBadgeScope(badgePayload());
+
+  scope.S.activeFlow = "derived:x";
+  scope.syncControls();
+  assert.equal(scope.$("#ovWarn").textContent, "DERIVED · NOT VERIFIED",
+    "a tool-derived path must say so on the map, not only in the sidebar");
+
+  scope.S.activeFlow = "curated:x";
+  scope.syncControls();
+  assert.equal(scope.$("#ovWarn").textContent, "CURATED · MODELLED PATH",
+    "a curated flow's hops are modelled too — build.mjs counts them the same way");
+
+  scope.S.activeFlow = "__all__";
+  scope.syncControls();
+  assert.equal(scope.$("#ovWarn").textContent, "", "no active flow, no caveat to show");
 });
