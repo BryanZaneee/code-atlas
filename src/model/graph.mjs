@@ -44,14 +44,26 @@ export function extractImports(ctx) {
     ctx.progress?.("parse", `${++done}/${ctx.paths.length}`);
     const internal = new Set();
     const external = new Set();
+    // The line an import edge is drawn from, keyed by target id. A target can
+    // be imported on several lines of the same file; the adapter yields
+    // matches sorted by source position (see each adapter's `withLines`), so
+    // the first time an id reaches here is deterministically its earliest
+    // import — first occurrence in file order wins, and later lines for the
+    // same target are ignored rather than overwriting it.
+    const lines = new Map();
     const adapter = adapterFor(p);
 
     for (const imp of adapter?.extractImports(ctx.src.get(p), p, ctx) ?? []) {
       const r = adapter.resolve(p, imp.spec, ctx, imp.symbols);
       if (r.kind === "internal") {
         // ids is an array so one specifier can name many files — a barrel
-        // re-export is the case that shows up here first.
-        for (const id of r.ids) if (id !== p) internal.add(id);
+        // re-export is the case that shows up here first. Every id from one
+        // specifier shares that specifier's line.
+        for (const id of r.ids) {
+          if (id === p) continue;
+          internal.add(id);
+          if (!lines.has(id)) lines.set(id, imp.line);
+        }
         stats.resolved++;
       } else if (r.kind === "external") {
         external.add(r.ids[0]);
@@ -61,7 +73,7 @@ export function extractImports(ctx) {
         stats.unresolvedSpecs.push({ from: p, spec: r.ids[0] });
       }
     }
-    imports.set(p, { internal, external });
+    imports.set(p, { internal, external, lines });
   }
   return { imports, stats };
 }
@@ -149,7 +161,10 @@ export function buildEdges(nodes, { imports, endpoints, flows = [], extraEdges =
     if (!imp) continue;
     for (const t of imp.internal) {
       if (n.layer === "test") push(n.id, t, t === n.subject ? "test:subject" : "test:exercises");
-      else push(n.id, t, "import");
+      // Only an "import" edge carries a line — it is the one kind this loop
+      // draws directly from an import statement; test edges reuse the same
+      // internal set but are not what jump-to-line means to open.
+      else push(n.id, t, "import", { line: imp.lines.get(t) });
     }
     if (n.subject) push(n.id, n.subject, "test:subject");
   }

@@ -94,3 +94,47 @@ export function diagnose(payload, diagnostics, out) {
     for (const [id, n] of used) out(`  ${String(n).padStart(4)} ${id}`);
   }
 }
+
+/**
+ * `atlas findings` — the code diagnosis `diagnose()` above points at.
+ * `atlas scan` reads what the tool made of a repository; this reads what the
+ * repository is, structurally: cycles, layering violations, orphans, and the
+ * rest of `src/model/findings.mjs`'s eight checks.
+ *
+ * A muted finding still counts and still prints — grouped separately — so
+ * muting stays visible rather than making the map quietly incomplete.
+ */
+export function findingsReport(payload, out) {
+  const all = payload.findings ?? [];
+  const active = all.filter((f) => !f.muted);
+  const muted = all.length - active.length;
+  out(`atlas: ${active.length} finding(s)${muted ? `, ${muted} muted` : ""}`);
+  if (!active.length) return;
+
+  const bySeverity = new Map();
+  for (const f of active) bySeverity.set(f.severity, (bySeverity.get(f.severity) ?? 0) + 1);
+  for (const sev of ["error", "warning", "info"]) {
+    if (bySeverity.has(sev)) out(`  ${String(bySeverity.get(sev)).padStart(4)} ${sev}`);
+  }
+
+  const byType = new Map();
+  for (const f of active) {
+    if (!byType.has(f.type)) byType.set(f.type, []);
+    byType.get(f.type).push(f);
+  }
+  for (const [type, findings] of byType) {
+    out(`atlas: ${type} (${findings.length})`);
+    for (const f of findings.slice(0, 10)) {
+      out(`  [${f.severity}] ${f.message}`);
+      out(`    -> ${f.why}`);
+      out(`    id: ${f.id}`);
+    }
+    if (findings.length > 10) out(`  +${findings.length - 10} more`);
+  }
+
+  if (muted) {
+    out(`atlas: muted (${muted})`);
+    for (const f of all.filter((f) => f.muted).slice(0, 10)) out(`  [${f.type}] ${f.id} — ${f.muteReason}`);
+    if (muted > 10) out(`  +${muted - 10} more`);
+  }
+}

@@ -36,8 +36,19 @@ window.addEventListener("keydown", (e) => {
   else if (k === "arrowright") stepBy(1);
   else if (k === "arrowleft") stepBy(-1);
   else if (k === "escape") {
-    S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
-    renderList(); renderInspect(); renderCaption();
+    // The reader is on top of everything else, so it is what Escape means while
+    // it is open. Clearing the selection underneath it would throw away the
+    // thing you opened the file to look at.
+    if (SRC.open) closeSource();
+    else {
+      const lit = S.finding;
+      S.selected = null; S.pinnedPacket = null; S.focusDistrict = null; S.hover = null;
+      S.finding = null;
+      // Only when there was one: the evidence set decides what is on the map,
+      // so dropping it has to re-pack — and nothing else here does.
+      if (lit) relayout();
+      renderList(); renderInspect(); renderCaption();
+    }
   } else return;
   e.preventDefault();
 });
@@ -117,9 +128,10 @@ function syncControls() {
   // map, so the map is where "this was inferred, not observed" has to appear.
   const f = flowById.get(S.activeFlow);
   const modelled = f?.derived || (S.activeFlow === "__all__" && viewById.get(S.view)?.derived);
-  const badge = modelled ? "DERIVED · NOT VERIFIED · " : "";
-  $("#ovRight").textContent = `${badge}${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
-  $("#ovRight").classList.toggle("warn", !!modelled);
+  // Two elements, not one string: the status half is dropped on a narrow
+  // window, the caveat half never is.
+  $("#ovWarn").textContent = modelled ? "DERIVED · NOT VERIFIED" : "";
+  $("#ovStatus").textContent = `${S.running ? "FLOW ACTIVE" : "FLOW PAUSED"} · YAW ${deg}°`;
 }
 $("#bPause").onclick = () => { S.running = !S.running; syncControls(); };
 $("#bStep").onclick = () => { S.stepBudget = 1; S.running = false; syncControls(); };
@@ -177,6 +189,9 @@ function setView(v) {
   S.view = v;
   S.focusDistrict = null; S.selected = null; S.pinnedPacket = null;
   S.activeFlow = "__all__";
+  // Cleared before relayout(), because the evidence of a finding is part of
+  // what `visibleSet()` keeps.
+  S.finding = null;
   renderViews();
   relayout();
   renderList(); renderInspect(); renderLegend(); renderStats(); renderCaption();

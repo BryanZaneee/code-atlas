@@ -11,7 +11,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { serialize, scanFixture } from "./helpers.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { serialize, scanFixture, FIXTURE_DIR } from "./helpers.mjs";
 import { SCHEMA_VERSION } from "../src/build/build.mjs";
 
 const payloadOf = async () => (await scanFixture("mini-monorepo")).payload;
@@ -97,6 +99,40 @@ test("every edge endpoint resolves to a node", async () => {
   const ids = new Set(p.nodes.map((n) => n.id));
   const dangling = p.edges.filter((e) => !ids.has(e.from) || !ids.has(e.to));
   assert.deepEqual(dangling, []);
+});
+
+/**
+ * The field jump-to-line opens on: a 1-based line in `from`, within the
+ * file, that actually names the import. Only `kind: "import"` carries it —
+ * `test:subject`/`test:exercises` edges are drawn from the same internal-import
+ * set but are not what jump-to-line means to open.
+ */
+test("import edges carry a plausible line", async () => {
+  const p = await payloadOf();
+  const importEdges = p.edges.filter((e) => e.kind === "import");
+  assert.ok(importEdges.length > 0, "no import edges to check");
+
+  for (const e of importEdges) {
+    assert.ok(Number.isInteger(e.line) && e.line >= 1, `${e.from} -> ${e.to} has line ${e.line}`);
+    const text = readFileSync(path.join(FIXTURE_DIR, "mini-monorepo", e.from), "utf8");
+    const lineCount = text.length ? text.replace(/\n$/, "").split("\n").length : 0;
+    assert.ok(e.line <= lineCount, `${e.from} -> ${e.to}: line ${e.line} exceeds ${lineCount} lines`);
+  }
+
+  // routes/users.ts names the service module on its second line — a concrete
+  // check that `line` points at the statement that actually produced the edge.
+  const edge = importEdges.find(
+    (e) => e.from === "services/api/src/routes/users.ts" && e.to === "services/api/src/services/user-service.ts",
+  );
+  assert.ok(edge, "expected routes/users.ts -> services/user-service.ts import edge");
+  assert.equal(edge.line, 2);
+  const text = readFileSync(path.join(FIXTURE_DIR, "mini-monorepo", edge.from), "utf8");
+  assert.match(text.split("\n")[edge.line - 1], /user-service/);
+
+  // No other edge kind invents a line.
+  for (const e of p.edges) {
+    if (e.kind !== "import") assert.equal("line" in e, false, `${e.kind} edge ${e.from}->${e.to} carries a line`);
+  }
 });
 
 /**

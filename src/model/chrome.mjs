@@ -17,6 +17,7 @@
  *   structure  every node, filtered by the sidebar toggles
  *   flow       only the nodes and edges named by this view's curated flows
  *   tests      test edges and coverage tint
+ *   findings   the whole map, with one finding's evidence lit and the rest dimmed
  *
  * A flow view is created for every distinct `flows[].view`, so curation adds a
  * view without touching the tool. Config may override any of it by supplying a
@@ -40,9 +41,16 @@ const DEFAULT_HINTS = {
     "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
   tests:
     "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+  findings:
+    "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
 };
 
-const DEFAULT_TITLES = { structure: "THE CODEBASE", flow: "REQUEST PATH", tests: "TEST COVERAGE" };
+const DEFAULT_TITLES = {
+  structure: "THE CODEBASE",
+  flow: "REQUEST PATH",
+  tests: "TEST COVERAGE",
+  findings: "STRUCTURAL FINDINGS",
+};
 
 export function buildViews(config, flows = [], derived = []) {
   const flowViews = [...new Set(flows.map((f) => f.view).filter(Boolean))];
@@ -62,6 +70,12 @@ export function buildViews(config, flows = [], derived = []) {
     // are about to watch was asserted by a person or inferred by this tool.
     ...(derived.length ? [{ id: "derived", label: "DERIVED PATHS", kind: "flow", derived: true }] : []),
     { id: "tests", label: "TESTS", kind: "tests" },
+    // Unconditional, unlike the derived entry above: a repository with no
+    // findings has a RESULT to show, and it is one worth being able to read.
+    // Dropping the view when the list is empty would make "eight checks ran and
+    // matched nothing" indistinguishable from "this tool does not check", which
+    // is the one confusion the empty state exists to prevent.
+    { id: "findings", label: "FINDINGS", kind: "findings" },
   ];
 
   const withDefaults = (v) => ({ title: DEFAULT_TITLES[v.kind], hint: DEFAULT_HINTS[v.kind], ...v });
@@ -71,9 +85,11 @@ export function buildViews(config, flows = [], derived = []) {
   if (config.views) {
     const byId = new Map(base.map((v) => [v.id, v]));
     const named = config.views.map((v) => withDefaults({ ...byId.get(v.id), ...v }));
-    // A config that predates derivation should not lose the view because it
-    // did not know to list it.
-    const extra = base.filter((v) => v.derived && !config.views.some((c) => c.id === v.id));
+    // A config that predates derivation — or findings — should not lose the
+    // view because it did not know to list it.
+    const extra = base.filter(
+      (v) => (v.derived || v.kind === "findings") && !config.views.some((c) => c.id === v.id),
+    );
     return [...named, ...extra.map(withDefaults)];
   }
   return base.map(withDefaults);
@@ -129,6 +145,15 @@ export const DEFAULT_THEME = {
   coverTint: { none: "#b0562f", indirect: "#a89a5c" },
 
   /**
+   * A finding's severity, for the ring and the evidence edges the findings view
+   * draws over the map. Colour is the SECOND channel here, never the only one:
+   * the sidebar chip spells the severity out and the panel names it in words,
+   * because a map read in greyscale or by someone who cannot separate red from
+   * orange still has to say which findings are the bad ones.
+   */
+  findingSeverity: { error: "#b3261e", warning: "#b5730f", info: "#4a7a8c" },
+
+  /**
    * The dark theme, as a delta rather than a second palette.
    *
    * Only the scalars flip. Everything mixed from them — plates, outlines, label
@@ -146,6 +171,11 @@ export const DEFAULT_THEME = {
     edge: "#e4e8ec",
     face: "#333a3f",
     packetLabel: "#e8eaec",
+    // The one table in the delta rather than a scalar: these are drawn over a
+    // veiled city, and a deep red that reads as urgent on white disappears
+    // into a near-black ground. Lightened rather than re-hued, so the three
+    // stay the same three severities.
+    findingSeverity: { error: "#ff6b5e", warning: "#f0a03c", info: "#79b8d0" },
   },
 
   /**
@@ -160,6 +190,14 @@ export const DEFAULT_THEME = {
       { edge: "coupling", label: "SHARED-DB COUPLING" },
       { edge: "sql", label: "SQL / CACHE" },
       { swatch: "request", label: "PACKET — CLICK TO INSPECT" },
+    ],
+    // Every row names the severity in words as well as in colour — the legend
+    // is the one place the two channels are declared to be the same thing.
+    findings: [
+      { sev: "error", label: "ERROR" },
+      { sev: "warning", label: "WARNING" },
+      { sev: "info", label: "INFO" },
+      { sev: "warning", dash: true, label: "DASHED — MUTED BY CONFIG, STILL COUNTED" },
     ],
     tests: [
       { edge: "test:subject", label: "TEST COVERS (PRIMARY SUBJECT)" },
@@ -180,6 +218,7 @@ export function buildTheme(config) {
     edgeStyle: { ...DEFAULT_THEME.edgeStyle, ...t.edgeStyle },
     packetColor: { ...DEFAULT_THEME.packetColor, ...t.packetColor },
     coverTint: { ...DEFAULT_THEME.coverTint, ...t.coverTint },
+    findingSeverity: { ...DEFAULT_THEME.findingSeverity, ...t.findingSeverity },
     dark: { ...DEFAULT_THEME.dark, ...t.dark },
     legend: { ...DEFAULT_THEME.legend, ...t.legend },
   };

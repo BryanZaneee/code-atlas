@@ -18,7 +18,7 @@ import { DEFAULT_THEME, buildViews } from "../src/model/chrome.mjs";
 // drawn are the faces hit testing uses, which is only true if they call the
 // SHIPPED predicate. They each carried a local copy, so a regression in
 // 60-pick.js would have left both of them passing.
-const LAYOUT_MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "60-pick.js"];
+const LAYOUT_MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js", "40-packets.js", "60-pick.js", "75-findings.js"];
 
 /**
  * Run the layout half of the viewer over a payload and hand back its scope.

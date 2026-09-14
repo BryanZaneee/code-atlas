@@ -19,7 +19,7 @@ import { writeFileSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { scan } from "../src/build/build.mjs";
-import { report, diagnose } from "../src/cli/report.mjs";
+import { report, diagnose, findingsReport } from "../src/cli/report.mjs";
 import { assemble } from "../src/build/assemble.mjs";
 import { makeProgress } from "../src/cli/progress.mjs";
 import { starterConfig } from "../src/config/init.mjs";
@@ -44,7 +44,7 @@ const USAGE = `atlas <command> [options]
   build      scan a repository and write a self-contained HTML atlas
   scan       what the scanner found, and what it could not
   init       write a starter config by inspecting the repo
-  findings   cycles, layering violations, orphans          (phase 5)
+  findings   cycles, layering violations, orphans, and the rest of the graph
   serve      local viewer with source reading
 
 options
@@ -56,12 +56,48 @@ options
   --no-fetch       skip \`git fetch origin\` for an origin/* ref
   --strict         fail, instead of warning, on stale curated flows
 
+build options
+  --embed-source [glob]   bake repo-relative file text into the HTML, all
+                           scanned files or only those matching glob — the
+                           shareable HTML then contains that source
+  --gzip-source           store embedded source gzip-compressed, inflated
+                           in the browser (needs --embed-source)
+
 serve options
   --port PORT      loopback port to bind         (default: 4173)
   --open           open the viewer in a browser once it is listening
 `;
 
+/**
+ * `--embed-source [glob]` is pulled out of argv before `parseArgs` sees it:
+ * `node:util`'s parser has no notion of an optionally-valued flag, and
+ * mistaking the next flag for this one's argument is worse than a small
+ * hand-rolled pass. `--embed-source`, `--embed-source=glob` and
+ * `--embed-source glob` (glob not itself looking like a flag) are the three
+ * forms accepted; anything else leaves the token for `parseArgs` to see, so a
+ * genuine mistake still surfaces as its own error rather than being eaten.
+ */
+function extractEmbedSource(argv) {
+  const rest = [];
+  let embedSource = false, embedGlob = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--embed-source" || a.startsWith("--embed-source=")) {
+      embedSource = true;
+      if (a.includes("=")) { embedGlob = a.slice(a.indexOf("=") + 1) || null; continue; }
+      const next = argv[i + 1];
+      if (next && !next.startsWith("-")) { embedGlob = next; i++; }
+      continue;
+    }
+    rest.push(a);
+  }
+  return { argv: rest, embedSource, embedGlob };
+}
+
+const { argv: filteredArgv, embedSource, embedGlob } = extractEmbedSource(process.argv.slice(2));
+
 const { values, positionals } = parseArgs({
+  args: filteredArgv,
   allowPositionals: true,
   options: {
     repo: { type: "string", default: "." },
@@ -71,6 +107,7 @@ const { values, positionals } = parseArgs({
     json: { type: "boolean", default: false },
     "no-fetch": { type: "boolean", default: false },
     strict: { type: "boolean", default: false },
+    "gzip-source": { type: "boolean", default: false },
     port: { type: "string", default: "4173" },
     open: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
@@ -85,9 +122,9 @@ if (values.help || !command) {
   process.exit(values.help ? 0 : 1);
 }
 
-const PENDING = { findings: 5 };
+const PENDING = {};
 if (PENDING[command]) die(`\`atlas ${command}\` lands in phase ${PENDING[command]}`);
-if (!["build", "scan", "init", "serve"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
+if (!["build", "scan", "init", "serve", "findings"].includes(command)) die(`unknown command "${command}"\n\n${USAGE}`);
 
 // No config means defaults plus detection, which is the path a repository the
 // tool has never seen takes. A config only ever overrides what it names.
@@ -126,6 +163,13 @@ async function run() {
   // to keep alive past `scan()`, nothing for the server to lose access to.
   const ref = command === "serve" ? "fs" : values.ref;
 
+  // `--embed-source`/`--gzip-source` are `build`-only: elsewhere the flag would
+  // pay for embedding a payload nothing goes on to write.
+  const embedding = command === "build" && embedSource;
+  if (values["gzip-source"] && !embedding) {
+    warn("atlas: --gzip-source has no effect without --embed-source" + (command === "build" ? "" : " (and only applies to build)"));
+  }
+
   let result;
   try {
     result = scan({
@@ -135,6 +179,9 @@ async function run() {
       fetch: !values["no-fetch"],
       // A generic tool cannot hard-exit on somebody else's stale curated flow.
       strict: values.strict,
+      embedSource: embedding,
+      embedGlob,
+      gzipSource: embedding && values["gzip-source"],
       warn,
       progress,
     });
@@ -151,6 +198,18 @@ async function run() {
   // stdout, a command's commentary goes to stderr.
   if (command === "scan") {
     diagnose(payload, diagnostics, (...m) => process.stdout.write(m.join(" ") + "\n"));
+    return;
+  }
+
+  // Findings are the report, same as `scan` — its own stdout, not build's
+  // stderr commentary — so `--json` stays pipeable and pairs with `--json`'s
+  // existing meaning on `build`: the payload, not the log.
+  if (command === "findings") {
+    if (values.json) {
+      process.stdout.write(JSON.stringify(payload.findings, null, 2));
+    } else {
+      findingsReport(payload, (...m) => process.stdout.write(m.join(" ") + "\n"));
+    }
     return;
   }
 
@@ -173,6 +232,15 @@ async function run() {
   if (values.json) {
     process.stdout.write(JSON.stringify(payload, null, 2));
     return;
+  }
+
+  if (payload.source) {
+    const added = Buffer.byteLength(JSON.stringify(payload.source), "utf8");
+    warn(
+      `atlas: --embed-source added ${(added / 1024).toFixed(0)} KB` +
+      `${payload.source.gzip ? " (gzip-compressed)" : " — rebuild with --gzip-source to shrink it"}` +
+      ` — ${payload.source.paths.length} file(s)${payload.source.glob ? ` matching "${payload.source.glob}"` : ""} now travel inside the HTML`,
+    );
   }
 
   const out = path.resolve(values.out);

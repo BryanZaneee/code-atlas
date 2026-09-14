@@ -167,13 +167,43 @@ edge kind does not drop the other eleven.
 | `layerFallback` | string | a layer with no `color` |
 | `font` | string | a literal font stack — canvas cannot read `var(--mono)` |
 | `edgeStyle` `packetColor` `coverTint` | object | per edge kind / packet kind / coverage state |
+| `findingSeverity` | object | the ring and evidence-edge colour per finding severity (`error` `warning` `info`) in the findings view. Colour is the second channel there, never the only one — the list chips and the panel spell the severity out |
 | `legend` | object | legend rows per view kind; each row *names* a key in the tables above rather than repeating a colour, so the legend cannot drift from the map |
 | `dark` | object | the dark theme, as a **delta** over the keys above |
 
-Only the scalars appear in `dark`. Everything mixed from them follows, which is
-why `edge` inverts to near-white there: in a line-art map the stroke carries the
-whole form, and a dark outline on a dark ground is not a dimmer map, it is no
-map.
+Only the scalars — and `findingSeverity`, which is drawn over a veiled city and
+has to lighten with the ground — appear in `dark`. Everything mixed from them
+follows, which is why `edge` inverts to near-white there: in a line-art map the
+stroke carries the whole form, and a dark outline on a dark ground is not a
+dimmer map, it is no map.
+
+## Findings
+
+| key | type | default | what it does |
+| --- | --- | --- | --- |
+| `findings.locThreshold` | number | `400` | a file's `loc` past this is an oversized-file candidate |
+| `findings.godNodePercentile` | number | `95` | in-degree percentile past which a file is a god node |
+| `findings.minGodInDegree` | number | `5` | floor beside the percentile, so a small repo's low p95 does not flag half its files |
+| `findings.orphanRoots` | string[] | `[]` | path prefixes excluded from the orphan check, beyond entrypoints |
+| `findings.mute` | array | `[]` | `{ id, reason }` — silences one finding by its own `id` |
+
+Overriding `findings` replaces the whole object, the same as every other key
+except `exclude` — a config that sets `locThreshold` and wants the other
+defaults kept restates them.
+
+`atlas findings --json` prints each finding's `id`; paste it into `mute` with
+a reason to silence it. A muted finding still appears in the payload with
+`muted: true` — see [payload-schema.md](./payload-schema.md#findings).
+
+```js
+findings: {
+  locThreshold: 400,
+  godNodePercentile: 95,
+  minGodInDegree: 5,
+  orphanRoots: ["scripts/one-off-migration.ts"],
+  mute: [{ id: "orphan:scripts/seed.ts", reason: "run by name from package.json, not imported" }],
+},
+```
 
 ## Curated data
 

@@ -2,9 +2,9 @@
 
 Progress tracker for [PLAN.md](./PLAN.md). A phase is done when **every** box under it is checked — the gate is the definition of done, not a suggestion.
 
-**Status:** Phases 0, 2, 2.5, 2.6, 3 and 4 complete · 6 of 13. Phase 1 holds one
-gate a human has to measure. Phase 6 is built and calibrated but has not published
-its numbers; Phase 7 has its server but not its panel.
+**Status:** Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 complete · 8 of 13. Phase 1
+holds one gate a human has to measure. Phase 7's server and reader are in; what
+is left there is `--embed-source` and `--gzip-source`, which share a gate.
 
 | # | Milestone | Unblocks | Status |
 | --- | --- | --- | --- |
@@ -15,14 +15,14 @@ its numbers; Phase 7 has its server but not its panel.
 | 2.6 | Visual pass against a reference design | — | ● done |
 | 3 | Language adapters + conformance fixtures | 4, 6 | ● done |
 | 4 | Endpoint extraction v2 | 5, 6, 8 | ● done |
-| 5 | Findings engine | — | ○ |
-| 6 | Path derivation + calibration | 8 | ◐ built, numbers unpublished |
-| 7 | `atlas serve` + code viewer | 8, 9 | ◐ server done, viewer half open |
+| 5 | Findings engine | — | ● done |
+| 6 | Path derivation + calibration | 8 | ● done |
+| 7 | `atlas serve` + code viewer | 8, 9 | ◐ built; one ratio deferred |
 | 8 | Request composer UI | 9 | ○ |
 | 9 | Live proxy mode | — | ○ |
 | 10 | Open-source packaging | — | ○ |
 
-Legend: ○ not started · ◐ in progress · ● done
+Legend: ○ not started · ◐ in progress · ● done · [~] deliberately deferred, with the reason
 
 ---
 
@@ -238,8 +238,8 @@ reference screenshots the user supplied, plus four things they named directly.*
 - [x] `src/adapters/generic.mjs` — no edges, still renders; now also the
       documented skeleton a new language is copied from
 - [x] Import line numbers recorded; comment/string blanking before extraction
-      — carried on the extraction result only. Nothing consumes them until
-      Phase 7, and the payload is a versioned public contract
+      — held on the extraction result until Phase 7 needed them, then promoted
+      to `edges[].line` as an additive field, so no `schemaVersion` bump
 - [x] **Gate:** both fixtures resolve exactly as asserted
 - [x] **Gate:** Shuttrr `unresolved === 0`, zero internal specifier classified external (174 `@/…` alias imports total, of which `@/lib/utils/cn` ×24)
   - 161 → 423 resolved, 9 → 3 unresolved. Not zero: the three are `.css` and
@@ -289,29 +289,43 @@ reference screenshots the user supplied, plus four things they named directly.*
 
 *`atlas scan` diagnoses the tool. This diagnoses the code.*
 
-- [ ] Import cycles (Tarjan SCC), smallest-first
-- [ ] Layering violations — an edge whose target rank is lower than its source
-- [ ] Oversized files, ranked against the repo's own p95
-- [ ] Endpoints no test reaches
-- [ ] Orphans (zero in and out edges, excluding entrypoints)
-- [ ] Unreachable from any entrypoint (reverse BFS)
-- [ ] God nodes (in-degree percentile)
-- [ ] Cross-service coupling that bypasses declared boundaries
-- [ ] Each finding carries `severity`, **evidence** (exact nodes/edges), and a one-line "why this matters"
-- [ ] FINDINGS view highlights implicated blocks in place on the map
-- [ ] `atlas findings --json`; configurable thresholds; per-finding mute with a reason
-- [ ] **Gate:** on TaxVault reports the `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true)
-- [ ] **Gate:** zero false layering violations on a repo that enforces layering by policy
-- [ ] **Gate:** finds a known cycle in a synthetic fixture
+- [x] Import cycles (Tarjan SCC), smallest-first
+- [x] Layering violations — an edge whose target rank is lower than its source,
+      **spine layers only**: `tooling`/`test`/`docs`/`unsorted` carry ranks for the
+      layout, not for the spine, and `unsorted` ranks above every real layer — so
+      judging it turned "no rule matched" into "every import runs backwards".
+      Shared with `derive.mjs` as `OFF_SPINE_LAYERS` rather than restated
+- [x] Oversized files, ranked against the repo's own p95
+- [x] Endpoints no test reaches
+- [x] Orphans (zero in and out edges, excluding entrypoints and configured roots)
+- [x] Unreachable from any entrypoint (BFS from entry-layer files)
+- [x] God nodes (in-degree percentile, with a floor so a small repo's low p95
+      does not flag half of it)
+- [x] Cross-service coupling that bypasses declared boundaries
+- [x] Each finding carries `severity`, **evidence** (exact nodes/edges), and a one-line "why this matters"
+- [x] FINDINGS view highlights implicated blocks in place on the map — the rest
+      of the city dims rather than disappearing, so a cycle reads AS a cycle.
+      The view is unconditional: a repo with nothing to report has a result
+      worth showing, and dropping the view would make "eight checks ran and
+      matched nothing" look like "this tool does not check"
+- [x] `atlas findings --json`; configurable thresholds; per-finding mute with a reason
+      — a muted finding stays in the payload marked, never removed: silencing one
+      should be a visible diff, not a silent subtraction
+- [x] **Gate:** on TaxVault reports the `core-case-service` orphans and `server.ts` unreachable-from-tests (both known-true) — run against the corpus, passes
+- [x] **Gate:** zero false layering violations on a repo that enforces layering by policy
+      — plus a second gate over fixtures that DO have unplaceable files, because
+      the first one passed throughout the period the off-spine bug was live
+- [x] **Gate:** finds a known cycle in a synthetic fixture — `fixtures/import-cycle`,
+      built so each of the eight findings has one isolated known-true instance
 
 ## Phase 6 — Path derivation + calibration
 
 *Calibration is a script and it runs before any composer UI exists. One endpoint is an anecdote.*
 
 - [x] `src/model/derive.mjs` — mount-chain seed, handler-slice BFS seed, non-decreasing rank, neutral `io` terminals, response leg
-- [x] Per-hop certainty: `wired` / `imported` / `inferred` — computed and shipped;
-      **the viewer does not read it yet**, so an inferred hop and a proven one draw
-      identically. See the open items below
+- [x] Per-hop certainty: `wired` / `imported` / `inferred` — computed, shipped,
+      and drawn. Weight and dash carry it; colour stays with the step's kind, so a
+      proven hop and an admitted guess no longer read the same
 - [x] Derived at scan time; steps stored as integer node indices
 - [x] `test/calibrate.mjs` — diff derived vs curated across **all 9 flows**
       (moved out of `tools/`: it imports `test/helpers.mjs` and the regression test
@@ -323,25 +337,56 @@ reference screenshots the user supplied, plus four things they named directly.*
       gate skips without the corpus
 - [x] **Gate:** every endpoint across all targets produces a ≥2-hop path with no crash
       — asserted in `test/derive.test.mjs`
-- [ ] **Gate:** calibration numbers published in the README — measured at taxvault
+- [x] **Gate:** calibration numbers published in the README — measured at taxvault
       `22595f3a`: **precision 17%, recall 12%** (tp=11 of 93 curated, 64 derived;
-      52 invented, 81 missed, 1 mis-ordered). Not yet written up
+      52 invented, 81 missed, 1 mis-ordered), under *Path derivation, calibrated*.
+      Stated plainly rather than softened: expectations are set before first use,
+      or the number is decoration
 
 ## Phase 7 — `atlas serve` + code viewer
 
 - [x] `src/serve/server.mjs` — `listen(port, "127.0.0.1")`, bind host hardcoded, not a flag
 - [x] File allowlist from the scanned set (**membership is the defense**), `lstat` symlink refusal, size cap, always `text/plain`
 - [x] `Host` header check + `Sec-Fetch-Site` rejection (DNS rebinding); CSP; `no-store`; `nosniff`
-- [ ] `INFO | SOURCE` tabs; wide right-docked overlay; line gutter; target line centered
-- [ ] Jump-to-line from endpoint, import edge, test subject, and derived hop
-- [ ] ~60-line regex highlighter (ts/js/tsx, py, sql, json); escape-as-you-emit, never `innerHTML` on source
-- [ ] `--embed-source [glob]` + permanent `SOURCE EMBEDDED` badge + CLI size warning
-- [ ] `--gzip-source` via `node:zlib` + `DecompressionStream("gzip")`
+- [x] `INFO | SOURCE` tabs; wide right-docked overlay; line gutter; target line centered
+      — `min(760px,55vw)`, `Esc` closes, canvas renders behind, and the map's own
+      overlays shift out from under it so the DERIVED caveat is never covered.
+      Full width below 900px, where a 420px code pane would be unreadable
+- [x] Jump-to-line from endpoint, import edge, test subject, and derived hop
+      — an *inferred* hop is offered no button rather than one that lands
+      somewhere plausible: there is no import to open, and saying so is the point
+- [x] Highlighter — **vendored Prism 1.29.0 instead of the planned ~60-line regex**
+      (~27 KB, committed not installed; reasoning in PLAN.md). Tokenizer only, DOM
+      built by hand from text nodes; `test/source.test.mjs` runs the real paint
+      against a DOM whose `innerHTML` setter throws, so escape-as-you-emit is
+      enforced rather than reviewed
+- [x] `--embed-source [glob]` + permanent `SOURCE EMBEDDED` badge + CLI size warning
+      — the badge names the file count and says GZIP when compressed, and is the
+      only legend entry styled as a warning: sending this file sends the code
+- [x] `--gzip-source` via `node:zlib` + `DecompressionStream("gzip")` — ONE shared
+      blob, not one stream per file: 143 independent streams cannot share a
+      dictionary, and per-file cost 16% over compressing the map together
 - [x] **Gate:** all 404 — `../../../etc/passwd`, `/etc/passwd`, `.env`, `node_modules/x`, in-repo symlink pointing outside, `..%2f..%2f`, `Host: evil.example`
       — `test/serve.test.mjs` covers the list verbatim, plus a null byte and a
       post-scan symlink swap
-- [ ] **Gate:** clicking `POST /api/photos/upload` opens `photos.ts` at line 12
-- [ ] **Gate:** gzip round-trips; embedded size cut ≥3×
+- [x] **Gate:** clicking an endpoint opens its file at the declaring line —
+      verified in Chrome against this repo rather than the Shuttrr endpoint the
+      gate names, which needs a corpus checkout: `GET /admin/stats` opens
+      `fixtures/express-js/src/routes/admin.mjs` at line 7, which is the
+      `router.get` call. Re-run on Shuttrr when the corpus is to hand
+- [~] **Gate:** gzip round-trips; embedded size cut ≥3× — **round-trip met,
+      ratio DEFERRED.** Lossless is verified through a real `DecompressionStream`
+      and by hand against a built HTML. The ≥3× is not met and the reason is
+      arithmetic, not implementation: gzip gets ~3.1× on this repo's source, and
+      base64 then multiplies by 4/3 to survive JSON, landing at ~2.3× on the
+      artifact: measured 696,953 B → 301,282 B, **2.31×**. Raw gzip with no
+      text-safe wrapping at all is 3.10× — barely over the bar before paying any
+      encoding tax — so the ceiling is this repo's own redundancy, not the
+      wrapper. ascii85 (5/4) would reach ~2.48× and still miss, so nothing was
+      spent chasing it. The number ≥3× came from PLAN.md's Shuttrr estimate, which
+      quoted the gzip size and omitted the base64 the file has to carry.
+      Deferred deliberately so development continues; re-open it with a measured
+      number if a corpus repo compresses better, or retire it.
 
 ## Phase 8 — Request composer UI
 
@@ -382,17 +427,6 @@ reference screenshots the user supplied, plus four things they named directly.*
 Raised by the quality sweep, verified against the code, and deliberately not
 fixed in it. None is a crash; each is something the map currently claims or
 omits without saying so.
-
-**The viewer ignores `certainty`.** `derive.mjs` computes `wired`/`imported`/
-`inferred` per hop and the payload ships it, but nothing in `src/viewer/` reads
-it — dashes come from edge *kind*, not from certainty. The blurb on every derived
-flow says "Dotted hops are gaps the import graph could not justify", which
-describes something the renderer does not do. Either draw it or change the copy;
-the copy is one line.
-
-**The derived badge hides on a narrow window.** `style.css` drops `#ovRight` under
-1024px, and that is where `DERIVED · NOT VERIFIED` is written — so the caveat
-disappears while the derived path keeps animating.
 
 **Modelled hops inside curated flows carry no badge.** `build.mjs` counts them
 (`meta.derivedCount`) and its own comment says curation and derivation alike

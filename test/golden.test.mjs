@@ -38,7 +38,11 @@ test("mini-monorepo payload matches its golden", async () => {
 const ADDED_TOP = ["views", "theme",
   // phase 6: derived paths, kept in their own array so curated data keeps its
   // exact prototype shape and nothing conflates the two.
-  "derivedFlows"];
+  "derivedFlows",
+  // phase 5: structural findings over the graph the prototype never computed
+  // at all — an addition, not a correction, so the observed facts above it
+  // still have to match exactly.
+  "findings"];
 const ADDED_META = ["schemaVersion", "acquisition", "suiteCount",
   // phase 2.5: the map's own coverage, so the chrome can state it permanently.
   "unsortedCount", "unresolvedCount", "derivedCount"];
@@ -60,6 +64,10 @@ const ADDED_GROUP = ["code", "parentId"];
 // phase 6: the derived internal path, MODELLED rather than observed — it adds
 // a field to every endpoint but changes no observed fact about it.
 const ADDED_ENDPOINT = ["line", "derivedPath"];
+// phase 7 prep: the line an import edge is declared on — the same
+// jump-to-line field as ADDED_ENDPOINT's, on the other side of the graph.
+// Additive — from/to/kind/cross of every edge must still match, and do.
+const ADDED_EDGE = ["line"];
 
 /**
  * The one deliberate CORRECTION to the prototype's observed facts, as opposed to
@@ -132,6 +140,7 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];
   for (const g of stripped.groups) for (const k of ADDED_GROUP) delete g[k];
   for (const e of stripped.endpoints) for (const k of ADDED_ENDPOINT) delete e[k];
+  for (const e of stripped.edges) for (const k of ADDED_EDGE) delete e[k];
   for (const f of stripped.flows) for (const st of f.steps) for (const k of ADDED_STEP) delete st[k];
 
   const expected = readFileSync(path.join(GOLDEN_DIR, "taxvault.prototype.json"), "utf8");
@@ -170,8 +179,14 @@ test("meta carries the fields later phases added", async (t) => {
   // rather than letting the config lose it by not knowing to list it. On this
   // target that means curated and derived paths sit in the same strip, which is
   // the only way to compare what a person asserted against what was inferred.
-  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived"]);
+  // Phase 5 appends FINDINGS to a config that predates it for the same reason
+  // Phase 6 appends DERIVED PATHS: a config cannot lose a view by not having
+  // known to list it. Unlike the derived view it is unconditional — a clean
+  // repository has a result to show, and hiding the view would make "checked,
+  // found nothing" look like "never checked".
+  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived", "findings"]);
   assert.equal(payload.views.find((v) => v.id === "derived").derived, true);
+  assert.equal(payload.views.find((v) => v.id === "findings").kind, "findings");
   assert.ok(payload.derivedFlows.length > 0, "endpoints exist, so derived paths should too");
   // Curated data keeps its exact shape: derivation never writes into `flows`.
   assert.ok(payload.flows.every((f) => !f.derived));

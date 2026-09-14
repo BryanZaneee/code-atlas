@@ -39,15 +39,14 @@
  */
 import { adapterFor } from "../adapters/index.mjs";
 import { mountParents } from "./mounts.mjs";
+import { OFF_SPINE_LAYERS } from "../config/defaults.mjs";
 
 // The router -> controller -> service -> repository spine is what this exists
-// to trace. Test, docs and tooling code sit past that spine, not inside it
-// (PLAN.md "The visual system": "the layers outside that spine ... sit past it
-// rather than inside it") — a request never legitimately routes through a test
-// file or a README. A layer with no known rank (a custom classifier's own
-// catch-all, e.g. "other") is excluded the same way: rank is undefined, and an
-// unranked file is not part of the spine either.
-const SKIP_LAYERS = new Set(["test", "docs", "tooling", "unsorted"]);
+// to trace; a request never legitimately routes through a test file or a
+// README. The set is shared with the layering finding rather than restated,
+// because two modules quietly disagreeing about what counts as the spine is
+// how one of them ends up wrong. A layer with no known rank (a custom
+// classifier's own catch-all) is excluded the same way, below.
 
 const IDENT_RE = /[A-Za-z_$][A-Za-z0-9_$]*/g;
 
@@ -198,7 +197,7 @@ function deriveOne(endpoint, { byId, idIdx, importAdj, layerRank, edgeSet, dsAdj
   for (const t of [...seedTargets(definedIn, slice, ctx)].sort()) {
     if (admitted.has(t)) continue;
     const layer = byId.get(t)?.layer;
-    if (!layer || SKIP_LAYERS.has(layer) || rankOf(t) < startRank) continue;
+    if (!layer || OFF_SPINE_LAYERS.has(layer) || rankOf(t) < startRank) continue;
     admitted.set(t, 1);
     queue.push(t);
   }
@@ -210,7 +209,7 @@ function deriveOne(endpoint, { byId, idIdx, importAdj, layerRank, edgeSet, dsAdj
     for (const to of importAdj.get(cur) ?? []) {
       if (admitted.has(to)) continue;
       const layer = byId.get(to)?.layer;
-      if (!layer || SKIP_LAYERS.has(layer) || rankOf(to) < curRank) continue;
+      if (!layer || OFF_SPINE_LAYERS.has(layer) || rankOf(to) < curRank) continue;
       admitted.set(to, depth + 1);
       queue.push(to);
     }

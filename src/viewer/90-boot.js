@@ -8,4 +8,5 @@ renderLegend();
 resize();
 setView(VIEWS[0]?.id ?? "structure");
 syncControls();
+srcInit();
 requestAnimationFrame(frame);

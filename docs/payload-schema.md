@@ -28,6 +28,8 @@ expected to read it, so it is versioned from the first release.
 | `views` | array | stable | which views the strip offers, derived from the flows present |
 | `theme` | object | stable | every colour and style table the viewer draws with |
 | `groups` | array | stable | one per `service/layer` pair that has members — the districts of the map |
+| `findings` | array | experimental | structural findings over the graph — cycles, layering violations, and the rest of `src/model/findings.mjs`'s eight checks |
+| `source` | object | experimental | **present only when built with `--embed-source`** — the scanned repository's own text, baked in. See [`source`](#source) |
 
 ## `services`
 
@@ -148,6 +150,7 @@ uncovered flag would libel well-tested files.
 | `from` `to` | string | stable | node ids; both always resolve |
 | `kind` | string | stable | `import` `http` `sql` `cache` `s3` `coupling` `request` `response` `read` `write` `test:subject` `test:exercises` |
 | `cross` | bool | stable | crosses a service boundary, ignoring `infra` |
+| `line` | int | stable | 1-based line in `from` declaring the import; what jump-to-line opens. `kind: "import"` only — a target imported on several lines gets its first occurrence in file order; other kinds never carry it |
 | `note` | string | experimental | present on curated edges |
 | `flow` | string | experimental | the flow that contributed the edge |
 
@@ -210,19 +213,28 @@ branches on `kind`, never on an id.
 
 | field | type | notes |
 | --- | --- | --- |
-| `id` | string | `structure`, `tests`, `derived`, or one per distinct `flows[].view` |
+| `id` | string | `structure`, `tests`, `findings`, `derived`, or one per distinct `flows[].view` |
 | `label` | string | what the strip shows |
-| `kind` | string | `structure` \| `flow` \| `tests` — **the only thing the viewer branches on** |
+| `kind` | string | `structure` \| `flow` \| `tests` \| `findings` — **the only thing the viewer branches on** |
 | `title` `hint` | string | heading and explanatory line; config may override |
 | `showPhase` | bool | present on a flow view whose flows carry `phase` |
 | `derived` | bool | present and `true` on the derived-paths view |
+
+The `structure` and `tests` views are always present, and so is `findings` —
+**including when `findings` is empty**. A repository with nothing wrong with it
+has a result to report, and dropping the view would make "eight checks ran and
+matched nothing" indistinguishable from "this tool does not check". The
+derived-paths view is the one conditional entry: it appears only when there are
+derived paths to play.
 
 ## `theme`
 
 Colour and style tables, shipped rather than hardcoded because canvas cannot read
 CSS custom properties. Scalars: `ink`, `bg`, `face`, `packetLabel`, `accent`,
 `plate`, `edge`, `layerFallback`, `font`. Tables: `edgeStyle`, `packetColor`,
-`coverTint`, `legend`. `dark` is a **delta** over the scalars — only what changes.
+`coverTint`, `findingSeverity`, `legend`. `dark` is a **delta** over the scalars,
+plus `findingSeverity` — the one table it carries, because a severity ring is
+drawn over a veiled city and a deep red disappears into a near-black ground.
 Config may replace any branch; see [config.md](./config.md).
 
 ## `derivedFlows`
@@ -245,6 +257,70 @@ with `from`/`to` as **integer node indices** rather than ids — the top-level
 > **These are inferences, not observations.** See the table at the end of this
 > document. A consumer that renders them identically to `edges` is making a claim
 > the scanner did not.
+
+## `findings`
+
+`atlas findings --json` prints this array. Every entry is structural — no
+style opinions, nothing that needs an AST (PLAN.md, "Findings engine") — and
+is computed from the graph, coverage and derived paths this same payload
+already carries; nothing here is a second analysis pass over source.
+
+| field | type | notes |
+| --- | --- | --- |
+| `id` | string | deterministic — same input, same id. What a config's `findings.mute` names to silence a finding |
+| `type` | string | `cycle` `layering` `oversized-file` `untested-endpoint` `orphan` `unreachable` `god-node` `cross-service` |
+| `severity` | string | `info` \| `warning` \| `error` |
+| `message` | string | one line, naming the exact ids involved |
+| `why` | string | one line — why this finding matters, not what it is |
+| `evidence` | object | `{ nodes: string[], edges: {from,to,kind}[] }` — the exact node/edge ids implicated, for a renderer to highlight in place. Never a prose description. The viewer's findings view draws exactly this: the named blocks and edges at full strength, the rest of the map dimmed rather than removed |
+| `muted` | bool | `true` when `findings.mute` in config names this finding's `id` |
+| `muteReason` | string\|null | the reason given alongside it, or `null` when not muted |
+
+**Muting never removes a finding from the array.** It only stamps
+`muted`/`muteReason` — the finding stays visible, which is what keeps
+`atlas findings --json` a complete account of what was found rather than a
+list a config can quietly shrink. A consumer wanting only the live findings
+filters on `!f.muted`.
+
+Each finding type is total by construction (CLAUDE.md, "Graceful degradation")
+and several report **nothing** rather than a false claim when their basis is
+not measured for a given repository: `untested-endpoint` when no coverage was
+measured at all (no tests, or none an adapter could resolve), `unreachable`
+when no `entry`-layer node exists to measure reachability from. Thresholds —
+`locThreshold`, `godNodePercentile`, `minGodInDegree`, `orphanRoots`, `mute` —
+are config; see [config.md](./config.md#findings).
+
+## `source`
+
+Absent by default. `atlas build --embed-source [glob]` adds it, and the
+consequence is exactly what the field name says: the shareable HTML this
+produces then contains that source text. The viewer's SOURCE panel reads it
+through the same `SRC.cache` a live `atlas serve` read fills, and the footer
+legend's `SOURCE EMBEDDED` badge is driven by this field being present — it is
+never omitted or downplayed when the field is here.
+
+| field | type | notes |
+| --- | --- | --- |
+| `glob` | string \| null | the glob `--embed-source` was given, or `null` for the whole scanned set |
+| `gzip` | bool | `true` when `--gzip-source` compressed `files` into `blob` below |
+| `paths` | string[] | every embedded path, sorted — present either way, and never compressed, so the viewer can answer "is this file embedded" and count files for the footer badge without inflating anything |
+| `files` | object | **present when `gzip` is `false`.** repo-relative path -> file text |
+| `blob` | string | **present when `gzip` is `true`.** one base64 gzip stream covering every embedded file's text together (`JSON.stringify(files)`, then gzip, then base64) — one shared blob rather than one gzip stream per file, so files that resemble each other actually help compress one another instead of paying a separate header each |
+
+`paths`/`files` are keyed from the same `paths`/`fileSet` `collect()` produces
+for `atlas serve`'s allowlist — the same filter, so the embedded set and the
+map agree by construction — narrowed by `glob` when one was given, using the
+glob syntax `src/model/tests.mjs`'s `globToRe` already implements (`*` within a
+segment, `**/` for any depth). Order follows `collect()`'s sorted `paths`,
+which is what keeps two builds of the same input byte-identical.
+
+A file the glob excluded is not an error: the SOURCE panel says specifically
+that this file was not embedded, distinct from a file that could not be read
+at all. If a live `atlas serve` is also present for the page (uncommon, since
+these flags are `build`-only), embedded text is preferred — it is guaranteed
+complete for what it did embed, where a live fetch depends on a server that a
+plain static file has no way to promise — and the server is asked only for a
+path the glob left out.
 
 ## What is observed and what is modeled
 
