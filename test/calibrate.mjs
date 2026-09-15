@@ -78,9 +78,17 @@ export function diffFlow(flow, payload) {
   };
 }
 
-/** Every curated flow against one scanned payload, plus the aggregate across all of them. */
-export function calibrate(payload) {
-  const flows = FLOWS.map((f) => diffFlow(f, payload));
+/**
+ * Every curated flow against one scanned payload, plus the aggregate across all
+ * of them.
+ *
+ * `flows` defaults to TaxVault's so the original one-argument call still reads
+ * the same at the call site. A second corpus passes its own set rather than
+ * this module reaching for a global, which is what lets the same diff logic
+ * score a repository whose wiring style is nothing like TaxVault's.
+ */
+export function calibrate(payload, curatedFlows = FLOWS) {
+  const flows = curatedFlows.map((f) => diffFlow(f, payload));
   const ok = flows.filter((f) => !f.error);
   const agg = ok.reduce(
     (a, f) => ({
