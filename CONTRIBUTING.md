@@ -44,6 +44,34 @@ These hold for any change to `src/` or `bin/`:
   or detection, never a special case. The reviewable question on any change is
   *would this be right on a repo I have never seen?*
 
+## Posture checklist
+
+The constraints above are the ones a change to `src/` runs into. The full list,
+including the rules about what may leave the process and what the server may
+hand out, is [`docs/posture-checklist.md`](./docs/posture-checklist.md). Read it
+before your first change. The short version:
+
+- **Do not leak the target repository.** Scanned source and file contents never
+  reach stderr, an error message or a stack trace; a path is fine, the line that
+  failed to parse is not. No credentials in code, fixtures, examples or tests.
+  `--json` is the sanctioned channel, and `--embed-source` stays opt-in and
+  badged.
+- **Do not overclaim.** No phantom endpoints, no modelled path that reads as an
+  observed one, no number the tool does not measure, nothing target-specific in
+  `src/` or `bin/`, and every classification carries the rule that placed it.
+- **Secure defaults for the server.** `serve` binds `127.0.0.1` as a literal,
+  file access is allowlist membership rather than path sanitization, and the
+  proxy takes a method, a path, headers and a body, never a host or a URL.
+- **Dependencies are a discussion.** Propose one in the pull request body and
+  weigh it against the single-file promise and install friction. Vendoring is
+  the third option. Never add one to make a single target repo work.
+
+Review a change against that list as well as against the diff: whether a new log
+line could carry target-repo content, whether new code hard-codes anything about
+a specific repository, whether a new visual element could make an inference look
+like a measurement, whether a new heuristic records why it fired, and whether a
+new file-serving path went through the allowlist rather than around it.
+
 ## The adapters <-> model boundary
 
 `src/adapters/` <-> `src/model/` is the load-bearing seam in this codebase.
