@@ -47,6 +47,19 @@ never "and walk `node_modules`" — and forgetting to restate the defaults is bo
 silent and expensive: a worktree scan then walks every dependency ever installed.
 Your patterns are appended to the defaults and de-duplicated by source.
 
+The one exception runs the other way. `--include-vendor` (or `includeVendor:
+true`) *subtracts* the vendor half of the default list — `node_modules`,
+`vendor/`, `site-packages`, virtualenvs, `__pycache__` — so a reader who asked
+to see their dependencies gets them, marked `vendor: true` and switchable off
+again in the viewer's OPTIONS. Build output, `.git` and lockfiles are in the
+other half and stay excluded whatever the flags say: they are not somebody
+else's source, they are this repo's code already drawn once, or not code at all.
+
+It is off by default for a reason worth stating plainly: a mid-size repository
+has tens of thousands of vendored files, and drawing them makes the map
+unreadable. Turn it on to answer a question about a dependency, not to look at
+the whole city.
+
 ### `services`
 
 ```js
@@ -152,6 +165,31 @@ helper-registered routes are skipped and counted rather than guessed at.
 | `python.internal` | RegExp | modules that **must** exist in-repo; failing to place one is `unresolved`, not "some package we do not scan" |
 | `python.barrels` | string[] | `__init__.py` re-export barrels; consumers point at the module that defines the symbol |
 
+## Views
+
+`views` sets the order, titles and hint copy of the view strip. A view is
+**data**, and `kind` is what the viewer branches on, never the id:
+
+| kind | what it shows |
+| --- | --- |
+| `dataflow` | every node, filtered by the sidebar toggles, with import packets running on the edges. The default `structure` view's kind |
+| `flow` | only the nodes and edges named by this view's curated flows |
+| `tests` | test edges and the coverage tint |
+| `request` | compose a request against one endpoint and play its modelled path — curated where one was asserted, derived otherwise |
+| `findings` | the whole map, with one finding's evidence lit and the rest dimmed |
+
+There is no `derived` kind. Inferred paths used to have a strip button of their
+own; they are reached through the composer now, which opens on every endpoint's
+path, and `derived: true` on the flow is what still marks one inferred. A config
+that named a `derived` view keeps whatever it named — nothing is dropped — but
+the tool no longer generates one.
+
+The viewer used to hardcode four view ids and branch on two of them by name,
+which meant a repo whose flows were called anything else silently lost its flow
+views. One flow view is created per distinct `flows[].view`, so curating a flow
+adds a view without touching the tool. Supplying a `views` array with matching
+ids overrides any of it.
+
 ## Theme
 
 `theme` overrides the palette. It is merged **per branch**, so replacing one
@@ -171,6 +209,22 @@ edge kind does not drop the other eleven.
 | `legend` | object | legend rows per view kind; each row *names* a key in the tables above rather than repeating a colour, so the legend cannot drift from the map |
 | `dark` | object | the dark theme, as a **delta** over the keys above |
 | `density` | object | how much air sits between districts and services. See below |
+| `ramps` `rampLabels` | object | the identity palettes the viewer's PALETTE panel offers, as ordered colour lists. Four ship (`atlas` `blueprint` `earth` `okabe`), mixed in OKLab at equal lightness and sized to your layer list |
+| `blockShadow` `faceGradient` `glow` | bool | material switches — appearance the renderer turns on or off, not colours |
+| `gridAlpha` | number | how far the ground grid sits under the city |
+| `shadow` `sheen` | string / string[] | the drop shadow, and the three stops of the `liquid glass` material's highlight |
+
+A layer with no `color` is painted from the `atlas` ramp by its position in
+`layers`, so the palette steps evenly instead of drifting the way a hand-picked
+hex list does. Naming a `color` on a layer still wins. The viewer's `COPY
+CONFIG` button emits exactly this block for whatever palette you edited on
+screen, which is how a colour you liked in the viewer becomes one the build
+ships.
+
+Canvas cannot read CSS custom properties, so the viewer needs real colour values
+in JavaScript. These tables are the single definition: the legend is generated
+from them rather than hand-written, which is what stops a legend row and the
+thing it labels drifting apart.
 
 ### `theme.density`
 

@@ -1,26 +1,9 @@
-/**
- * Streamed scan progress.
- *
- * A first scan of a large repository is indistinguishable from a hang, and the
- * fix for that is not a job queue — it is one line that keeps moving:
- *
- *   walk 1,240 files · parse 890/1,240 · resolve · endpoints · derive
- *
- * Two rules keep it from becoming a liability. It is throttled, because
- * rewriting a line once per file is slower than the work it reports on. And it
- * writes nothing at all unless the stream is a TTY, which is what keeps
- * `--json | jq` and every redirect clean without the pipeline knowing anything
- * about how it is being consumed.
- */
+/** Streamed scan progress: one line that keeps moving, so a first scan of a large repo is not indistinguishable from a hang. Throttled, and silent unless the stream is a TTY, which keeps `--json | jq` and every redirect clean. */
 
 /** ~10 writes a second: fast enough to read as live, slow enough to be free. */
 const INTERVAL = 100;
 
-/**
- * @param stream  where to draw; anything non-TTY yields a no-op
- * @param now     injectable clock, so the throttle is testable
- * @returns tick(phase, detail) with a .done() that clears the line
- */
+/** @param stream where to draw (non-TTY yields a no-op) @param now injectable clock @returns tick(phase, detail), with a .done() that clears the line */
 export function makeProgress(stream, now = Date.now) {
   if (!stream?.isTTY) {
     const noop = () => {};
@@ -35,10 +18,7 @@ export function makeProgress(stream, now = Date.now) {
   const draw = () => stream.write("\r\x1b[K" + [...phases].map(([p, d]) => (d ? `${p} ${d}` : p)).join(" · "));
 
   const tick = (phase, detail = "") => {
-    // Entering a phase always draws. Only the counter inside one is throttled,
-    // because that is the only tick that arrives per file — and a line reading
-    // `parse 12000/40000` while the scan is really three phases further on
-    // answers "is it hung?" wrongly, which is the whole job.
+    // Entering a phase always draws; only the per-file counter is throttled, since a stale phase name answers "is it hung?" wrongly.
     const entering = !phases.has(phase);
     phases.set(phase, detail);
     const t = now();
@@ -47,8 +27,7 @@ export function makeProgress(stream, now = Date.now) {
     draw();
   };
 
-  // Anything else writing to the same stream wipes the line first, or its
-  // message lands on top of a half-drawn one. The next tick redraws it.
+  // Anything else writing to this stream wipes the line first, or its message lands on a half-drawn one; the next tick redraws.
   tick.clear = () => stream.write("\r\x1b[K");
   tick.done = () => {
     phases.clear();

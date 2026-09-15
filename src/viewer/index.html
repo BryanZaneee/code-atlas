@@ -6,27 +6,18 @@
 
 <div id="app">
   <header id="topbar">
+    <div class="hleft">
+      <button id="bNav" title="show / hide the navigation panel">☰</button>
+    </div>
     <div class="brand">
       <div class="k">REPOSITORY</div>
       <div class="v" id="bRepo">—</div>
-      <div class="r" id="bRef">—</div>
     </div>
-    <div class="stats" id="stats"></div>
+    <div class="hspace"></div>
     <div class="controls">
-      <button id="bPause" class="on">▮▮ PAUSE</button>
-      <button id="bStep">▶| STEP</button>
-      <button id="bIsolate" class="on" title="show only the active flow, or the flow inside the whole map">◎ ISOLATED</button>
-      <select id="bSpeed" title="flow speed">
-        <option value="0.25">0.25×</option>
-        <option value="1" selected>1×</option>
-        <option value="2">2×</option>
-        <option value="4">4×</option>
-      </select>
-      <button id="bRotL" title="rotate left (Q)">⟲</button>
-      <button id="bRotR" title="rotate right (E)">⟳</button>
-      <button id="bReset">⤢ RESET VIEW</button>
       <button id="bTheme" title="light / dark">◐ DARK</button>
       <button id="bColor" title="identity colour on the fill, or line-art">▦ MONO</button>
+      <button id="bIns" title="show / hide the inspector panel">▤</button>
     </div>
   </header>
 
@@ -36,60 +27,144 @@
         <h3>VIEW</h3>
         <div id="views" style="display:grid;grid-template-columns:1fr 1fr;gap:4px"></div>
       </div>
-      <div class="sec">
-        <h3>FILTER</h3>
-        <input type="text" id="q" placeholder="filter files or areas…" autocomplete="off">
-      </div>
-      <div class="sec">
-        <h3><span id="listTitle">AREAS</span><span class="num" id="listCount"></span></h3>
-        <div id="list"></div>
-      </div>
-      <div class="sec">
-        <h3>SERVICES</h3>
-        <div id="svc"></div>
-      </div>
-      <div class="sec">
-        <h3>VISUAL</h3>
-        <label class="pick"><span>shape</span><select id="vShape"></select></label>
-        <label class="pick"><span>density</span><select id="vDensity"></select></label>
-        <label class="pick"><span>packing</span><select id="vPacking">
-          <option value="grid">grid</option>
-          <option value="wide">wide</option>
-          <option value="tall">tall</option>
-        </select></label>
-        <label class="chk"><input type="checkbox" id="vGround" checked> ground grid</label>
-      </div>
-      <div class="sec">
-        <h3>OPTIONS</h3>
-        <label class="chk"><input type="checkbox" id="oDocs"> show markdown</label>
-        <label class="chk"><input type="checkbox" id="oTests"> show tests in structure</label>
-        <label class="chk"><input type="checkbox" id="oContract" checked> show contract edges</label>
-        <label class="chk"><input type="checkbox" id="oAmbient" checked> ambient import packets</label>
-        <label class="chk"><input type="checkbox" id="oLabels" checked> file labels</label>
-      </div>
-      <div class="sec hint" id="sideHint"></div>
+      <details class="fold" open="open">
+        <summary><span id="listTitle">FOLDERS</span><span class="num" id="listCount"></span></summary>
+        <div class="foldBody">
+          <input type="text" id="q" placeholder="search files or folders…" autocomplete="off" style="margin-bottom:6px">
+          <div id="list"></div>
+        </div>
+      </details>
+      <details class="fold" open="open">
+        <summary>SERVICES</summary>
+        <div class="foldBody">
+          <div id="svc"></div>
+        </div>
+      </details>
+      <details class="fold">
+        <summary>VISUAL</summary>
+        <div class="foldBody">
+          <label class="pick"><span>group by</span><select id="vGroup">
+            <option value="folder">folders</option>
+            <option value="layer">layers</option>
+          </select></label>
+          <label class="pick"><span>shape</span><select id="vShape"></select></label>
+          <label class="pick"><span>material</span><select id="vMaterial">
+            <option value="solid">solid</option>
+            <option value="glass">liquid glass</option>
+          </select></label>
+          <label class="pick"><span>density</span><select id="vDensity"></select></label>
+          <label class="pick"><span>plan</span><select id="vPacking">
+            <option value="grid">square</option>
+            <option value="wide">wide</option>
+            <option value="tall">tall</option>
+          </select></label>
+          <label class="pick"><span>bands</span><select id="vBands">
+            <option value="auto">auto</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+          </select></label>
+          <label class="chk"><input type="checkbox" id="vGround" checked="checked"> ground grid</label>
+          <label class="chk"><input type="checkbox" id="vRoads" checked="checked"> route imports along streets</label>
+          <label class="chk"><input type="checkbox" id="vPlinth" checked="checked"> raise services on plinths</label>
+          <label class="chk"><input type="checkbox" id="vFacade" checked="checked"> facade bands (50 lines each)</label>
+        </div>
+      </details>
+      <details class="fold">
+        <summary>PALETTE</summary>
+        <div class="foldBody">
+          <label class="pick"><span>colour by</span><select id="pMode">
+            <option value="layer">layer</option>
+            <option value="lang">language</option>
+            <option value="district">district</option>
+          </select></label>
+          <label class="pick"><span>palette</span><select id="pPreset"></select></label>
+          <div id="pLayers"></div>
+          <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
+            <button id="pSave" title="save these colours as your own palette">SAVE AS…</button>
+            <button id="pCopy" title="emit the theme block for atlas.config.mjs">COPY CONFIG</button>
+            <button id="pReset" title="back to the generated ramp">RESET</button>
+          </div>
+        </div>
+      </details>
+      <details class="fold">
+        <summary>OPTIONS</summary>
+        <div class="foldBody">
+          <label class="chk"><input type="checkbox" id="oVendor"> show vendor bulk (node_modules…)</label>
+          <label class="chk"><input type="checkbox" id="oDocs"> show markdown</label>
+          <label class="chk"><input type="checkbox" id="oTests"> show tests in structure</label>
+          <label class="chk"><input type="checkbox" id="oContract" checked="checked"> show contract edges</label>
+          <label class="chk"><input type="checkbox" id="oAmbient" checked="checked"> ambient import packets</label>
+          <label class="chk"><input type="checkbox" id="oLabels" checked="checked"> file labels</label>
+        </div>
+      </details>
+      <details class="fold">
+        <summary>SCAN</summary>
+        <div class="foldBody">
+          <div class="stats" id="stats"></div>
+        </div>
+      </details>
     </aside>
 
     <main id="stage">
-      <canvas title="drag to pan · shift-drag to rotate · alt-drag to move a district · R to put everything back" id="cv"></canvas>
-      <div class="ov" id="ovTop"><b>THE CODEBASE</b></div>
+      <canvas id="cv"></canvas>
       <div class="ov" id="ovRight"><b id="ovWarn"></b><span id="ovStatus">FLOW ACTIVE</span></div>
-      <div class="ov" id="ovHint">SPACE PLAYS · ← → STEP · ESC CLEARS · DRAG PANS · SHIFT-DRAG TURNS · ALT-DRAG MOVES · SCROLL ZOOMS · Q E R TURN</div>
       <div id="tip"></div>
       <div class="ov" id="caption"></div>
+      <div id="helpDock">
+        <div id="help" hidden="hidden">
+          <h4 id="helpTitle">READING THIS VIEW</h4>
+          <p id="helpHint"></p>
+          <h4>CONTROLS</h4>
+          <div class="keys"><span>DRAG PAN</span><span>SHIFT-DRAG TURN</span><span>SCROLL ZOOM</span><span>SPACE PLAY</span><span>← → STEP</span><span>Q E ROTATE</span><span>R RESET</span><span>ESC CLEAR</span><span>DBL-CLICK COLLAPSE DISTRICT</span></div>
+        </div>
+        <div id="helpRow">
+          <button id="bHelp" title="what this view shows, and every control">? HELP</button>
+          <div id="ovTitle">THE CODEBASE</div>
+        </div>
+      </div>
+      <div id="topdock">
+        <div id="transport">
+        <button id="bPause" class="on">▮▮ PAUSE</button>
+        <button id="bStep">▶| STEP</button>
+        <select id="bSpeed" title="flow speed">
+          <option value="0.25">0.25×</option>
+          <option value="1" selected="selected">1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+        <button id="bIsolate" class="on" title="show only the active flow, or the flow inside the whole map">◎ ISOLATED</button>
+      </div>
+        <div id="camctl">
+          <button id="bRotL" title="turn the map left (Q)"><i>⟲</i>LEFT</button>
+          <button id="bRotR" title="turn the map right (E)"><i>⟳</i>RIGHT</button>
+          <button id="bMove" title="arrange mode — drag blocks and districts onto new cells"><i>✦</i>ARRANGE</button>
+          <button id="bReset" title="refit the camera and put every moved block back (R)"><i>⤢</i>RESET</button>
+        </div>
+      </div>
+      <div id="onboard" hidden="hidden">
+        <div class="obCard">
+          <div class="obKicker">READING THIS MAP</div>
+          <div class="obTitle">The codebase, as a city</div>
+          <div class="obRow"><b>Flags</b> name the services · <b>districts</b> are folders · <b>block height</b> is file length.</div>
+          <div class="obRow">Click any block for its imports, tests and source. Moving diamonds are packets riding real import edges — click one mid-flight to read it. Use ✦ ARRANGE to rearrange blocks and districts by hand.</div>
+          <div class="obKeys"><span>⌘K GO TO</span><span>DRAG PAN</span><span>SHIFT-DRAG TURN</span><span>SCROLL ZOOM</span><span>SPACE PLAY</span><span>ARROWS MOVE</span><span>ESC CLEAR</span></div>
+          <button id="obGo">EXPLORE THE MAP</button>
+        </div>
+      </div>
     </main>
 
     <aside id="inspect">
+      <nav id="crumb" hidden="hidden"></nav>
       <div class="tabs">
         <button id="tabInfo" class="tab on">INFO</button>
+        <button id="tabNotes" class="tab">NOTES</button>
         <button id="tabSource" class="tab">SOURCE</button>
       </div>
       <div class="sec" id="insBody"></div>
     </aside>
 
-    <!-- The source reader. Docked over the map rather than beside it: code needs
-         the width, and the map carries on rendering behind it. -->
-    <section id="source" hidden>
+    <section id="source" hidden="hidden">
       <div id="srcGrip" title="drag to resize"></div>
       <header id="srcHead">
         <div class="who">
@@ -103,6 +178,14 @@
   </div>
 
   <footer id="legend"></footer>
+
+  <div id="palette" hidden="hidden">
+    <div class="palBox">
+      <input type="text" id="palInput" placeholder="go to a file, district, endpoint or finding…" autocomplete="off" spellcheck="false">
+      <div id="palList"></div>
+      <div class="palFoot"><span>↑↓ MOVE</span><span>↵ GO</span><span>ESC CLOSE</span></div>
+    </div>
+  </div>
 </div>
 
 <script>const ATLAS = /*__ATLAS_DATA__*/;</script>

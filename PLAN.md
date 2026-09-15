@@ -183,6 +183,12 @@ Most repos have zero curated flows, so derivation makes curation an *enhancement
 
 ```
 0. Seed with the mount chain (statically PROVEN wiring) — certainty:"wired".
+   The endpoint -> definedIn edge already IS one link of that proof: it is the
+   exact call site extractEndpoints found. The rest of the chain — whichever
+   file(s) call `app.route/use(prefix, definedIn)`, walked back to a root the
+   way mounts.mjs's fixpoint does — is proof of the same kind and is walked
+   here too. Without it a two-file Express or FastAPI app (app.ts registers,
+   routes.ts declares) loses its first hop on every endpoint.
 1. BFS from endpoint.definedIn over internal import edges: depth ≤ 6,
    rank non-decreasing, layer not skipped, not already admitted.
 2. Sort by (rank, depth, inDegree desc, path); one step per adjacent pair.
@@ -195,6 +201,18 @@ Most repos have zero curated flows, so derivation makes curation an *enhancement
 **Seed from the handler, not the file** — the highest-value 30 lines here. A route file imports 15 things; only some are on *this* endpoint's path. Slice the text from the route's line to the next route declaration, collect identifiers, seed the BFS only with imports whose symbols intersect. That's the difference between a plausible path and a shotgun.
 
 **Calibration is a script, and it runs before any composer UI exists.** `tools/calibrate.mjs` diffs the derived path against **every** curated flow — all 9, not one — and emits precision/recall per flow plus an aggregate: which hops derivation invented, which it missed, which it got in the wrong order. One endpoint is an anecdote; nine is a measurement. Its output ships in the README so expectations are set *before* first use, and it becomes a regression test — derivation changes must not regress the aggregate.
+
+**Certainty is a three-value vocabulary**, and the honesty contract rests on it:
+`wired` is statically proven mounting, `imported` is a real import edge, and
+`inferred` is a gap the model bridged. Nothing renders an inferred hop the way it
+renders a wired one, and per-hop timing — `ms / hops.length` — is never computed
+anywhere, because dividing a measured total across modelled hops would turn a
+guess into a reading.
+
+Only the router -> controller -> service -> repository spine is traced; a request
+never legitimately routes through a test file or a README, so the off-spine
+layers are skipped (`OFF_SPINE_LAYERS` in `src/config/defaults.mjs`, shared with
+the layering finding rather than restated).
 
 Derived at scan time, stored as integer node indices. Every solid hop opens the exact import line that justifies it — auditable in two clicks. `[+ CURATE THIS]` copies a ready-to-paste config entry.
 
@@ -276,6 +294,28 @@ Controls: `Q`/`E` and `⟲ ⟳` rotate 15°; **Shift+drag** rotates freely; `R` 
 
 **Not an open relay:** the proxy takes `{method, path, headers, body}` — **no host, no URL**. Target origin comes from server config; the final URL is asserted against it. `--target` is what SETS that server config, read once in `bin/atlas.mjs` and validated before the server starts — so PLAN's `--target URL` and ROADMAP's "origin from server config" are the same statement, not two. **Built with no non-loopback override**, despite the line below allowing one: the check sits in one named function so adding it later stays a deliberate act. `--allow-live` required at the *process* level. Target must be loopback/private unless explicitly overridden. Method + header allowlists, timeout, 256 KB cap, `redirect:"manual"`, rate bucket, one stderr line per proxied request.
 
+**DNS is never resolved, anywhere on the outbound leg.** Resolving a hostname at
+validation time and connecting by that name later is TOCTOU against ourselves —
+the same rebinding class the inbound `Host` pinning defends against, and it would
+be perverse to defend one direction and leave the other open. Resolving and
+connecting by IP instead would break SNI and vhost routing, and needs a custom
+`lookup` hook the global `fetch` does not offer. So the host check is purely
+syntactic on what the operator typed: a name that *resolves* to a private address
+(an `/etc/hosts` alias, split-horizon DNS) is refused. `myapp.local` will not
+work; type `http://127.0.0.1:3000`. That is the direction this design accepts
+being wrong in — "atlas would not talk to my dev alias", never "atlas fetched the
+metadata service".
+
+Every comparison is on parsed integer octets, never a string prefix: `172.32.0.1`
+and `172.15.0.1` both look like "172." to a `startsWith` check and both sit
+outside 172.16.0.0/12.
+
+Two residual risks, named rather than implied. `localhost` could itself be
+repointed via `/etc/hosts`, which needs local root — whoever holds that owns the
+process anyway. And a loopback target could redirect outward, which is why
+`redirect: "manual"` is a **security control and not a display choice**: a
+followed 302 to 169.254.169.254 would launder every check above.
+
 **Auth token stays out of the browser.** `--auth-env AUTH_TOKEN`; the server injects the header, the viewer shows `AUTH: from env` and offers no field. Fallback is `sessionStorage` (never `localStorage`) with explicit clear. `[ COPY AS cURL ]` verifies what would be sent *without sending it*.
 
 ### Code viewer
@@ -286,7 +326,7 @@ Highlighting is **Prism 1.29.0, vendored** — committed into `src/viewer/` as a
 
 *Reversed decision.* This was specified as a ~60-line alternation regex per language, on the grounds that "a wrong color is a cosmetic bug, not a lie". That reasoning held while the panel was a side feature. Once SOURCE is the way a reader actually reads the code, getting nesting, template literals and JSX wrong is a steady tax on the thing the panel exists for, and 27 KB against a 204 KB atlas is a cheaper price than the one the regex charges every time someone opens a file.
 
-What does not change is the constraint underneath it: **never `innerHTML` on raw source.** Prism is used as a tokenizer only — `Prism.tokenize`, never `highlight`/`highlightElement` — and the DOM is built by hand from text nodes. A file containing `<script>` is a file. `test/source.test.mjs` enforces this by running the real paint against a DOM whose `innerHTML` setter throws.
+What does not change is the constraint underneath it: **never `innerHTML` on raw source.** Prism is used as a tokenizer only — `Prism.tokenize`, never `highlight`/`highlightElement` — and the DOM is built by hand from text nodes. A file containing `<script>` is a file. `test/viewer-source.test.mjs` enforces this by running the real paint against a DOM whose `innerHTML` setter throws.
 
 **Static mode.** Default shows *"Source is not embedded. Run `atlas serve`, or rebuild with --embed-source."* `--embed-source [glob]` opts in, and the consequence is stated plainly: **the shareable HTML then contains your entire codebase.** `--gzip-source` stores it as a base64 gzip blob inflated with `DecompressionStream("gzip")` — both `node:zlib` and `DecompressionStream` are built in, so it stays zero-dep, and source text compresses ~3-4×, but the blob has to survive JSON as base64, which multiplies it back by 4/3 — so the figure that lands in the FILE is 2.31× on this repository (696,953 B → 301,282 B, against 3.10× for raw gzip with no wrapping), not the ~4× an earlier draft of this line claimed from Shuttrr's ~950 KB → ~240 KB. That estimate quoted the gzip size and forgot the encoding. Compress the whole file map as ONE stream, never per file: independent streams share no dictionary, and source files in one repo resemble each other enormously. Costs `view-source` legibility and an async boot step, so it's a flag, not the default. A permanent `SOURCE EMBEDDED` footer badge and a CLI size warning either way.
 
@@ -344,6 +384,7 @@ Reordered from the original: **perf moved into Phase 1**, because the `RangeErro
 | **8** | Request composer UI | Compose → `SEND (MODELED)` animates the derived path with substituted values; curated-vs-derived badge visible on canvas; `[+ CURATE THIS]` output pastes into a config and validates |
 | **9** | Live mode | Real 200 + latency from a running Shuttrr; 401 halts at hop 1 and says so; proxy refuses `path:"http://example.com/"`, refuses non-loopback target, 403s without `--allow-live`; no token in stderr or `outerHTML` |
 | **10** | Open-source packaging | README, LICENSE, CONTRIBUTING, `docs/{payload-schema,adapters,config}.md`. Gate: a reader who has never seen the repo goes from `git clone` to a rendered atlas of **their own** project using only the README, on a repo with no config. |
+| **11** | **Viewer port**: folder districts and the `group by` toggle, shelf-packed compaction, imports routed along streets, service plinths, facade bands, kind-carrying shapes, the OKLab identity ramp in the payload, arrival animation, top dock, folding sidebar, `? HELP`, onboarding, palette authoring, per-block appearance, notes, ARRANGE, megablock collapse, `--include-vendor` | Four views, not seven. A built atlas makes **no network request** — checked on the built HTML, because the design it came from linked a webfont. Live mode still sends and still says `LIVE · STATUS OBSERVED · PATH STILL MODELLED`. `generic.test.mjs` green. Goldens re-baselined with the diff read. |
 
 ## Limitations (stated up front, and in the README)
 
@@ -353,11 +394,18 @@ Regex, not AST — under-reports, quantified by the conformance fixtures. File-l
 
 Real tracing / OTel / per-hop timings · AST parsing · call-graph analysis · a bundler or TS for the tool itself · persisted layouts / URL state · multi-repo & multi-commit diffing · adapters beyond TS/Python at launch (a language with no adapter still renders, with no edges and a coverage line in `atlas scan`) · OpenAPI import · nested-district layout (the `parentId` field ships, the layout doesn't) · **any writing to the target repo beyond `atlas init`** · auth flows in the composer.
 
-**A desktop shell** stays deferred until after v1.0, as a separate package.
+**A desktop shell** was deferred until after v1.0, as a separate package. v1.1
+shipped, so the deferral's own condition is met and Phase 16 takes it up — in
+`desktop/`, beside the existing tree rather than as a `packages/` rewrite, with
+its own dependencies so the core stays publishable with none.
 
 **WebGL is no longer deferred** (see Decisions reversed). Phase 1 keeps `relayout()`/`reproject()` emitting plain world-space geometry that `draw*` consumes, so a WebGL renderer is a swap rather than a rewrite. No renderer abstraction gets built ahead of that — one seam, not an interface with a single implementation. Nothing is built yet: the viewer is Canvas 2D.
 
-Scope guard: the code viewer is read-only with no search and no editing; the composer has no collections, environments, or scripting. If a request is "like Postman" or "like VS Code", the answer is no.
+Scope guard, narrowed in Phase 15 (see Decisions reversed): the code viewer is
+**read-only, with no text editing and no full-text search across source**; the
+composer has no collections, environments, or scripting. Navigating a map by
+name and by keyboard is in. Becoming an editor is not. If a request is "like
+Postman", the answer is still no.
 
 ## Decisions reversed
 
@@ -378,9 +426,77 @@ renderer rewrite displacing the scanner work, and the scanner work is now largel
 done. The seam it protected still exists and is still the plan. Adopting three.js
 or paper-shaders is a dependency decision and goes through the rule above.
 
+**Folders, from never drawn to the default axis.** The old rule said a directory
+decides a block's layer and service and then plays no further part, and the
+reasoning was good: grouping by the job a file does says something the file tree
+cannot, and two files that sit together on disk landing in different districts is
+the map working. What it did not survive was contact with readers. The first
+question anyone asks of a map of their own repository is *where is the thing I
+was just editing*, and a map with no answer to that is a diagram of the tool's
+opinion rather than of the code. Both axes now ship and `group by` switches
+between them; layer stays the block's colour in either, so the architectural
+read is never actually lost — it moves from position to hue. What did not
+change: nothing nests, and a deep path is one column named `a/b/c`, not three.
+The rule this replaces was about not building a folder *tree*, and that part
+still holds.
+
+**Seven views to four.** DATA FLOW was a separate view of the same city with the
+packets turned on; API FLOW was the composer without the composing. Both were
+buttons that asked a reader to know a distinction before they had seen either
+side of it. Import packets now run in STRUCTURE by default and an inferred path
+is reached by picking its endpoint in API REQUEST. The caveat moved with it:
+`derived: true` is on the flow and the canvas still says so, which is the part
+the honesty contract actually requires. Fewer buttons, same claims.
+
+**Layer colours, from a hand-picked list to a generated ramp.** Eighteen hex
+values chosen by eye drift in lightness, so a column read as more important than
+its neighbour for no reason anyone intended. They are mixed in OKLab at equal
+lightness now, stepped by hue, and generated in `src/model/chrome.mjs` so the
+payload still carries the finished colour and a config can still name its own.
+The viewer picks from what it is given; it does not compute a palette.
+
 **The honesty contract, from four UI rules to one idea.** Exact button strings,
 mandated badge placement and a banned synonym were pinning the interface without
 making the map more honest — and two of the four governed phases that do not
 exist. What survives: a modelled path must never read as an observed one, and a
 number the tool does not measure is not drawn. How that reads on screen is a
 design question.
+
+**"Like VS Code, the answer is no", from a wall to a line.** The guard was
+written against becoming an *editor*, and that is still right: text editing, a
+file tree, a project-wide search index and a language server are each a different
+product, and each would quietly become the thing this tool is judged as. What the
+guard also blocked, without meaning to, was *navigation* — a command palette, an
+arrow key that moves the selection, a click on an import line that goes to what
+it imports. None of those makes an editor of anything. And the argument that
+retired the no-folders rule applies here word for word: the first thing anyone
+does with a map of their own repository is look for the file they were just
+editing, and a map that answers slowly is a map they stop opening.
+
+So the line moved rather than coming down. **Read-only, no text editing, no
+full-text search across source** is what still binds; a source index is where
+navigation stops being navigation. Name-based jumping is in. Postman is
+untouched by any of this: the composer still has no collections, environments or
+scripting, because "send a request" and "manage a request suite" really are two
+products.
+
+**A desktop shell, from deferred to Electron.** The deferral existed so a
+packaging project could not displace the scanner work, and the scanner work is
+done. Electron over Tauri, and the first reason is reuse rather than speed: the
+Electron main process is Node, so `src/serve/server.mjs` and `src/serve/proxy.mjs`
+run as they are, with the allowlist, the symlink refusal, the `Host` pinning and
+the server-side token injection intact. Tauri would mean reimplementing all of
+that in Rust, and a security posture that gets reimplemented is a security
+posture that gets re-argued by whoever is in a hurry.
+
+Speed happens to agree. The renderer's hot loop is thousands of `quad()` fills a
+frame, which is the workload where a non-Chromium webview falls down, and Tauri
+hands the renderer WKWebView on macOS and WebKitGTK on Linux. A fixed Chromium
+also turns Phase 1's still-open 60 fps gate into one gate rather than three
+per-platform ones.
+
+What it costs, said plainly: a ~150 MB artifact against Tauri's ~8 MB, and the
+repository's first real dependency. It is quarantined in `desktop/` with its own
+`package.json`, so `npm install code-atlas` still pulls nothing, and the
+single-self-contained-file promise is untouched — `atlas build` still writes one
+HTML file that opens in any browser with no shell at all.

@@ -1,23 +1,14 @@
-/**
- * Test suite classification and test -> subject mapping.
- *
- * Suite membership is read out of the project's own test-runner config rather
- * than guessed, so unit/integration/pact stays correct when the project changes
- * it. Config names the files to read; the glob translation is generic.
- */
+/** Test suite classification and test -> subject mapping, read from the project's own runner config. */
 import path from "node:path";
+import { adapterFor } from "../adapters/index.mjs";
 
 /** Pull a string array out of a config file by regex. No AST — see CLAUDE.md. */
-export function extractArray(text, key) {
+function extractArray(text, key) {
   const m = text.match(new RegExp(`${key}\\s*:\\s*\\[([\\s\\S]*?)\\]`));
   return m ? [...m[1].matchAll(/["']([^"']+)["']/g)].map((x) => x[1]) : [];
 }
 
-/**
- * A glob to a RegExp. The globstar form is split out first and each remaining
- * segment expanded on its own, so the single-star pass cannot eat it and no
- * sentinel character is needed to protect it.
- */
+/** Glob to RegExp; globstar is split out first so the single-star pass cannot eat it. */
 export const globToRe = (g) =>
   new RegExp(
     "^" +
@@ -48,18 +39,11 @@ export const FIXTURE = /(^|\/)conftest\.py$|(^|\/)(helpers|fixtures)\//;
 const tokens = (f) =>
   (f.split("/").pop() ?? "").replace(/^test_|\.test\.ts$|\.(ts|py)$/g, "").split(/[.\-_]/).filter(Boolean);
 
-/**
- * Cascade: path convention, then the best token overlap among the test's own
- * imports. Python tests import the app entrypoint rather than their nominal
- * subject, and the TS convention has holes (audit-entry.test.ts ->
- * audit-entry.repository.ts), so neither mechanism is sufficient alone.
- */
+/** Subject of a test: path convention first, then best token overlap among its imports; neither alone suffices. */
 export function subjectOf(p, internal, ctx) {
   const { layerOf } = ctx.config;
-  const conv = p.endsWith(".ts")
-    ? p.replace("/test/", "/src/").replace(/\.test\.ts$/, ".ts")
-    : p.replace("/test/", "/app/").replace(/(^|\/)test_([^/]+)\.py$/, "$1$2.py");
-  if (ctx.fileSet.has(conv) && conv !== p) return conv;
+  const conv = adapterFor(p)?.testSubject(p);
+  if (conv && ctx.fileSet.has(conv) && conv !== p) return conv;
 
   const want = tokens(p);
   const dir = path.posix.dirname(p).split("/").pop();

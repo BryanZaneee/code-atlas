@@ -179,13 +179,59 @@ test("every :root token has a value in both themes", () => {
  */
 test("the viewer reads theme and views from the payload", () => {
   const bundle = bundleScript();
-  assert.match(bundle, /THEME = ATLAS\.theme/);
+  // `BASE` is the payload's theme; `THEME` is the active one, which is BASE with
+  // the dark delta folded in. Both matter: the first says the palette is read
+  // rather than written here, the second that nothing else can substitute one.
+  assert.match(bundle, /const BASE = ATLAS\.theme/);
+  assert.match(bundle, /THEME = BASE/);
   assert.match(bundle, /const VIEWS = ATLAS\.views/);
   // The legend used to repeat ten literals already present in the edge tables,
   // and the renderer carried a dozen rgba() literals the hex check never saw —
   // which is how a whole palette survived being retired.
   const literals = bundle.match(COLOUR) ?? [];
   assert.deepEqual(literals, [], `colours belong in the payload theme: ${literals.join(", ")}`);
+});
+
+/**
+ * Load order is filename order, and every module is concatenated into one
+ * script, so a top-level name declared twice is a SyntaxError in the built page
+ * and nowhere else. Worth a test: the failure only shows up in a browser.
+ */
+test("no two viewer modules declare the same top-level name", () => {
+  const seen = new Map();
+  const clashes = [];
+  for (const f of viewerFiles()) {
+    if (f === "05-prism.js") continue;   // vendored, minified, and namespaced onto window
+    const src = readFileSync(path.join(VIEWER_DIR, f), "utf8");
+    for (const m of src.matchAll(/^(?:const|let|var|function|async function|class)\s+([A-Za-z_$][\w$]*)/gm)) {
+      const name = m[1];
+      if (seen.has(name) && seen.get(name) !== f) clashes.push(`${name}: ${seen.get(name)} and ${f}`);
+      seen.set(name, f);
+    }
+  }
+  assert.deepEqual(clashes, [], "concatenation makes these a SyntaxError in the built page");
+});
+
+/**
+ * `$("#thing")` against an id the markup does not have is null, and the failure
+ * lands wherever that handler eventually runs — often a click, sometimes never.
+ * The shell and the modules are edited separately, so this is the seam where a
+ * rename goes wrong, and it is cheap to check.
+ */
+test("every id the viewer looks up exists in the markup", () => {
+  const html = readFileSync(path.join(VIEWER_DIR, "index.html"), "utf8");
+  const declared = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]));
+  // Created by the viewer itself rather than shipped in the shell.
+  const MADE_AT_RUNTIME = new Set(["noteBox"]);
+  const missing = new Set();
+  for (const f of viewerFiles()) {
+    if (f === "05-prism.js") continue;
+    const src = readFileSync(path.join(VIEWER_DIR, f), "utf8");
+    for (const m of src.matchAll(/\$\("#([A-Za-z][\w-]*)"\)/g)) {
+      if (!declared.has(m[1]) && !MADE_AT_RUNTIME.has(m[1])) missing.add(`${m[1]} (${f})`);
+    }
+  }
+  assert.deepEqual([...missing], [], "these lookups return null at runtime");
 });
 
 test("index.html declares exactly one of each marker", () => {

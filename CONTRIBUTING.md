@@ -28,6 +28,12 @@ These hold for any change to `src/` or `bin/`:
 - **Regex, not AST.** Under-reporting is the accepted cost, quantified by the
   conformance fixtures. A missed pattern gets skipped, counted and reported.
   "Parse harder" is not the fix.
+- **The honesty contract.** Observed facts and modelled inferences are drawn in
+  the same picture, and the one rule holding that together is that the second
+  never reads as the first. Files, lines, import edges, endpoints and live HTTP
+  status are observed; the internal path a request takes is modelled, and has to
+  stay legible as modelled. A number the tool does not measure — per-hop timing
+  above all — is not drawn at all. The rule below is one instance of this.
 - **Never emit a phantom endpoint.** A route registration whose path is not a
   string literal is skipped and counted, never guessed at.
 - **Nothing target-specific in `src/` or `bin/`.** The repos this tool is
@@ -67,9 +73,46 @@ Conventional commits, 50/72:
 
 | when | update |
 | --- | --- |
+| any box in a phase is finished | tick it in `ROADMAP.md`, and the phase status and header count with it |
 | the payload gains or changes a field | `docs/payload-schema.md` + re-baseline the golden |
 | an adapter's interface changes | `docs/adapters.md`, it is an API change |
 | a config key is added | `docs/config.md` |
+
+## Branches and pull requests
+
+Branch off `main` and target `main`. Nothing lands on `main` directly — that is
+what CI on pull requests is for, and it is the only reason the suite is a gate
+rather than a suggestion.
+
+Name the branch `<prefix>/<short-slug>`, using the same prefixes the commits
+use: `feat/pack-districts-by-folder`, `fix/rust-mod-resolution`,
+`docs/adapter-endpoint-gap`, `chore/quality-sweep`.
+
+Rebase before you open it, and again if review takes a while:
+
+```bash
+git fetch origin && git rebase origin/main
+npm test
+```
+
+A green suite on a stale branch says nothing about the merge.
+
+**The pull request body is `.github/pull_request_template.md`**, which GitHub
+fills in for you. Five sections, and each answers a different question:
+
+| section | what goes in it |
+| --- | --- |
+| **Context** | why this change is being made, from the product side. The problem, not the patch |
+| **Description** | how exactly it is accomplished — the steps, the logic, the integration |
+| **Changes in the codebase** | the engineering detail: what was added, modified, refactored |
+| **Changes outside the codebase** | anything not in this repo — third-party services, settings, infrastructure, a database |
+| **Additional information** | what else a reviewer needs: performance, design choices, trade-offs taken |
+
+Delete a section's comment when you fill it in. Leave a section empty rather
+than writing "N/A" into it — an empty *Changes outside the codebase* already
+says there were none.
+
+No attribution trailers in a PR body, the same as in a commit.
 
 ## Tests
 

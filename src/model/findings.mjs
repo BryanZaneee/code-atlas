@@ -1,31 +1,6 @@
-/**
- * Findings — what the tool says about the code it just mapped, rather than
- * about its own read of it (`atlas scan` is that one). Every finding here is
- * structural: it reads the graph `src/model/graph.mjs` already built and the
- * coverage/derivation `src/model/metrics.mjs` and `src/model/derive.mjs`
- * already computed. Nothing here re-parses source or adds a second heuristic
- * pass — see CLAUDE.md, "Regex, not AST": findings are arithmetic over data
- * the rest of the pipeline already produced.
- *
- * Total by construction (CLAUDE.md, "Graceful degradation"): no config, no
- * tests, no entrypoints, zero edges, a one-file repo — every function below
- * degrades to an empty array rather than guessing or crashing. A finding type
- * whose basis is not measured for this repository (no entry layer, no test
- * coverage at all) reports nothing rather than a false positive; see the
- * per-function notes.
- *
- * Ordering is explicit everywhere: never a Map/Set's insertion order derived
- * from anything but the already-sorted `nodes`/`edges` arrays, and every
- * finding list is sorted before it is returned. That is what keeps
- * `atlas findings --json` byte-identical across two runs of the same input.
- *
- * Each finding is `{ id, type, severity, message, why, evidence }`.
- * `id` is deterministic and is the string a config's `findings.mute` names to
- * silence it. `severity` is `"info" | "warning" | "error"`. `evidence` is
- * `{ nodes: string[], edges: {from,to,kind}[] }` — the exact ids a renderer
- * highlights, never a prose description.
- */
-import { OFF_SPINE_LAYERS } from "../config/defaults.mjs";
+/** Structural findings: arithmetic over the graph the pipeline already built, never a second parse. Each is `{id, type, severity, message, why, evidence}`, every list explicitly sorted, and every function degrades to an empty array rather than guessing. */
+import { OFF_SPINE_LAYERS, UNREACHED_LAYERS } from "../config/defaults.mjs";
+import { importAdjacency, reachableFrom } from "./graph.mjs";
 
 
 /** p-th percentile of an ascending-sorted array, nearest-rank method. */
@@ -37,22 +12,9 @@ function percentile(sortedAsc, p) {
 
 const sample = (ids, n = 6) => ids.slice(0, n).join(", ") + (ids.length > n ? `, +${ids.length - n} more` : "");
 
-/**
- * Import cycles — Tarjan's SCC over `kind: "import"` edges between file nodes,
- * reported smallest-first. Iterative, not recursive: an unbounded call stack
- * over an adversarial or simply large repo is the kind of resource exhaustion
- * CLAUDE.md's security posture rules out.
- *
- * Self-edges never reach here — `buildEdges`'s `push` refuses `from === to` —
- * so every SCC of size 1 is a single file with no self-cycle, not a finding.
- */
+/** Import cycles: Tarjan's SCC over import edges, smallest first. Iterative because an unbounded call stack on a hostile repo is resource exhaustion. */
 function findCycles(nodes, edges) {
-  const adj = new Map();
-  for (const e of edges) {
-    if (e.kind !== "import") continue;
-    if (!adj.has(e.from)) adj.set(e.from, []);
-    adj.get(e.from).push(e.to);
-  }
+  const adj = importAdjacency(edges);
 
   const index = new Map();
   const lowlink = new Map();
@@ -63,8 +25,7 @@ function findCycles(nodes, edges) {
 
   for (const start of nodes) {
     if (start.kind !== "file" || index.has(start.id)) continue;
-    // Explicit work stack: [nodeId, next-neighbour-index] per frame, standing
-    // in for the call stack a recursive Tarjan would use.
+    // Explicit work stack: [nodeId, next-neighbour-index] per frame, in place of recursion.
     const work = [[start.id, 0]];
     while (work.length) {
       const frame = work[work.length - 1];
@@ -123,27 +84,7 @@ function findCycles(nodes, edges) {
     });
 }
 
-/**
- * Layering violations — an edge whose TARGET sits at a LOWER rank than its
- * SOURCE.
- *
- * Rank ascends along the natural request spine (route -> service ->
- * repository, PLAN.md "The visual system"), so an ordinary import moves to an
- * equal or higher rank. An edge that moves to a LOWER rank runs the spine
- * backwards — a repository importing a controller is the textbook case — and
- * that, not the reverse, is the violation. Equal rank (two files in the same
- * layer) is normal and not flagged.
- *
- * ONLY spine layers are compared. `tooling`, `test`, `docs` and `unsorted`
- * carry ranks so the layout has somewhere to put them, but those ranks are
- * positions in a column order, not positions on the spine. `unsorted` is the
- * one that does real damage: it ranks above every real layer, so judging it
- * turns "no rule matched this file" into "every import this file makes runs
- * backwards" — an entrypoint script importing its own config gets reported as
- * an error, and the finding that matters drowns in the ones that do not. An
- * absence of knowledge is not a high rank. Same set derive.mjs walks the spine
- * with, imported rather than restated.
- */
+/** Layering violations: an import to a lower rank runs the spine backwards. Only spine layers are compared, since an off-spine rank is a column position, not a position on the spine. */
 function findLayeringViolations(edges, byId, layerRank) {
   const out = [];
   for (const e of edges) {
@@ -169,11 +110,7 @@ function findLayeringViolations(edges, byId, layerRank) {
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/**
- * Oversized files — LOC past `threshold`, ranked relative to the repository's
- * own p95, not to a fixed number: a 2000-line file is unremarkable in a repo
- * whose p95 is 1800 and glaring in one whose p95 is 80.
- */
+/** Oversized files: LOC past `threshold`, ranked against the repository's own p95 rather than a fixed number. */
 function findOversizedFiles(nodes, threshold) {
   const files = nodes.filter((n) => n.kind === "file");
   const p95 = percentile(files.map((n) => n.loc).sort((a, b) => a - b), 95);
@@ -193,20 +130,7 @@ function findOversizedFiles(nodes, threshold) {
     });
 }
 
-/**
- * Endpoints no test reaches — `endpoint -> derived path ∩ test-reachable set
- * = ∅`. The test-reachable set is every node `deriveCoverage` marked
- * `direct` or `indirect`; the path is the endpoint's own derived path plus
- * the file that declares it, so an endpoint with no derived path (a gap
- * derivation could not bridge) still checks against the one node that
- * certainly matters.
- *
- * A repository with no measured coverage at all (`deriveCoverage` found no
- * test import edges — no tests, or an adapter that cannot resolve them)
- * reports nothing here: "not measured" is not "untested", and claiming the
- * latter on evidence the tool does not have is exactly what the honesty
- * contract in CLAUDE.md rules out.
- */
+/** Endpoints whose derived path and declaring file no test reaches; silent when coverage was never measured, because "not measured" is not "untested". */
 function findUntestedEndpoints(nodes, endpoints) {
   const reachable = new Set(nodes.filter((n) => n.coverage === "direct" || n.coverage === "indirect").map((n) => n.id));
   if (!reachable.size) return [];
@@ -234,12 +158,7 @@ function findUntestedEndpoints(nodes, endpoints) {
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/**
- * Orphans — zero in-edges and zero out-edges, excluding entrypoints (a
- * legitimate zero-in-edge, zero-out-edge node by definition) and any path a
- * config names under `findings.orphanRoots` — a build script or a standalone
- * tool a repository keeps on purpose.
- */
+/** Orphans: zero in-edges and zero out-edges, excluding entrypoints and anything under `findings.orphanRoots`. */
 function findOrphans(nodes, roots) {
   const isRoot = (id) => roots.some((r) => id === r || id.startsWith(r.replace(/\/$/, "") + "/"));
   return nodes
@@ -255,49 +174,15 @@ function findOrphans(nodes, roots) {
     }));
 }
 
-/**
- * Unreachable from any entrypoint — forward BFS along `kind: "import"` edges
- * starting from every `layer: "entry"` file, mirroring the same
- * direct-then-reached shape `deriveCoverage` uses for test coverage.
- *
- * A repository with no entry-layer node at all (no rule recognised one)
- * reports nothing: there is no entrypoint to measure reachability from, so
- * "unreachable" would be a claim about every file rather than about the ones
- * that actually sit off the spine. Test, docs, tooling and migration files
- * are excluded from the result the same way `derive.mjs`'s `SKIP_LAYERS`
- * excludes them from the spine itself — they were never meant to be reached
- * by a request in the first place. Orphans, oversized files and god nodes do
- * NOT apply this exclusion — PLAN.md states each of those three in terms of
- * plain in/out-degree or LOC with no layer carve-out, and a repository's own
- * config/docs/tooling files legitimately having zero edges is itself part of
- * what "orphan" means there.
- */
-const OFF_SPINE = new Set(["test", "docs", "tooling", "migration"]);
-
+/** Unreachable from any entrypoint: forward BFS from every `layer: "entry"` file, and silent when the repo has none. */
 function findUnreachable(nodes, edges) {
   const entryIds = nodes.filter((n) => n.kind === "file" && n.layer === "entry").map((n) => n.id);
   if (!entryIds.length) return [];
 
-  const outImports = new Map();
-  for (const e of edges) {
-    if (e.kind !== "import") continue;
-    if (!outImports.has(e.from)) outImports.set(e.from, []);
-    outImports.get(e.from).push(e.to);
-  }
-
-  const reached = new Set(entryIds);
-  const queue = [...entryIds];
-  while (queue.length) {
-    for (const next of outImports.get(queue.pop()) ?? []) {
-      if (!reached.has(next)) {
-        reached.add(next);
-        queue.push(next);
-      }
-    }
-  }
+  const reached = reachableFrom(entryIds, importAdjacency(edges));
 
   return nodes
-    .filter((n) => n.kind === "file" && !OFF_SPINE.has(n.layer) && !reached.has(n.id))
+    .filter((n) => n.kind === "file" && !UNREACHED_LAYERS.has(n.layer) && !reached.has(n.id))
     .sort((a, b) => a.id.localeCompare(b.id))
     .map((n) => ({
       id: `unreachable:${n.id}`,
@@ -309,11 +194,7 @@ function findUnreachable(nodes, edges) {
     }));
 }
 
-/**
- * God nodes — in-degree past a percentile threshold, with `minInDegree` as a
- * floor so a small repo, where the 95th percentile can be a single import,
- * does not flag half its files.
- */
+/** God nodes: in-degree past a percentile threshold, floored by `minInDegree` so a small repo does not flag half its files. */
 function findGodNodes(nodes, percentileCfg, minInDegree) {
   const files = nodes.filter((n) => n.kind === "file");
   const threshold = Math.max(percentile(files.map((n) => n.inDeg).sort((a, b) => a - b), percentileCfg), minInDegree);
@@ -330,13 +211,7 @@ function findGodNodes(nodes, percentileCfg, minInDegree) {
     }));
 }
 
-/**
- * Cross-service coupling — direct import edges that already carry `cross`
- * (`buildEdges`: different declared services, neither one `infra`). This
- * reuses that field rather than recomputing it, because it is the same
- * question `edges[].cross` already answers: does this edge bypass the
- * service boundary the config declared.
- */
+/** Cross-service coupling: import edges already marked `cross` by `buildEdges`, reused rather than recomputed. */
 function findCrossServiceCoupling(edges, byId) {
   return edges
     .filter((e) => e.kind === "import" && e.cross)
@@ -351,13 +226,7 @@ function findCrossServiceCoupling(edges, byId) {
     }));
 }
 
-/**
- * The eight findings, in PLAN.md's own order, each already sorted. Muting
- * (`findings.mute: [{id, reason}]`) never removes a finding from the payload —
- * it stamps `muted`/`muteReason` on it, so `atlas findings --json` stays a
- * complete account of what was found and a config change to mute one is a
- * visible, reviewable diff rather than a silent subtraction.
- */
+/** The eight findings in PLAN.md's order. Muting stamps `muted`/`muteReason` rather than removing, so the payload stays a complete account. */
 export function deriveFindings({ nodes, edges, endpoints, layers }, cfg = {}) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const layerRank = new Map((layers ?? []).map((l) => [l.id, l.rank]));

@@ -37,6 +37,10 @@ function fakeContext(counts) {
       canvas: { width: 0, height: 0 },
       measureText: (t) => ({ width: t.length * 6 }),
       createRadialGradient: () => ({ addColorStop: noop }),
+      // The face gradient and the drop shadow: both are pure appearance, but the
+      // renderer calls them per block, so the stub has to answer.
+      createLinearGradient: () => ({ addColorStop: noop }),
+      clip: noop,
       setTransform: noop,
       drawImage: () => counts.drawImage++,
       fillRect: noop,
@@ -72,7 +76,7 @@ function fakeElement(counts) {
 }
 
 function runRenderer(atlas) {
-  const counts = { drawStatic: 0, drawImage: 0, arcs: [] };
+  const counts = { drawStatic: 0, drawImage: 0, draw: 0, arcs: [] };
   const source =
     MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     `
@@ -80,8 +84,10 @@ function runRenderer(atlas) {
     relayout();
     resize();
     const _drawStatic = drawStatic;
+    const _draw = draw;
+    draw = function () { __counts.draw++; return _draw.apply(this, arguments); };
     globalThis.scope = {
-      S, draw, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, get LAYOUT() { return LAYOUT; }, stepStyle, counts: __counts, moveDistrict, resetDistrictOffsets,
+      S, draw, frame, buildPackets, relayout, reproject, setYaw, colorOf, applyTheme, EDGE_STYLE, get LAYOUT() { return LAYOUT; }, stepStyle, counts: __counts, moveDistrict, resetOffsets,
       wrap: () => { drawStatic = function () { __counts.drawStatic++; return _drawStatic.apply(this, arguments); }; },
     };
     `;
@@ -91,6 +97,7 @@ function runRenderer(atlas) {
     __counts: counts,
     performance: { now: () => 0 },
     requestAnimationFrame: () => 0,
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
     window: { devicePixelRatio: 2, addEventListener() {} },
     document: { querySelector: () => fakeElement(counts), createElement: () => fakeElement(counts) },
   });
@@ -276,7 +283,7 @@ function derivedPayload() {
   const p = payload(40);
   const id = (i) => p.nodes[i].id;
   const flow = {
-    id: "derived:x", label: "GET /x", view: "derived", derived: true,
+    id: "derived:x", label: "GET /x", derived: true,
     steps: [
       { from: id(0), to: id(1), kind: "request", certainty: "wired", inferred: false },
       { from: id(1), to: id(2), kind: "request", certainty: "imported", inferred: false },
@@ -289,7 +296,8 @@ function derivedPayload() {
 }
 
 test("a derived hop draws how sure it is, not only what kind it is", () => {
-  const scope = runRenderer(derivedPayload());
+  const atlas = derivedPayload();
+  const scope = runRenderer(atlas);
   const base = scope.EDGE_STYLE.request;
   const graded = (certainty) => scope.stepStyle({ kind: "request", certainty });
   const wired = graded("wired"), imported = graded("imported"), inferred = graded("inferred");
@@ -314,7 +322,10 @@ test("a derived hop draws how sure it is, not only what kind it is", () => {
 
   // And the renderer has to actually ask. Reading it off the canvas is the half
   // that fails if someone drops the call and keeps the table.
-  scope.S.view = "derived";
+  // A derived path is armed through the composer now — there is no DERIVED view
+  // to switch to, so the test arms it the same way a reader would.
+  scope.S.view = "request";
+  scope.S.request = atlas.derivedFlows[0];
   scope.relayout();
   scope.counts.arcs.length = 0;
   scope.draw();
@@ -385,8 +396,8 @@ test("a drop that changes nothing does not re-render", () => {
 
 const BADGE_MODULES = [
   "00-theme.js", "10-state.js", "15-helpers.js", "20-select.js", "30-layout.js",
-  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "72-source.js",
-  "75-findings.js", "80-sidebar.js", "85-camera.js", "88-interact.js",
+  "40-packets.js", "50-render.js", "60-pick.js", "70-inspect.js", "71-notes.js", "72-source.js",
+  "75-findings.js", "80-sidebar.js", "82-palette.js", "85-camera.js", "88-interact.js",
 ];
 
 function fakeBadgeElement() {
@@ -431,6 +442,7 @@ function loadBadgeScope(atlas) {
     location: { protocol: "http:" },
     performance: { now: () => 0 },
     requestAnimationFrame: () => 0,
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
     fetch: () => Promise.reject(new Error("no network in a test")),
     addEventListener: () => {},
     innerWidth: 1400,
@@ -453,7 +465,7 @@ function badgePayload() {
   const p = payload(20);
   const id = (i) => p.nodes[i].id;
   const derived = {
-    id: "derived:x", label: "GET /x", view: "derived", derived: true,
+    id: "derived:x", label: "GET /x", derived: true,
     steps: [{ from: id(0), to: id(1), kind: "request", certainty: "inferred", inferred: true }],
   };
   const curated = {
@@ -482,4 +494,62 @@ test("the canvas badge says DERIVED for a derived flow, CURATED for a curated on
   scope.S.activeFlow = "__all__";
   scope.syncControls();
   assert.equal(scope.$("#ovWarn").textContent, "", "no active flow, no caveat to show");
+});
+
+/* ════════════════════ the render loop idles ════════════════════ */
+
+/**
+ * The loop used to call draw() on every rAF tick forever, so a static map
+ * repainted the whole canvas at 60 Hz with nothing changing — the single
+ * biggest cost on a small machine. Packet drift is real motion and still
+ * draws; a still map must not.
+ */
+test("a still map draws nothing, while a drifting one keeps drawing", () => {
+  const r = runRenderer(payload(300));
+  const frames = (n) => { const b = r.counts.draw; for (let i = 0; i < n; i++) r.frame(i * 16.7); return r.counts.draw - b; };
+
+  r.S.opts.ambient = true;
+  r.buildPackets();
+  assert.ok(frames(60) > 50, "ambient packets are genuinely moving, so the loop must draw");
+
+  r.S.opts.ambient = false;
+  r.buildPackets();
+  frames(3);                                   // let the veils settle
+  assert.equal(frames(60), 0, "nothing is moving and nothing changed — the loop must idle");
+
+  r.S.running = false;
+  frames(3);
+  assert.equal(frames(60), 0, "paused as well");
+});
+
+/**
+ * The risk the idle check carries: a state change the signature cannot see
+ * leaves a stale frame on screen forever. Each of these must wake the loop.
+ */
+test("every state change still wakes the idle loop", () => {
+  const r = runRenderer(payload(300));
+  r.S.opts.ambient = false;
+  r.buildPackets();
+  const ids = r.LAYOUT.nodes.map((n) => n.id);
+
+  const wakes = (label, mutate) => {
+    for (let i = 0; i < 3; i++) r.frame(0);     // settle into idle
+    const before = r.counts.draw;
+    mutate();
+    r.frame(0);
+    assert.ok(r.counts.draw > before, `${label} left a stale frame`);
+  };
+
+  wakes("selecting a block", () => { r.S.selected = ids[0]; });
+  wakes("hovering a block", () => { r.S.hover = ids[1]; });
+  wakes("panning", () => { r.S.panX += 40; });
+  wakes("zooming", () => { r.S.zoom *= 1.3; });
+  wakes("searching", () => { r.S.query = "fmt"; });
+  wakes("toggling labels", () => { r.S.opts.labels = false; });
+  wakes("switching view", () => { r.S.view = "tests"; });
+  wakes("picking a finding", () => { r.S.finding = "x"; });
+  wakes("changing density", () => { r.S.density = 1.4; });
+  wakes("toggling the ground", () => { r.S.ground = false; });
+  wakes("rotating", () => { r.S.yaw += 0.3; });
+  wakes("focusing a district", () => { r.S.focusDistrict = r.LAYOUT.districts[0].id; });
 });

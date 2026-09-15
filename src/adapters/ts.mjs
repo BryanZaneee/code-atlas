@@ -1,52 +1,22 @@
-/**
- * TypeScript / JavaScript adapter.
- *
- * `resolve` returns an ARRAY of ids: one specifier can name many files in other
- * languages (Go packages, Java wildcards), and a re-export barrel does the same
- * here, so the shape is an array everywhere rather than a special case.
- *
- * Extensions cover the whole ecosystem, not just `.ts`: a `.jsx` or `.mjs` file
- * is source the same as a `.ts` one, and leaving it unclaimed means the adapter
- * silently extracts nothing from it. `adapterFor` picks the first adapter whose
- * extensions match, so this is the only place that decision is made.
- */
+/** TypeScript / JavaScript adapter. `resolve` returns an array of ids because one specifier can name many files, and the extension list claims the whole ecosystem: anything left unclaimed silently yields no edges. */
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { withLines } from "./lex.mjs";
 
 const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 
-// A NodeNext/ESM import names the extension its own compiled output would
-// have; the source living next to it is almost always TypeScript. Tried
-// before the literal specifier so `./x.js` prefers `x.ts` when both exist.
+// A NodeNext import names its compiled output's extension; tried before the literal specifier so `./x.js` prefers `x.ts` when both exist.
 const SWAP_EXT = { ".js": ".ts", ".jsx": ".tsx", ".mjs": ".ts", ".cjs": ".ts" };
 
-// `from "x"` covers every static form that carries one: default, named,
-// namespace, side-effect-with-bindings, and `export … from`/`export * from`,
-// which are re-exports and therefore edges too. No line anchor: a multi-line
-// import's `from` clause can sit several lines below `import {`.
+// `from "x"` covers every static form, re-exports included. No line anchor: a multi-line import's `from` can sit lines below `import {`.
 const FROM = /\bfrom\s*["']([^"']+)["']/g;
-// A bare side-effect import has no `from` clause at all, so it needs its own
-// pattern — and it must not fire on `import {` or `import(`, which the
-// required quote-after-optional-whitespace shape already excludes.
+// A bare side-effect import has no `from` clause; the required quote-after-whitespace shape keeps it off `import {` and `import(`.
 const BARE_IMPORT = /\bimport\s*["']([^"']+)["']/g;
 const REQUIRE = /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g;
 const DYNAMIC_IMPORT = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
 
-/**
- * Blank comments and template-literal bodies before extraction, so a fake
- * specifier in a `//` note or a backtick string never matches an import
- * pattern. Ordinary `'…'`/`"…"` strings are left untouched — that is where a
- * real specifier lives, and the walk keeps their contents intact deliberately.
- * A single left-to-right scan (not a regex) so a string containing `//` or
- * `/*` is never mistaken for the start of a comment; length and newlines are
- * preserved so a match's offset still lines up with the original text.
- *
- * Known miss: a regex literal containing `/*` (`/[/*]/`) reads as a comment
- * opening to this scanner, same as a real one would. That blanks too much
- * rather than too little — under-reporting, not a phantom import — so it is
- * left as the accepted cost rather than special-cased.
- */
-export function blank(text) {
+/** Blank comments and template-literal bodies so a fake specifier in a note or backtick string cannot match; a left-to-right scan rather than a regex, preserving length and newlines so offsets still line up. Known miss: a regex literal containing a comment opener blanks too much, which under-reports rather than inventing an import. */
+function blank(text) {
   let out = "";
   let i = 0;
   const n = text.length;
@@ -82,23 +52,8 @@ export function blank(text) {
   return out;
 }
 
-/** Line of a byte offset, walked once forward across matches sorted by index. */
-function withLines(text, matches) {
-  matches.sort((a, b) => a.index - b.index);
-  let line = 1, pos = 0;
-  return matches.map((m) => {
-    while (pos < m.index) { if (text[pos] === "\n") line++; pos++; }
-    return { spec: m.spec, kind: m.kind, line };
-  });
-}
 
-/**
- * `tsconfig.json` allows `//`/`/* *\/` comments and a trailing comma, neither
- * of which `JSON.parse` accepts. Comments are stripped with the same
- * string-aware scan as source blanking (minus template literals, which JSON
- * does not have); the trailing comma is a single pass afterward since by then
- * every remaining comma sits outside a string.
- */
+/** `tsconfig.json` allows comments and a trailing comma, neither of which `JSON.parse` accepts: the same string-aware scan strips comments, then one pass drops the trailing comma. */
 function parseJsonc(text) {
   let out = "";
   let i = 0;
@@ -131,11 +86,7 @@ function normDir(p) {
   return n === "." ? "" : n.replace(/\/$/, "");
 }
 
-/**
- * Every candidate a bare or extensionless specifier could name, in the order
- * they are tried. Extension swap first (the common NodeNext case), then the
- * literal path, then each extension appended, then each extension's `/index`.
- */
+/** Every candidate a bare or extensionless specifier could name, in try order: extension swap, literal path, each extension appended, then each `/index`. */
 function candidatesFor(base) {
   const out = [];
   const ext = EXTENSIONS.find((e) => base.endsWith(e));
@@ -151,12 +102,7 @@ function tryResolveFile(base, ctx) {
   return null;
 }
 
-/**
- * `paths` entries carry at most one `*`; the longest literal prefix wins when
- * more than one pattern could match, which is how TypeScript itself picks
- * among overlapping patterns. Returns the target templates with `*`
- * substituted, still relative to the owning tsconfig's effective `baseUrl`.
- */
+/** Match a specifier against `paths`, longest literal prefix first as TypeScript does, returning the target templates with `*` substituted and still relative to the effective `baseUrl`. */
 function matchAlias(spec, paths) {
   const keys = Object.keys(paths).sort((a, b) => b.replace("*", "").length - a.replace("*", "").length);
   for (const key of keys) {
@@ -179,17 +125,51 @@ function nearestTsconfig(from, configs) {
   return configs.find((c) => c.dir === "" || from === c.dir || from.startsWith(c.dir + "/")) ?? null;
 }
 
+/** Imported specifiers with the local names they bind, so path derivation can tell which import an endpoint touches instead of taking the whole list. */
+function importBindings(text) {
+  const clean = blank(text);
+  const out = [];
+  const NAMED = /\bimport\s+(?:type\s+)?(?:(\w+)\s*,\s*)?\{([^}]*)\}\s*from\s*["']([^"']+)["']/g;
+  for (const m of clean.matchAll(NAMED)) {
+    const localNames = new Set(m[1] ? [m[1]] : []);
+    for (const part of m[2].split(",")) {
+      const s = part.trim().replace(/^type\s+/, "");
+      if (!s) continue;
+      const bits = s.split(/\s+as\s+/);
+      localNames.add((bits[1] ?? bits[0]).trim());
+    }
+    out.push({ spec: m[3], localNames });
+  }
+  const NAMESPACE = /\bimport\s+\*\s+as\s+(\w+)\s*from\s*["']([^"']+)["']/g;
+  for (const m of clean.matchAll(NAMESPACE)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
+  const DEFAULT_ONLY = /\bimport\s+(\w+)\s*from\s*["']([^"']+)["']/g;
+  for (const m of clean.matchAll(DEFAULT_ONLY)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
+  const REQ = /\b(?:const|let|var)\s+(\w+)\s*=\s*require\(\s*["']([^"']+)["']\s*\)/g;
+  for (const m of clean.matchAll(REQ)) out.push({ spec: m[2], localNames: new Set([m[1]]) });
+  const REQ_DESTRUCT = /\b(?:const|let|var)\s*\{([^}]*)\}\s*=\s*require\(\s*["']([^"']+)["']\s*\)/g;
+  for (const m of clean.matchAll(REQ_DESTRUCT)) {
+    const localNames = new Set();
+    for (const part of m[1].split(",")) {
+      const s = part.trim();
+      if (!s) continue;
+      const bits = s.split(":").map((x) => x.trim());
+      localNames.add(bits[1] ?? bits[0]);
+    }
+    out.push({ spec: m[2], localNames });
+  }
+  return out;
+}
+
 export default {
   id: "ts",
   extensions: EXTENSIONS,
+  blankComments: blank,
+  importBindings,
 
-  /**
-   * `paths`/`baseUrl` are scoped per tsconfig, not repo-wide: a monorepo
-   * routinely has one workspace with an alias and a sibling with none, and a
-   * file in the second must not inherit the first's table. Read once here
-   * rather than per import, and from `ctx.dir` directly — `tsconfig.json`
-   * carries no import edges of its own, so `keep` never admits it into `src`.
-   */
+  /** The source file a test conventionally covers: test/x.test.ts -> src/x.ts. */
+  testSubject: (p) => p.replace("/test/", "/src/").replace(/\.test\.ts$/, ".ts"),
+
+  /** `paths`/`baseUrl` are per tsconfig, not repo-wide, so a workspace never inherits a sibling's alias table. Read from `ctx.dir` directly, since `keep` never admits `tsconfig.json` into `src`. */
   prepare(ctx) {
     const configs = [];
     for (const p of ctx.all ?? []) {
@@ -202,16 +182,11 @@ export default {
       }
       const co = json?.compilerOptions ?? {};
       const dir = normDir(path.posix.dirname(p));
-      // `baseUrl` is null unless the tsconfig actually declares one — that is
-      // what TypeScript's own resolver keys on to decide whether a bare
-      // specifier can mean a project file at all, rather than node_modules.
-      // `co.baseUrl` may normalise to `""` at the repo root, so this checks
-      // for the key rather than truthiness.
+      // Null unless declared: that is what decides whether a bare specifier can mean a project file at all. Checked by key, since `co.baseUrl` normalises to `""` at the root.
       const baseUrl = co.baseUrl != null ? normDir(path.posix.join(dir, co.baseUrl)) : null;
       configs.push({ dir, baseUrl, paths: co.paths ?? null });
     }
-    // Longest directory first, so the nearest ancestor is the first match
-    // `nearestTsconfig` finds rather than the outermost one.
+    // Longest directory first, so `nearestTsconfig` finds the nearest ancestor rather than the outermost.
     configs.sort((a, b) => b.dir.length - a.dir.length);
     return { configs };
   },
@@ -229,16 +204,11 @@ export default {
   resolve(from, spec, ctx) {
     const cfg = nearestTsconfig(from, ctx.ts?.configs ?? []);
 
-    // TypeScript never applies `paths` to a relative specifier — only to a
-    // bare one. Checking this first, ahead of the dot-prefix branch below,
-    // would let a catch-all pattern like `"*": ["./src/*"]` capture `./foo`
-    // and resolve it against src/ instead of against the importing file.
+    // `paths` never applies to a relative specifier: a catch-all `"*": ["./src/*"]` would otherwise capture `./foo` and resolve it against src/.
     if (cfg?.paths && !spec.startsWith(".")) {
       const targets = matchAlias(spec, cfg.paths);
       if (targets) {
-        // `paths` without a declared `baseUrl` resolves relative to the
-        // tsconfig's own directory (TS >= 4.1) — the real-repo shape this
-        // adapter already targets, so the fallback is `dir`, not a bare `""`.
+        // `paths` without a declared `baseUrl` resolves against the tsconfig's own directory (TS >= 4.1), so the fallback is `dir`, not `""`.
         const base = cfg.baseUrl ?? cfg.dir;
         const ids = [];
         for (const t of targets) {
@@ -246,8 +216,7 @@ export default {
           if (hit) ids.push(hit);
         }
         if (ids.length) return { kind: "internal", ids: [...new Set(ids)].sort() };
-        // The alias pattern matched but named no file the walk found — a
-        // config or a generated file, never a third-party package.
+        // The alias matched but named no file the walk found: a config or generated file, never a package.
         return { kind: "unresolved", ids: [spec] };
       }
     }
@@ -259,12 +228,7 @@ export default {
       return { kind: "unresolved", ids: [base] };
     }
 
-    // A bare specifier only resolves against a project directory when the
-    // tsconfig actually DECLARES a `baseUrl` — with none, TypeScript sends it
-    // straight to node_modules, so a file that happens to share a package's
-    // name must not fabricate an internal edge. `cfg.dir` is deliberately not
-    // a fallback here: that's the `paths`-without-`baseUrl` rule above, which
-    // only applies once a `paths` pattern already matched.
+    // A bare specifier resolves against a project directory only when a `baseUrl` is declared, or a file sharing a package's name would fabricate an internal edge. `cfg.dir` is deliberately not a fallback here.
     if (cfg?.baseUrl != null) {
       const hit = tryResolveFile(normDir(path.posix.join(cfg.baseUrl, spec)), ctx);
       if (hit) return { kind: "internal", ids: [hit] };

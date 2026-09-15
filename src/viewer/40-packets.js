@@ -1,7 +1,5 @@
-/* ════════════════════ packets ════════════════════ */
-let runners = [];      // sequenced flow cursors
-let ambient = [];      // free-drifting import packets
-
+/* ═══ packets ═══ */
+let runners = [], ambient = [], pulses = [];
 function arcFor(a, b) {
   const dx = b.x - a.x, dy = b.y - a.y;
   const dist = Math.hypot(dx, dy);
@@ -9,50 +7,32 @@ function arcFor(a, b) {
 }
 function bez(arc, t) {
   const u = 1 - t;
-  return {
-    x: u * u * arc.a.x + 2 * u * t * arc.cx + t * t * arc.b.x,
-    y: u * u * arc.a.y + 2 * u * t * arc.cy + t * t * arc.b.y,
-  };
+  return { x: u * u * arc.a.x + 2 * u * t * arc.cx + t * t * arc.b.x,
+           y: u * u * arc.a.y + 2 * u * t * arc.cy + t * t * arc.b.y };
 }
-
 function buildPackets() {
-  runners = []; ambient = [];
+  runners = []; ambient = []; pulses = [];
   const placed = LAYOUT.ids;
-
   const fs = activeFlows();
-  if (fs.length) {
-    for (const f of fs) {
-      const steps = f.steps
-        .map((s, i) => ({ ...s, i, flowId: f.id }))
-        .filter(s => placed.has(s.from) && placed.has(s.to));
-      if (!steps.length) continue;
-      for (const s of steps) s.arc = arcFor(byId.get(s.from).top, byId.get(s.to).top);
-      // two staggered cursors so a long trace is never visually empty
-      runners.push({ steps, i: 0, t: 0 });
-      if (steps.length > 6) runners.push({ steps, i: Math.floor(steps.length / 2), t: 0 });
-    }
+  if (fs.length) for (const f of fs) {
+    const steps = f.steps.map((s, i) => ({ ...s, i, flowId: f.id })).filter(s => placed.has(s.from) && placed.has(s.to));
+    if (!steps.length) continue;
+    for (const s of steps) s.arc = arcFor(byId.get(s.from).top, byId.get(s.to).top);
+    runners.push({ steps, i: 0, t: 0, trail: [] });
+    if (steps.length > 6) runners.push({ steps, i: Math.floor(steps.length / 2), t: 0, trail: [] });
   }
-
-  // Ambient packets are drawn above the veil and would be the brightest thing
-  // on a map that is trying to point at four blocks. A lit finding stops them.
+  const dfl = viewKind(S.view) === "dataflow";
   if (S.opts.ambient && !playsFlow(S.view) && !findSelected()) {
     const pool = LAYOUT.edges.filter(e => e.kind === "import" || e.kind.startsWith("test:"));
-    const n = Math.min(90, pool.length);
+    const n = Math.min(dfl ? 140 : 90, pool.length * (dfl ? 3 : 1));
     for (let i = 0; i < n; i++) {
-      const e = pool[Math.floor((i * 7919) % pool.length)];   // deterministic spread
+      const e = pool[Math.floor((i * 7919) % pool.length)];
       const a = byId.get(e.from), b = byId.get(e.to);
       if (!a?.top || !b?.top) continue;
-      ambient.push({ e, arc: arcFor(a.top, b.top), t: (i * 0.137) % 1, speed: 26 + (i % 5) * 5 });
+      ambient.push({ e, arc: arcFor(a.top, b.top), t: (i * 0.137) % 1, speed: (dfl ? 44 : 26) + (i % 5) * 6 });
     }
   }
 }
-
-/**
- * Where in the flow the animation currently is, in words.
- *
- * Written when the step changes rather than every frame: it is DOM, and the
- * whole reason the dimming is drawn on canvas is that per-frame DOM is not free.
- */
 function renderCaption() {
   const bar = $("#caption");
   const r = runners[0];
@@ -65,7 +45,6 @@ function renderCaption() {
   bar.textContent = parts.join(" · ");
   bar.style.opacity = 1;
 }
-
 function advance(dt) {
   const sp = S.speed;
   for (const p of ambient) {
@@ -75,8 +54,13 @@ function advance(dt) {
   for (const r of runners) {
     const st = r.steps[r.i];
     if (!st) { r.i = 0; continue; }
+    const w = bez(st.arc, r.t);
+    r.trail.push({ x: w.x, y: w.y });
+    if (r.trail.length > 15) r.trail.shift();
     r.t += (dt * 150 * sp) / Math.max(80, st.arc.dist);
     if (r.t >= 1) {
+      const dest = byId.get(st.to);
+      if (dest?.top && !REDUCED_MOTION) pulses.push({ x: dest.top.x, y: dest.top.y, t: 0, c: PACKET_COLOR[st.kind] ?? PACKET_COLOR.request });
       r.t = 0;
       r.i = (r.i + 1) % r.steps.length;
       if (r === runners[0]) renderCaption();
@@ -88,4 +72,3 @@ function advance(dt) {
     }
   }
 }
-

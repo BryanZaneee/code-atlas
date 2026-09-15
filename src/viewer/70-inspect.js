@@ -1,20 +1,9 @@
-/* ════════════════════ inspect panel ════════════════════ */
-
+/* ═══ inspect panel ═══ */
 function selectStep(st) {
   S.pinnedPacket = st;
   S.selected = st.to;
   renderInspect();
 }
-
-/**
- * Enter a flow from a node that lies on it.
- *
- * Two details are what make this feel like it understood the question rather
- * than merely being wired up. It opens at *this node's* hop, not hop 1 — you
- * came from somewhere, and the tool knows where. And the node you came from
- * stays selected, so it keeps its silhouette through the trace and you never
- * lose the thing you were asking about.
- */
 function enterFlow(flowId, fromId) {
   const f = flowById.get(flowId);
   if (!f) return;
@@ -32,22 +21,17 @@ function enterFlow(flowId, fromId) {
   renderInspect();
   renderCaption();
 }
-
 function renderInspect() {
   markFlowRows();
+  // The breadcrumb answers "where am I", so it tracks the inspector rather than
+  // each of the eight places that set S.selected and then re-render.
+  renderBreadcrumb();
   const b = $("#insBody");
   b.innerHTML = "";
-
-  // A lit finding owns the panel until you click past it — into one of its own
-  // evidence rows, or onto a block on the map. Both of those set `selected`,
-  // and the map keeps the highlight while you read what you clicked.
+  if (S.insTab === "notes") { renderNotes(b); return; }
   const finding = S.selected || S.pinnedPacket ? null : findSelected();
   if (finding) { renderFinding(b, finding); return; }
-
-  // The composer owns the panel in the request view, until you click a packet
-  // or a block — both of which are questions about the path it just played.
   if (viewKind(S.view) === "request" && !S.pinnedPacket && !S.selected) { renderComposer(b); return; }
-
   if (S.pinnedPacket) {
     const st = S.pinnedPacket;
     const f = flowById.get(st.flowId) ?? (S.request?.id === st.flowId ? S.request : null);
@@ -56,9 +40,6 @@ function renderInspect() {
     const dl = el("dl", "kv");
     const add = (k, v) => { dl.append(el("dt", null, k), el("dd", null, v)); };
     add("KIND", st.kind);
-    // A derived hop carries how it was justified. The canvas already says it in
-    // weight and dash; spelling it out is what turns "that line looks thinner"
-    // into a fact you can quote.
     if (st.certainty) add("CERTAINTY", CERTAINTY_LABEL[st.certainty] ?? st.certainty);
     add("FROM", byId.get(st.from)?.name ?? st.from);
     add("TO", byId.get(st.to)?.name ?? st.to);
@@ -66,31 +47,46 @@ function renderInspect() {
     if (st.note) b.append(el("div", "note" + (st.warn ? " warn" : ""), st.note));
     if (st.sample) {
       b.append(el("h3", null, "PACKET PAYLOAD (SYNTHETIC)"));
-      const pre = el("pre", "sample", JSON.stringify(st.sample, null, 2));
-      b.append(pre);
+      b.append(el("pre", "sample", JSON.stringify(st.sample, null, 2)));
     }
-    // The hop's justifying import, when there is one. An inferred hop crossed a
-    // gap in the import graph and has no line to open — so it is offered no
-    // button, rather than one that lands somewhere plausible.
     const justifies = srcHopImport(st);
     const hop = justifies && srcJump("⤷ IMPORT IN", justifies.path, justifies.line);
     if (hop) b.append(hop);
-
     const back = el("button", null, "← CLEAR PACKET");
     back.style.marginTop = "9px";
     back.onclick = () => { S.pinnedPacket = null; renderInspect(); };
     b.append(back);
     return;
   }
-
   if (S.focusDistrict && !S.selected) {
     const d = LAYOUT.districts.find(x => x.id === S.focusDistrict);
     if (d) {
-      b.append(el("div", "title", `${svcById.get(d.service)?.label ?? d.service}`));
-      b.append(el("div", "path", `${d.label.toLowerCase()} · ${d.blocks.length} files`));
+      b.append(el("div", "eyebrow", (svcById.get(d.service)?.label ?? d.service).toUpperCase()));
+      b.append(el("div", "title", d.label));
+      b.append(el("div", "path", `${d.blocks.length} file${d.blocks.length === 1 ? "" : "s"}`));
       const dl = el("dl", "kv");
       dl.append(el("dt", null, "LINES"), el("dd", null, fmt(d.blocks.reduce((a, n) => a + n.loc, 0))));
       b.append(dl);
+      b.append(el("h3", null, "SHAPE"));
+      const rowS = el("div");
+      const cur = S.shapeByDistrict.get(d.id) ?? "auto";
+      for (const idd of ["auto", ...SHAPE_IDS]) {
+        const t = el("span", "tag act", idd === "auto" ? "auto" : SHAPES[idd].label.toLowerCase());
+        if (cur === idd) { t.style.background = "var(--accent)"; t.style.color = "var(--bg)"; }
+        t.onclick = () => {
+          if (idd === "auto") S.shapeByDistrict.delete(d.id);
+          else S.shapeByDistrict.set(d.id, idd);
+          reproject(); buildPackets(); staticDirty = true; renderInspect();
+        };
+        rowS.append(t);
+      }
+      b.append(rowS);
+      b.append(el("div", "hint", "Overrides the map-wide shape for just this district."));
+      const col = el("button", null, d.collapsed ? "◧ EXPAND DISTRICT" : "▣ COLLAPSE TO MEGABLOCK");
+      col.style.marginTop = "8px";
+      col.onclick = () => toggleCollapse(d.id);
+      b.append(col);
+      b.append(el("div", "hint", "One block, height is the district's total lines — the module-level read. Double-clicking the plate does the same."));
       b.append(el("h3", null, "FILES"));
       for (const n of d.blocks.slice().sort((a, x) => x.loc - a.loc)) {
         const r = el("div", "row mini");
@@ -101,18 +97,12 @@ function renderInspect() {
       return;
     }
   }
-
   const n = byId.get(S.selected);
   if (!n) {
-    // Names the current view by its own label rather than a hardcoded one: a
-    // config can rename any view, and prose pointing at a button that does not
-    // exist is worse than prose that says less.
     const here = viewById.get(S.view)?.label ?? "this view";
     b.append(el("div", "hint", `Choose a block in the map, a district on the left, or click a moving packet. The packets follow real relationships — imports in ${here}, curated call order in a flow view.`));
     return;
   }
-
-  // Eyebrow, title, meta — what kind of thing, what it is called, how big.
   b.append(el("div", "eyebrow", (layerById.get(n.layer)?.label ?? n.layer).toUpperCase()));
   b.append(el("div", "title", n.name));
   if (n.kind === "file") {
@@ -122,8 +112,6 @@ function renderInspect() {
   }
   b.append(el("div", "path", n.id));
   const dl = el("dl", "kv");
-  // `why` is the rule that placed this node. Showing it is what turns "the tool
-  // put my file in the wrong column" into a config edit instead of a bug report.
   const add = (k, v, why) => {
     const dd = el("dd", null, v);
     if (why) dd.append(el("div", "why", why));
@@ -140,16 +128,12 @@ function renderInspect() {
   if (n.testKind) add("SUITE", n.testKind);
   if (n.subject) add("COVERS", byId.get(n.subject)?.name ?? n.subject);
   b.append(dl);
-
-  // Read the thing itself. An endpoint opens the file at the line that declares
-  // the route; a file opens at its top; a test offers the file it covers.
   const ep = n.kind === "endpoint" ? srcEndpoint(n.id) : null;
   for (const jump of [
     ep ? srcJump("⤷ ROUTE IN", ep.definedIn, ep.line) : null,
     n.kind === "file" ? srcJump("⤷ READ", n.id, 0) : null,
     n.subject ? srcJump("⤷ COVERS", n.subject, 0) : null,
   ]) if (jump) b.append(jump);
-
   if (n.note) b.append(el("div", "note", n.note));
   if (n.coverage) {
     const txt = {
@@ -159,32 +143,27 @@ function renderInspect() {
     }[n.coverage];
     b.append(el("div", "note" + (n.coverage === "none" ? " warn" : ""), `COVERAGE: ${n.coverage.toUpperCase()} — ${txt}`));
   }
-
-  // TRAVELLED BY is a control, not a label: it is the way from *a thing* to
-  // *what happens to that thing*. Absent when nothing passes through, which is
-  // most nodes — an empty section reads as a broken panel, not as an honest one.
   if (n.travelledBy?.length) {
     b.append(el("h3", null, "TRAVELLED BY"));
     const w = el("div");
     for (const id of n.travelledBy) {
       const f = flowById.get(id);
       if (!f) continue;
-      const chip = el("span", "tag act", f.label);
-      chip.onclick = () => enterFlow(id, n.id);
-      w.append(chip);
+      const c = el("span", "tag act", f.label);
+      c.onclick = () => enterFlow(id, n.id);
+      w.append(c);
     }
     b.append(w);
   }
-
   if (n.externals?.length) {
     b.append(el("h3", null, "EXTERNAL PACKAGES"));
     const w = el("div");
     n.externals.forEach(x => w.append(el("span", "tag", x)));
     b.append(w);
   }
-
   const outs = (edgesFrom.get(n.id) ?? []).filter(e => e.kind !== "test:exercises");
   const ins = (edgesTo.get(n.id) ?? []).filter(e => e.kind !== "test:exercises");
+  renderAppearance(b, n);
   const list = (title, arr, key) => {
     if (!arr.length) return;
     b.append(el("h3", null, `${title} (${arr.length})`));
@@ -192,11 +171,10 @@ function renderInspect() {
       const t = byId.get(e[key]);
       const r = el("div", "row mini");
       r.append(el("span", "nm", t?.name ?? e[key]), el("span", "sub", e.kind));
-      // The import statement lives in the edge's `from` file, whichever
-      // direction this list is reading the edge from.
       const jump = srcJump(null, e.line ? e.from : null, e.line);
       if (jump) r.append(jump);
-      r.onclick = () => { S.selected = e[key]; S.pinnedPacket = null; renderInspect(); };
+      // `goTo` rather than a bare assignment: the target may be filtered out, collapsed into a megablock or in a service that is switched off, and following an import to a block you cannot see is not following it.
+      r.onclick = () => goTo(e[key]);
       b.append(r);
       if (e.note) b.append(el("div", "note warn", e.note));
     }
@@ -204,4 +182,3 @@ function renderInspect() {
   list("IMPORTS / CALLS", outs, "to");
   list("USED BY", ins, "from");
 }
-

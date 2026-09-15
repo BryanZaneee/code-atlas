@@ -1,0 +1,17 @@
+{
+  "name": "code-atlas-desktop",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Desktop shell for code-atlas. The core stays a zero-dependency npm package; the dependency lives here.",
+  "type": "module",
+  "main": "main.mjs",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  },
+  "license": "MIT"
+}

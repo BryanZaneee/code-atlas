@@ -1,5 +1,5 @@
 /**
- * Module wiring sweep.
+ * Module load sweep. Not import EXTRACTION -- that is conformance.test.mjs.
  *
  * Every other test in this suite reaches a module by importing it directly for
  * a specific behaviour, so a module nothing exercises — a new file mid-refactor,

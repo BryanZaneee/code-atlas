@@ -1,32 +1,4 @@
-/* ════════════════════ live mode ════════════════════
- *
- * The one place this tool shows something it actually watched happen.
- *
- * Everything else on the map is read from the repository or inferred from it.
- * A live send produces two genuinely observed facts — a status code and an
- * end-to-end duration — and the entire difficulty of this file is that those
- * two facts arrive sitting next to a path the tool only modelled.
- *
- * THREE RULES, and they are the reason the phase was built last.
- *
- * The status is observed. The path is not. A green ring on the endpoint node
- * says the endpoint answered; it says nothing whatsoever about the hops drawn
- * behind it, which came from the import graph exactly as they did in MOCK.
- * `#ovWarn` carries that sentence for the whole animation.
- *
- * A non-2xx halts at hop 1. Animating a success path underneath a 500 would be
- * the map asserting a journey that demonstrably did not complete.
- *
- * NO PER-HOP TIMINGS, EVER. `ms / steps.length` is one line away and would look
- * entirely reasonable in a diff. It is a fabrication: the tool never watches a
- * request cross an internal hop, so any number attached to one is invented.
- * `test/live-view.test.mjs` asserts structurally that no step object ever grows
- * a timing field, which is there to make writing that line fail.
- *
- * The proxy also never returns a response body, so there is nothing here that
- * could render one. That is a server-side guarantee (`src/serve/proxy.mjs`) and
- * this file depends on it rather than re-checking it.
- */
+/* Live mode: only the status and end-to-end duration are observed, a non-2xx halts at hop 1, and no step ever grows a per-hop timing field (test/live-view.test.mjs asserts that structurally). */
 
 /** What the server told the page about live mode, or nothing on a built file. */
 const LIVE = {
@@ -42,14 +14,7 @@ const LIVE = {
 
 const LIVE_AUTH_KEY = `atlas:live-auth:${ATLAS.meta.repo}`;
 
-/**
- * Can this page send a real request at all?
- *
- * `srcServed()`, deliberately, and not `srcCapable()`. An atlas built with
- * `--embed-source` and opened as a file is source-capable — it carries the code
- * — but there is no server behind it to proxy through. 72-source.js already
- * draws that distinction and this is the other side of it.
- */
+/** srcServed(), not srcCapable(): an embedded file carries source but has no server to proxy through. */
 function liveOffered() {
   return srcServed() && !!LIVE.info?.offered;
 }
@@ -68,15 +33,7 @@ function liveToken() {
   try { return sessionStorage.getItem(LIVE_AUTH_KEY) || ""; } catch { return ""; }
 }
 
-/**
- * Store the page's own token, for the session and no longer.
- *
- * sessionStorage rather than localStorage, and never with the composer's other
- * fields: 78-request.js redacts an authorization VALUE out of what it persists,
- * and this is the deliberate exception a reader opted into by typing it here.
- * It dies with the tab, and the CLEAR control makes that a thing you can do on
- * purpose rather than by closing the browser.
- */
+/** sessionStorage, never localStorage, and never alongside the composer's persisted fields. */
 function liveSetToken(v) {
   try {
     if (v) sessionStorage.setItem(LIVE_AUTH_KEY, v);
@@ -92,18 +49,7 @@ function liveClassOf(status) {
   return "server";
 }
 
-/**
- * `n`, min, median and p95 over this session's samples.
- *
- * Lives here rather than beside the proxy because the viewer is its only
- * caller and cannot import from `src/` anyway — the bundle is concatenated
- * script, not modules.
- *
- * **p95 is withheld below five samples.** A 95th percentile over two numbers is
- * not a percentile, it is the larger number wearing a statistic's name, and a
- * tool that refuses to invent per-hop timings has no business inventing this
- * either. `n` always ships, so the reader can weigh the rest of it.
- */
+/** n, min, median and p95 this session. p95 is withheld below five samples: over two it is the larger number wearing a statistic's name. */
 function liveStats(samples) {
   const xs = [...(samples ?? [])].filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
   if (!xs.length) return { n: 0 };
@@ -124,20 +70,13 @@ function liveStatLine(id) {
   }
   const parts = [`n=${s.n}`, `min ${s.min}ms`, `median ${s.median}ms`];
   if (s.p95 != null) parts.push(`p95 ${s.p95}ms`);
-  // Named rather than silently absent: "n=3" when you pressed send five times
-  // is a question, and this is the answer to it.
+  // Named rather than silently absent: "n=3" after five sends is a question.
   const cut = LIVE.dropped.get(id) ?? 0;
   if (cut) parts.push(`${cut} not counted (truncated)`);
   return parts.join(" · ");
 }
 
-/**
- * Send the composed request for real, and arm what came back.
- *
- * The modelled path is still the modelled path: this reuses the same flow
- * 78-request.js would have played, and the only thing the response changes is
- * how much of it plays and what the endpoint node wears.
- */
+/** Send for real. The modelled path is unchanged; the response only decides how much of it plays. */
 async function liveSend() {
   const ep = REQ.endpoint;
   const flow = ep && reqFlowFor(ep);
@@ -160,8 +99,7 @@ async function liveSend() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         method: ep.method,
-        // The path only. The page has never had a host to send and never will:
-        // the origin lives in the server's config, set by --target.
+        // Path only: the origin lives in server config, set by --target.
         path: url,
         headers,
         ...(body ? { body } : {}),
@@ -175,11 +113,7 @@ async function liveSend() {
   }
   LIVE.busy = false;
 
-  // A truncated read's ms is time-to-1MB, not time-to-completion, so it is not
-  // a round trip and does not belong in a statistic labelled end-to-end.
-  // drawLive already refuses to print it as a number; letting it into the
-  // samples would have smuggled it back in as a median that quietly understates
-  // every endpoint returning a large body.
+  // A truncated read's ms is time-to-1MB, not a round trip, so it is not a sample.
   if (result.status != null && !result.error && !result.truncated) {
     const seen = LIVE.samples.get(ep.id) ?? [];
     seen.push(result.ms);
@@ -189,9 +123,7 @@ async function liveSend() {
   LIVE.last.set(ep.id, result);
 
   const steps = flow.steps.map(reqGrade);
-  // A response that did not succeed stops the trace at the first hop. The
-  // request reached the endpoint — that much is observed — and everything past
-  // it is a path the tool modelled for a journey that did not finish.
+  // Non-2xx stops at hop 1: past it is a modelled path for a journey that failed.
   const ok = result.status != null && result.status < 400;
   const played = ok ? steps : steps.slice(0, 1);
   if (played.length) {
@@ -211,9 +143,7 @@ async function liveSend() {
     label: `${ep.method} ${url}`,
     steps: played,
     derived: !!flow.derived,
-    // Marks the ARMED PATH as having come from a live send. It is deliberately
-    // not a per-step field: a step knowing about a response is the first move
-    // toward a step carrying a time, which is the one thing this must not do.
+    // On the armed path, never per-step: a step knowing about a response is one edit away from carrying a time.
     live: result,
   };
   S.pinnedPacket = null;
@@ -221,55 +151,25 @@ async function liveSend() {
   relayout(); renderList(); fitView(); renderInspect(); renderCaption(); syncControls();
 }
 
-/**
- * The status ring and its latency, on the endpoint node and nowhere else.
- *
- * Drawn in the overlay pass rather than the static raster: the static layer is
- * cached and re-rasterising it is what the Phase 1 and 2.5 gates forbid on
- * anything that is not a layout change. Reuses the exact shapes selection and
- * findings already use for "this one node, in place".
- */
+/** Status ring and latency on the endpoint node only, drawn in the overlay so the raster stays cached. */
 function drawLive() {
   const r = S.request?.live;
   if (!r) return;
-  // The endpoint id rides on the armed path rather than being read back out of
-  // the composer's state. That keeps this function's dependencies to S, LAYOUT
-  // and the render primitives — all of which live in files every harness
-  // loads — so a partial module list cannot turn a draw call into a
-  // ReferenceError pointing at neither file.
+  // The endpoint id rides on the armed path, keeping this to S, LAYOUT and render primitives that every harness loads.
   const n = LAYOUT.nodes.find((x) => x.id === S.request.endpointId);
   if (!n?.top) return;
 
   const col = THEME.liveStatus?.[liveClassOf(r.status)] ?? THEME.accent;
-  ctx.globalAlpha = 0.32;
-  quad(ctx, footprintOf(n).map(toScreen), col, null, 0);
-  ctx.globalAlpha = 1;
-  quad(ctx, silhouetteOf(n).map(toScreen), null, col, 2);
+  highlightBlock(ctx, n, col);
 
-  // The label says what was observed and only that: a status and a duration.
-  // A truncated or timed-out read has a number that is not a round trip, so it
-  // says so in words instead of printing one.
+  // Only what was observed: a truncated or timed-out read says so in words rather than printing a non-round-trip number.
   const text = r.error ? r.error
     : r.truncated ? `${r.status} · truncated at 1 MB`
     : `${r.status} · ${r.ms}ms`;
-  const s = toScreen(n.top);
-  ctx.font = `600 11px ${FONT}`;
-  ctx.textAlign = "center";
-  const w = ctx.measureText(text).width;
-  ctx.fillStyle = col;
-  ctx.fillRect(s.x - w / 2 - 5, s.y - 44, w + 10, 15);
-  ctx.fillStyle = BG;
-  ctx.fillText(text, s.x, s.y - 33);
+  chip(ctx, toScreen(n.top), text, col, 44);
 }
 
-/**
- * The request as a shell command, without sending it.
- *
- * Prints `$VAR` rather than a token, which is the whole point: the value has
- * never been in this page when the server is injecting it, and the command is
- * still runnable in a shell that has the variable. Built from the target and
- * the composed path, so what it shows is what the proxy would actually send.
- */
+/** The request as a shell command, printing `$VAR` rather than a token and built from the target and composed path, so it matches what the proxy would send. */
 function liveCurl() {
   const ep = REQ.endpoint;
   const url = reqUrl();

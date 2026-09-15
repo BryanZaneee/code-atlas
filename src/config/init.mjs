@@ -1,19 +1,4 @@
-/**
- * `atlas init` — the starter config.
- *
- * The only thing this repository ever writes into somebody else's, so it writes
- * one file and asks first (the caller refuses to overwrite).
- *
- * What it emits is what detection already found, spelled out: a config exists to
- * override what detection got wrong, and you cannot correct a list you have
- * never seen. Everything else is a commented one-liner pointing at docs/config.md
- * — a starter config full of the defaults restated is a file that drifts out of
- * date the first time the defaults improve.
- *
- * The working tree is read directly rather than through `acquire()`: init writes
- * into the tree you are editing, so that is the tree it should describe, and no
- * rung of the acquisition ladder is involved.
- */
+/** `atlas init`: a starter config spelling out what detection found, read from the working tree it describes. */
 import { DEFAULTS } from "./defaults.mjs";
 import { detectServices } from "./detect.mjs";
 import { collect } from "../scan/walk.mjs";
@@ -24,10 +9,6 @@ const lit = (v) => (typeof v === "string" ? JSON.stringify(v) : String(v));
 const service = (s) =>
   `    { id: ${lit(s.id)}, label: ${lit(s.label)}, lang: ${lit(s.lang)}, root: ${lit(s.root)}, order: ${s.order} },`;
 
-/**
- * @param repo  the working tree to describe
- * @returns the text of an atlas.config.mjs, and what it found
- */
 export function starterConfig(repo) {
   const { all, paths } = collect(repo, { keep: DEFAULTS.keep, exclude: DEFAULTS.exclude });
   const services = detectServices({ dir: repo, all, paths, exclude: DEFAULTS.exclude }) ?? DEFAULTS.services;

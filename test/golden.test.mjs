@@ -45,7 +45,10 @@ const ADDED_TOP = ["views", "theme",
   "findings"];
 const ADDED_META = ["schemaVersion", "acquisition", "suiteCount",
   // phase 2.5: the map's own coverage, so the chrome can state it permanently.
-  "unsortedCount", "unresolvedCount", "derivedCount"];
+  "unsortedCount", "unresolvedCount", "derivedCount",
+  // phase 11: how many blocks on this map are somebody else's code. Zero unless
+  // --include-vendor asked for them, which the prototype had no notion of.
+  "vendorCount"];
 // phase 1: the viewer used to sniff a step's prose for two phrases to decide
 // whether to highlight it; the curated data says so outright now.
 const ADDED_STEP = ["warn"];
@@ -61,6 +64,8 @@ const ADDED_NODE = ["layerWhy", "serviceWhy",
 // phase 2.5: a stable two-character district name, and the district-hierarchy
 // field PLAN.md ships ahead of the layout that consumes it.
 const ADDED_DISTRICT = ["code", "parentId"];
+// phase 11: present only on a node --include-vendor admitted, so absent here.
+const ADDED_NODE_11 = ["vendor"];
 // phase 4: the line a route is declared on, which is what makes Phase 7's
 // jump-to-line possible. Additive — the method, path and definedIn of all 18
 // endpoints must still match the prototype exactly, and they do.
@@ -162,7 +167,7 @@ test("taxvault's observed facts have not drifted from the prototype", async (t) 
   undoJsonLangFix(stripped);
   for (const k of ADDED_TOP) delete stripped[k];
   for (const k of ADDED_META) delete stripped.meta[k];
-  for (const n of stripped.nodes) for (const k of ADDED_NODE) delete n[k];
+  for (const n of stripped.nodes) for (const k of [...ADDED_NODE, ...ADDED_NODE_11]) delete n[k];
   for (const d of stripped.districts) for (const k of ADDED_DISTRICT) delete d[k];
   undoDistrictRename(stripped);
   for (const e of stripped.endpoints) for (const k of ADDED_ENDPOINT) delete e[k];
@@ -205,13 +210,20 @@ test("meta carries the fields later phases added", async (t) => {
   // rather than letting the config lose it by not knowing to list it. On this
   // target that means curated and derived paths sit in the same strip, which is
   // the only way to compare what a person asserted against what was inferred.
-  // Phase 5 appends FINDINGS to a config that predates it for the same reason
-  // Phase 6 appends DERIVED PATHS: a config cannot lose a view by not having
-  // known to list it. Unlike the derived view it is unconditional — a clean
-  // repository has a result to show, and hiding the view would make "checked,
-  // found nothing" look like "never checked".
-  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "derived", "request", "findings"]);
-  assert.equal(payload.views.find((v) => v.id === "derived").derived, true);
+  // Phase 5 appends FINDINGS to a config that predates it, and Phase 8 API
+  // REQUEST, for the same reason: a config cannot lose a view by not having
+  // known to list it. FINDINGS is unconditional — a clean repository has a
+  // result to show, and hiding the view would make "checked, found nothing"
+  // look like "never checked".
+  //
+  // There is no DERIVED PATHS entry any more. Phase 11 folded inferred paths
+  // into the composer, which opens on every endpoint's path; a derived one is
+  // reached by picking the endpoint, and `derived: true` on the flow is what
+  // still marks it inferred. This target's own curated views are untouched,
+  // which is the half that matters: dropping a built-in view must not disturb
+  // a config's.
+  assert.deepEqual(payload.views.map((v) => v.id), ["structure", "api", "engagement", "tests", "request", "findings"]);
+  assert.ok(payload.derivedFlows.every((f) => f.derived), "an inferred path still says so on the flow");
   assert.equal(payload.views.find((v) => v.id === "findings").kind, "findings");
   assert.ok(payload.derivedFlows.length > 0, "endpoints exist, so derived paths should too");
   // Curated data keeps its exact shape: derivation never writes into `flows`.

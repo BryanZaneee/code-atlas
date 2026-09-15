@@ -1,0 +1,13 @@
+{
+  "name": "code-atlas-screenshots",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Regenerates the README screenshots. Nested so the root package stays dependency-free.",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

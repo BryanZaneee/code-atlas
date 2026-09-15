@@ -1,25 +1,4 @@
-/**
- * Service detection — the rows of the map, found rather than declared.
- *
- * A service is a directory that declares itself one by carrying a package
- * manifest. That is the only signal used, because it is the only one that means
- * the same thing everywhere: a directory with a manifest is a unit somebody
- * chose to version and install as a whole.
- *
- * Two rules keep it honest on real repositories:
- *
- *   - Manifests are looked for over the **excluded-filtered** file list, so a
- *     build artifact's vendored manifest cannot register as a service. This is
- *     why detection takes the full walk and applies `exclude` itself rather than
- *     reading the kept list: a manifest is not a file we draw, so `keep` never
- *     admits one.
- *   - A manifest directory with no source files under it is not a service. That
- *     drops the umbrella manifest at the root of a workspace repo, whose job is
- *     to list the others.
- *
- * A repo with no manifest anywhere is not a failure: it gets one unnamed
- * service, and renders.
- */
+/** Service detection: a directory with a package manifest is a service, filtered so a vendored manifest or an empty workspace root cannot register one. */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -39,23 +18,13 @@ const MANIFEST_BY_FILE = new Map(MANIFESTS.map((m) => [m.file, m]));
 /** `packages/core/package.json` -> `packages/core`; a root manifest -> `""`. */
 const dirOf = (p) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
 
-/**
- * An id that reads well on a map: the package's own name where it has one,
- * minus any npm scope, otherwise the directory it sits in.
- */
+/** An id that reads on a map: the package name minus scope, else the directory. */
 function idFor(declared, dir) {
   const base = declared?.split("/").pop() || dir.split("/").pop() || "app";
   return base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "app";
 }
 
-/**
- * @param all      every path from the walk, unfiltered — manifests are not
- *                 files we draw, so they never appear in the kept list
- * @param paths    the kept (drawn) files, used to decide which manifest
- *                 directories actually contain code
- * @param exclude  the exclusion patterns; this is the defense against a
- *                 vendored or generated manifest registering as a service
- */
+/** `all` is the unfiltered walk (manifests are never drawn), `paths` the kept files. */
 export function detectServices({ dir, all, paths, exclude = [] }) {
   const excluded = (p) => exclude.some((re) => re.test(p));
 
@@ -72,14 +41,12 @@ export function detectServices({ dir, all, paths, exclude = [] }) {
     try {
       declared = m.name(readFileSync(path.join(dir, p), "utf8"));
     } catch {
-      // An unreadable or malformed manifest still marks a directory as a
-      // service; only its name is lost, and the directory name covers that.
+      // A malformed manifest still marks a service; only its name is lost.
     }
     found.push({ dir: d, lang: m.lang, declared });
   }
 
-  // Deepest first: a file under a nested package belongs to it, not to the
-  // workspace root that also carries a manifest.
+  // Deepest first: a nested package owns its files, not the workspace root.
   found.sort((a, b) => b.dir.length - a.dir.length || a.dir.localeCompare(b.dir));
 
   const owns = new Map(found.map((f) => [f.dir, 0]));
@@ -97,10 +64,7 @@ export function detectServices({ dir, all, paths, exclude = [] }) {
 
   const used = new Set();
   return live.map((f, order) => {
-    // Two manifests can declare the same name — a Rust crate and an npm package
-    // in one repo routinely do. The directory is what actually distinguishes
-    // them, so it is the second choice rather than a numeric suffix nobody can
-    // map back to anything.
+    // Two manifests can share a name; the directory distinguishes them, a numeric suffix would not.
     let id = idFor(f.declared, f.dir);
     if (used.has(id)) id = idFor(null, f.dir);
     while (used.has(id)) id += `-${order}`;
@@ -109,8 +73,7 @@ export function detectServices({ dir, all, paths, exclude = [] }) {
       id,
       label: id.toUpperCase().replace(/-/g, " "),
       lang: f.lang,
-      // A manifest at the repository root owns everything not claimed by a
-      // deeper one, which is exactly what a rootless service means.
+      // A root manifest owns whatever no deeper one claims: a rootless service.
       root: f.dir || null,
       order,
     };
