@@ -21,7 +21,9 @@ Dark theme and the FINDINGS view are in [docs/screenshots](docs/screenshots), wh
 > sends a real request when you explicitly turn it on, and is off by default:
 > everything else the tool draws is read from the repository or modelled from it.
 >
-> See **[PLAN.md](./PLAN.md)** for the design and **[ROADMAP.md](./ROADMAP.md)** for progress.
+> See **[PLAN.md](./PLAN.md)** for the design and **[ROADMAP.md](./ROADMAP.md)** for
+> progress. Individual structural decisions are recorded as
+> **[ADRs](./docs/adr/)**.
 
 ## Why
 
