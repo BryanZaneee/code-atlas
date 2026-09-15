@@ -201,6 +201,71 @@ test("cross-service coupling: the direct cross-boundary import is flagged", asyn
 });
 
 // ---------------------------------------------------------------------------
+// Negative cases
+//
+// The positive tests above all point at fixtures/import-cycle, which was built
+// to contain one of everything. That proves each check fires; it cannot prove
+// a check stays quiet when it should. These assert the absence, on fixtures
+// that are deliberately clean, and each one guards against being vacuous:
+// a fixture with no import edges would pass "no cycles" for the wrong reason.
+// ---------------------------------------------------------------------------
+
+test("cycles: none reported on acyclic repositories that do have imports", async () => {
+  for (const fixture of ["mini-monorepo", "flat-app"]) {
+    const { payload } = await scanFixture(fixture);
+    assert.ok(
+      payload.edges.filter((e) => e.kind === "import").length > 0,
+      `${fixture}: no import edges, so "no cycles" proves nothing`,
+    );
+    assert.deepEqual(
+      byType(payload.findings, "cycle"), [],
+      `${fixture}: reported a cycle in a fixture that has none`,
+    );
+  }
+});
+
+test("orphans: a file with edges is never reported, whichever direction they run", async () => {
+  const { payload } = await scanFixture("mini-monorepo");
+  const orphanIds = new Set(byType(payload.findings, "orphan").map((f) => f.evidence.nodes[0]));
+
+  // The one true orphan, so the assertions below are not passing on an empty set.
+  assert.deepEqual([...orphanIds], ["docs/overview.md"]);
+
+  // server.ts imports but is imported by nothing. An orphan is a file nothing
+  // connects to in EITHER direction, so a zero in-degree alone must not flag it.
+  const entry = payload.nodes.find((n) => n.id === "services/api/src/server.ts");
+  assert.equal(entry.inDeg, 0, "fixture changed: server.ts was the zero-in-degree case");
+  assert.ok(entry.outDeg > 0);
+  assert.equal(orphanIds.has(entry.id), false, "a file that imports others is not an orphan");
+
+  for (const n of payload.nodes) {
+    if (n.inDeg + n.outDeg > 0) {
+      assert.equal(orphanIds.has(n.id), false, `${n.id} has edges and must not be an orphan`);
+    }
+  }
+});
+
+test("untested endpoints: an endpoint a test path reaches is not flagged", async () => {
+  const { payload } = await scanFixture("mini-monorepo");
+  const flagged = new Set(
+    byType(payload.findings, "untested-endpoint").map((f) => f.id.replace("untested-endpoint:", "")),
+  );
+
+  // Both endpoints are defined in the same file, and that file has no direct
+  // coverage. The check is about what the path reaches, not what the defining
+  // file scores, and these two are the pair that tells those apart.
+  const sameFile = payload.endpoints.filter((e) => e.definedIn === "services/worker/app/main.py");
+  assert.deepEqual(sameFile.map((e) => e.id).sort(), ["GET /health", "POST /jobs"]);
+  assert.equal(payload.nodes.find((n) => n.id === "services/worker/app/main.py").coverage, "none");
+
+  assert.ok(flagged.has("GET /health"), "GET /health reaches no tested file and must be flagged");
+  assert.equal(
+    flagged.has("POST /jobs"), false,
+    "POST /jobs reaches a directly tested service, so it must not be flagged",
+  );
+});
+
+// ---------------------------------------------------------------------------
 // Mute
 // ---------------------------------------------------------------------------
 
