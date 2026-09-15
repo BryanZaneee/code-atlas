@@ -24,13 +24,17 @@ const LAYOUT_MODULES = ["00-theme.js", "10-state.js", "15-helpers.js", "20-selec
  * Run the layout half of the viewer over a payload and hand back its scope.
  * `let`/`const` are lexical, so they never appear on the context object — the
  * bindings under test have to be handed out explicitly.
+ *
+ * LAYOUT is handed out as a GETTER, not a value: `relayout()` reassigns it, so
+ * a plain copy would go stale the moment anything re-laid out and a test would
+ * be asserting against the previous map.
  */
 function runLayout(atlas) {
   const source =
     LAYOUT_MODULES.map((f) => readFileSync(path.join(VIEWER_DIR, f), "utf8")).join("") +
     // declared in 50-render.js, which needs a canvas and is not loaded here
     "\nvar staticDirty = false;\nsetYaw(S.yaw);\nrelayout();\n" +
-    "\nglobalThis.scope = { LAYOUT, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES, inPoly };\n";
+    "\nglobalThis.scope = { get LAYOUT() { return LAYOUT; }, project, heightOf, S, visibleSet, LOC_P95, setYaw, reproject, relayout, depthOf, YAW0, SHAPE_IDS, SHAPES, shapeIdFor, inPoly, groupKeyOf, keyCompare, labelForKey, DENSITY_IDS, setDensity, SPACING_MIN, spacingNow: () => SPACING, moveDistrict, resetOffsets, districtOffset, districtWouldOverlap, pickDistrict, project, toScreen, unproject, epochNow: () => layoutEpoch };\n";
   const ctx = vm.createContext({ ATLAS: atlas, console });
   vm.runInContext(`"use strict";\n${source}`, ctx, { timeout: 60_000 });
   return ctx.scope;
@@ -64,10 +68,10 @@ function synthetic(n, edgeCount) {
     kind: "import",
     cross: false,
   }));
-  const groups = [];
+  const districts = [];
   return {
-    meta: { schemaVersion: 1, repo: "synthetic", nodeCount: n, suiteCount: 0 },
-    services, layers, nodes, edges, endpoints: [], flows: [], groups,
+    meta: { schemaVersion: 2, repo: "synthetic", nodeCount: n, suiteCount: 0 },
+    services, layers, nodes, edges, endpoints: [], flows: [], districts,
     views: buildViews({}, []),
     theme: DEFAULT_THEME,
   };
@@ -227,12 +231,25 @@ test("the drawn side faces are the ones facing the camera", () => {
     scope.setYaw((deg * Math.PI) / 180);
     scope.reproject();
     for (const n of scope.LAYOUT.nodes) {
-      const centre = scope.project(n.gx + 0.5, n.gy + 0.5, 0).y;
-      const walls = n.faces.filter((f) => !f.cap);
-      assert.ok(walls.length, `no wall drawn at ${deg}deg`);
-      for (const w of walls) {
-        assert.ok(midY(w) > centre - 1e-9, `a wall was drawn on the far plane at ${deg}deg`);
+      const shape = scope.SHAPES[scope.shapeIdFor(n)];
+      const h = n.h * shape.hs;
+      const base = n.pz ?? 0;
+      // Faces come out prism by prism, each run of walls closed by its own cap,
+      // so counting caps says which prism a wall belongs to — and that is what
+      // gives its base height. Comparing every wall against the floor instead
+      // would read a stepped block's upper storeys as inside out, because their
+      // ground edges legitimately sit above it.
+      let prism = 0, walls = 0;
+      for (const f of n.faces) {
+        if (f.cap) { prism++; continue; }
+        walls++;
+        const z0 = base + h * shape.prisms[prism].z0;
+        const centre = scope.project(n.gx + 0.5, n.gy + 0.5, z0).y;
+        assert.ok(midY(f) > centre - 1e-9,
+          `a wall was drawn on the far plane at ${deg}deg (${scope.shapeIdFor(n)}, storey ${prism})`);
       }
+      assert.ok(walls, `no wall drawn at ${deg}deg`);
+      assert.equal(prism, shape.prisms.length, "every prism caps itself exactly once");
     }
   }
 });
@@ -293,4 +310,279 @@ test("rotating does not move anything in world space", () => {
   scope.reproject();
   assert.deepEqual(scope.LAYOUT.nodes.map((n) => `${n.id}@${n.gx},${n.gy},${n.h}`).sort(), before);
   assert.deepEqual(scope.LAYOUT.districts.map((d) => `${d.id}:${d.x0},${d.y0},${d.x1},${d.y1}`).sort(), districts);
+});
+
+/**
+ * Density is a preference; the depth sort is not.
+ *
+ * A block's footprint is one cell, so a spacing at or below 1 lets footprints
+ * overlap, at which point painter's order and hit testing disagree and the map
+ * can be clicked on and lie. `setDensity` clamps rather than validates, which
+ * this pins from both directions: every shipped preset clears the floor, and a
+ * config that asks for something illegal is corrected instead of obeyed.
+ */
+test("every density preset stays above the depth-sort floor", () => {
+  const scope = runLayout(synthetic(300, 400));
+  assert.ok(scope.DENSITY_IDS.length >= 2, "a control with one option is not a control");
+  for (const id of scope.DENSITY_IDS) {
+    scope.setDensity(id);
+    assert.ok(scope.spacingNow() > 1, `${id} packs blocks at ${scope.spacingNow()}, at or under one cell`);
+    assert.ok(scope.spacingNow() >= scope.SPACING_MIN, `${id} is under the floor`);
+  }
+});
+
+test("a config asking for an illegal spacing is clamped, not obeyed", () => {
+  const atlas = synthetic(60, 40);
+  atlas.theme = { ...atlas.theme, density: { ...atlas.theme.density, presets: { ...atlas.theme.density.presets, silly: { spacing: 0.2, gutLayer: -5, gutSvc: 0 } } } };
+  const scope = runLayout(atlas);
+  scope.setDensity("silly");
+  assert.equal(scope.spacingNow(), scope.SPACING_MIN);
+});
+
+/**
+ * The point of the control: compact has to actually be smaller. Measured on the
+ * bbox rather than the constants, because that is what a reader sees.
+ */
+test("compact draws a strictly smaller map than normal, and normal than roomy", () => {
+  const area = (density) => {
+    const atlas = synthetic(300, 400);
+    atlas.theme = { ...atlas.theme, density: { ...atlas.theme.density, default: density } };
+    const { bbox } = runLayout(atlas).LAYOUT;
+    return (bbox.x1 - bbox.x0) * (bbox.y1 - bbox.y0);
+  };
+  const compact = area("compact"), normal = area("normal"), roomy = area("roomy");
+  assert.ok(compact < normal, `compact ${compact} is not under normal ${normal}`);
+  assert.ok(normal < roomy, `normal ${normal} is not under roomy ${roomy}`);
+});
+
+/** The default a fresh atlas opens at, so a retune cannot silently undo itself. */
+test("the shipped default is not the old roomy spacing", () => {
+  const scope = runLayout(synthetic(60, 40));
+  assert.equal(scope.S.density, "normal");
+  assert.ok(scope.spacingNow() < 1.5, "the default is still drawn at the pre-2.7 pitch");
+});
+
+/**
+ * Dragging a district.
+ *
+ * The map is allowed to be rearranged; the depth sort is not allowed to stop
+ * being exact while it happens. Offsets are whole cells for that reason, so
+ * these assert the lattice as much as the movement.
+ */
+test("an offset moves exactly its own district, by whole cells", () => {
+  const scope = runLayout(synthetic(300, 400));
+  const target = scope.LAYOUT.districts[0].id;
+  const before = new Map(scope.LAYOUT.nodes.map((n) => [n.id, { gx: n.gx, gy: n.gy }]));
+  const inside = new Set(scope.LAYOUT.districts.find((d) => d.id === target).blocks.map((n) => n.id));
+
+  assert.equal(scope.moveDistrict(target, { dx: 40, dy: 30 }), true);
+
+  const pitch = scope.spacingNow();
+  for (const n of scope.LAYOUT.nodes) {
+    const was = before.get(n.id);
+    const dx = n.gx - was.gx, dy = n.gy - was.gy;
+    if (!inside.has(n.id)) {
+      assert.equal(dx, 0, `${n.id} moved and is not in the dragged district`);
+      assert.equal(dy, 0, `${n.id} moved and is not in the dragged district`);
+      continue;
+    }
+    // Every block in the district moves by the same whole number of cells:
+    // the district keeps its internal packing, and lands back on the lattice.
+    assert.ok(Math.abs(dx - 40 * pitch) < 1e-9, `${n.id} moved ${dx}, not ${40 * pitch}`);
+    assert.ok(Math.abs(dy - 30 * pitch) < 1e-9, `${n.id} moved ${dy}, not ${30 * pitch}`);
+  }
+});
+
+test("the district's plate and its blocks move together", () => {
+  const scope = runLayout(synthetic(300, 400));
+  const id = scope.LAYOUT.districts[0].id;
+  const rect = (d) => ({ x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1 });
+  const was = rect(scope.LAYOUT.districts.find((d) => d.id === id));
+
+  scope.moveDistrict(id, { dx: 40, dy: 0 });
+
+  const d = scope.LAYOUT.districts.find((x) => x.id === id);
+  const shift = 40 * scope.spacingNow();
+  assert.ok(Math.abs(d.x0 - (was.x0 + shift)) < 1e-9, "the plate stayed behind its blocks");
+  assert.ok(Math.abs(d.x1 - (was.x1 + shift)) < 1e-9);
+  assert.equal(d.y0, was.y0);
+  // The plate is still the box around the blocks it holds, not a stale rect.
+  for (const n of d.blocks) {
+    assert.ok(n.gx >= d.x0 && n.gx <= d.x1, `${n.id} sits outside its own district plate`);
+    assert.ok(n.gy >= d.y0 && n.gy <= d.y1, `${n.id} sits outside its own district plate`);
+  }
+});
+
+test("a drop onto another district is refused, and nothing moves", () => {
+  const scope = runLayout(synthetic(300, 400));
+  const [a, b] = scope.LAYOUT.districts;
+  // Land a exactly where b is: dropping one district onto another puts two
+  // blocks on one lattice point, which the depth sort has no answer for.
+  const cells = {
+    dx: Math.round((b.x0 - a.x0) / scope.spacingNow()),
+    dy: Math.round((b.y0 - a.y0) / scope.spacingNow()),
+  };
+  const before = scope.LAYOUT.nodes.map((n) => `${n.id}:${n.gx},${n.gy}`).join("|");
+
+  assert.equal(scope.moveDistrict(a.id, cells), false, "an overlapping drop was accepted");
+  assert.equal(scope.districtOffset(a.id).dx, 0, "a refused drop still recorded an offset");
+  assert.equal(scope.LAYOUT.nodes.map((n) => `${n.id}:${n.gx},${n.gy}`).join("|"), before);
+});
+
+test("R restores the computed layout exactly", () => {
+  const scope = runLayout(synthetic(300, 400));
+  const before = scope.LAYOUT.nodes.map((n) => `${n.id}:${n.gx},${n.gy}`).join("|");
+
+  scope.moveDistrict(scope.LAYOUT.districts[0].id, { dx: 40, dy: 30 });
+  scope.moveDistrict(scope.LAYOUT.districts[2].id, { dx: -25, dy: 12 });
+  assert.notEqual(scope.LAYOUT.nodes.map((n) => `${n.id}:${n.gx},${n.gy}`).join("|"), before);
+
+  assert.equal(scope.resetOffsets(), true);
+  assert.equal(scope.LAYOUT.nodes.map((n) => `${n.id}:${n.gx},${n.gy}`).join("|"), before,
+    "the computed layout did not come back byte for byte");
+  assert.equal(scope.resetOffsets(), false, "resetting an unmoved map still claimed to work");
+});
+
+/**
+ * The cache key has to see a move.
+ *
+ * It encodes node COUNT, which a drag never changes — so without the epoch a
+ * district could move and the static raster would keep the old picture.
+ */
+test("a committed drag bumps the layout epoch; a refused one does not", () => {
+  const scope = runLayout(synthetic(300, 400));
+  const [a, b] = scope.LAYOUT.districts;
+  const start = scope.epochNow();
+
+  scope.moveDistrict(a.id, { dx: 40, dy: 30 });
+  assert.ok(scope.epochNow() > start, "a drag committed without the raster being told");
+
+  const after = scope.epochNow();
+  // Rects are re-read: `a` has just moved, so the delta that lands it on `b`
+  // is measured from where it is now, not from where the test first saw it.
+  const now = (id) => scope.LAYOUT.districts.find((d) => d.id === id);
+  const onto = {
+    dx: Math.round((now(b.id).x0 - now(a.id).x0) / scope.spacingNow()),
+    dy: Math.round((now(b.id).y0 - now(a.id).y0) / scope.spacingNow()),
+  };
+  assert.equal(scope.moveDistrict(a.id, onto), false, "the drop was meant to be refused");
+  assert.equal(scope.epochNow(), after, "a refused drop re-rasterised for nothing");
+});
+
+/**
+ * Grabbing one. Same discipline as pickNode: the polygon that answers has to be
+ * the polygon that was drawn, or the map is a thing you can click on and be
+ * lied to by.
+ */
+test("a district is picked at its own centre, and follows when dragged", () => {
+  const scope = runLayout(synthetic(300, 400));
+  const at = (d) => {
+    const w = scope.project((d.x0 + d.x1) / 2, (d.y0 + d.y1) / 2, 0);
+    return scope.toScreen(w);
+  };
+  const d = scope.LAYOUT.districts[1];
+  assert.equal(scope.pickDistrict(at(d).x, at(d).y)?.id, d.id);
+
+  scope.moveDistrict(d.id, { dx: 40, dy: 30 });
+  const moved = scope.LAYOUT.districts.find((x) => x.id === d.id);
+  assert.equal(scope.pickDistrict(at(moved).x, at(moved).y)?.id, d.id,
+    "the district moved but its hit box did not follow");
+});
+
+/** The drag maths: screen delta -> ground cells has to round-trip. */
+test("unproject inverts project on the ground plane, at every yaw", () => {
+  const scope = runLayout(synthetic(60, 40));
+  for (let i = 0; i < 24; i++) {
+    scope.setYaw((i * Math.PI) / 12);
+    for (const [gx, gy] of [[3, 7], [-2, 5], [0, 0], [1.5, -4]]) {
+      const p = scope.project(gx, gy, 0);
+      const u = scope.unproject(p.x, p.y);
+      assert.ok(Math.abs(u.gx - gx) < 1e-9 && Math.abs(u.gy - gy) < 1e-9,
+        `yaw ${i}: ${gx},${gy} came back ${u.gx},${u.gy}`);
+    }
+  }
+  scope.setYaw(scope.YAW0);
+});
+
+/* ── grouping ───────────────────────────────────────────────────────────────
+   Columns mean one of two things, and the toggle is the whole of the
+   difference: `folder` puts a district where the files sit on disk, `layer`
+   puts it where the classifier says they belong. Everything downstream keys
+   off `groupKeyOf`, so it is the one place worth pinning.                   */
+
+/** A payload with two services — one rooted in a subdirectory, one at the repo root. */
+function grouped() {
+  const p = synthetic(4, 0);
+  p.services = [
+    { id: "api", label: "API", lang: "ts", root: "services/api", order: 0 },
+    { id: "root", label: "ROOT", lang: "ts", root: null, order: 1 },
+  ];
+  p.nodes = [
+    { ...p.nodes[0], id: "services/api/src/routes/a.ts", dir: "services/api/src/routes", service: "api", layer: "route" },
+    { ...p.nodes[1], id: "services/api/src/db/b.ts", dir: "services/api/src/db", service: "api", layer: "repository" },
+    { ...p.nodes[2], id: "services/api/index.ts", dir: "services/api", service: "api", layer: "entry" },
+    { ...p.nodes[3], id: "main.ts", dir: ".", service: "root", layer: "entry" },
+  ];
+  p.layers = [
+    { id: "entry", label: "ENTRY", rank: 0, color: "#111111" },
+    { id: "route", label: "ROUTE", rank: 1, color: "#222222" },
+    { id: "repository", label: "REPOSITORY", rank: 2, color: "#333333" },
+  ];
+  p.edges = [];
+  return p;
+}
+
+test("folder grouping names a district by where the files sit, relative to their service", () => {
+  const scope = runLayout(grouped());
+  scope.S.group = "folder";
+  const key = (id) => scope.groupKeyOf(scope.LAYOUT.nodes.find((n) => n.id === id)
+    ?? { ...grouped().nodes.find((n) => n.id === id) });
+
+  // The service root is stripped: a monorepo columns by src/routes, not by the
+  // prefix every one of its files shares, which would be one column for everything.
+  assert.equal(key("services/api/src/routes/a.ts"), "src/routes");
+  assert.equal(key("services/api/src/db/b.ts"), "src/db");
+  // A file sitting directly in its service root has no subfolder to name.
+  assert.equal(key("services/api/index.ts"), "·");
+  // And a service with no root at all is the repo itself, so `.` reads the same way.
+  assert.equal(key("main.ts"), "·");
+});
+
+test("layer grouping is unchanged by the toggle existing", () => {
+  const scope = runLayout(grouped());
+  scope.S.group = "layer";
+  for (const n of scope.LAYOUT.nodes) assert.equal(scope.groupKeyOf(n), n.layer);
+});
+
+test("columns order by rank in layer mode and alphabetically in folder mode", () => {
+  const scope = runLayout(grouped());
+  scope.S.group = "layer";
+  assert.ok(scope.keyCompare("entry", "repository") < 0, "rank decides, not the alphabet");
+  assert.equal(scope.labelForKey("repository"), "REPOSITORY");
+
+  scope.S.group = "folder";
+  assert.ok(scope.keyCompare("src/db", "src/routes") < 0);
+  // Endpoints have no folder of their own, so they lead rather than sorting
+  // into the middle of the paths under a letter nobody chose.
+  assert.ok(scope.keyCompare("endpoints", "src/db") < 0);
+  assert.equal(scope.labelForKey("src/db"), "src/db", "a path is its own label — upper-casing it would be a different path");
+});
+
+test("switching the axis re-columns the same blocks, and loses none of them", () => {
+  const scope = runLayout(grouped());
+  const ids = () => scope.LAYOUT.nodes.map((n) => n.id).sort();
+
+  scope.S.group = "layer";
+  scope.relayout();
+  const byLayer = scope.LAYOUT.districts.map((d) => d.key).sort();
+  const before = ids();
+
+  scope.S.group = "folder";
+  scope.relayout();
+  const byFolder = scope.LAYOUT.districts.map((d) => d.key).sort();
+
+  assert.deepEqual(ids(), before, "every block survives the switch");
+  assert.notDeepEqual(byFolder, byLayer, "and they are actually columned differently");
+  assert.ok(byFolder.includes("src/routes"));
+  assert.ok(byLayer.includes("route"));
 });

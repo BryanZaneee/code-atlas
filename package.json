@@ -1,15 +1,43 @@
 {
   "name": "code-atlas",
-  "version": "0.1.0",
-  "description": "Isometric, interactive maps of a codebase — structure, API flow, tests, and findings. Zero dependencies.",
+  "version": "1.1.0",
+  "description": "Isometric, interactive maps of a codebase: structure, API flow, tests, and findings.",
   "type": "module",
-  "bin": { "atlas": "./bin/atlas.mjs" },
-  "engines": { "node": ">=20" },
-  "files": ["bin", "src", "docs", "README.md", "LICENSE"],
+  "bin": {
+    "atlas": "./bin/atlas.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "examples",
+    "README.md",
+    "CONTRIBUTING.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "calibrate": "node test/calibrate.mjs"
+    "calibrate": "node test/calibrate.mjs",
+    "prepublishOnly": "npm test"
   },
-  "keywords": ["visualization", "codebase", "architecture", "isometric", "dependency-graph", "static-analysis"],
-  "license": "MIT"
+  "keywords": [
+    "visualization",
+    "codebase",
+    "architecture",
+    "isometric",
+    "dependency-graph",
+    "static-analysis"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bryanzane/code-atlas.git"
+  },
+  "homepage": "https://github.com/bryanzane/code-atlas#readme",
+  "bugs": {
+    "url": "https://github.com/bryanzane/code-atlas/issues"
+  }
 }

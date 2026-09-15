@@ -1,43 +1,33 @@
-/* ════════════════════ state ════════════════════ */
+/* ═══ state ═══ */
+const REDUCED_MOTION = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
 const S = {
-  view: "structure",
-  theme: "light",
-  colorMode: "identity",
+  view: "structure", theme: "light", colorMode: "identity",
   zoom: 1, panX: 0, panY: 0, yaw: YAW0,
   running: true, speed: 1, stepBudget: 0,
-  selected: null,       // node id
-  pinnedPacket: null,
-  focusDistrict: null,  // "service|layer"
-  activeFlow: "__all__",
-  // The finding whose evidence is lit on the map, by id. Overlay state, like
-  // `selected` — it never enters the raster cache, so picking one costs a veil
-  // and a handful of blocks rather than a re-rasterised city.
-  finding: null,
-  // Flow views show ONLY the flow by default. Off by choice, not by accident:
-  // seeing the path alone is what makes it readable, and seeing it inside the
-  // whole map is what makes it locatable. Both are wanted, so both exist.
-  isolate: true,
-  shape: "block",
-  layout: "grid",
-  grid: true,
-  query: "",
-  services: new Set(ATLAS.services.map(s => s.id)),
-  openServices: new Set(),
-  opts: { docs:false, tests:false, contract:true, ambient:true, labels:true },
+  selected: null, pinnedPacket: null, focusDistrict: null,
+  activeFlow: "__all__", finding: null, isolate: true,
+  shape: "varied", packing: "grid", density: BASE.density.default, ground: true,
+  group: "folder",
+  bands: "auto", roads: true, plinths: true, facade: true, material: "solid",
+  move: false,
+  query: "", services: new Set(ATLAS.services.map(s => s.id)), openServices: new Set(),
+  opts: { docs: false, tests: false, contract: true, ambient: !REDUCED_MOTION, labels: true, vendor: false },
   hover: null,
+  districtOffsets: new Map(), nodeOffsets: new Map(),
+  shapeByDistrict: new Map(), collapsed: new Set(),
+  nodeColors: new Map(), nodeShapes: new Map(), nodeSizes: new Map(),
+  keyColors: new Map(), palettePreset: "atlas", colorBy: "layer",
+  notes: new Map(), insTab: "info",
+  dragDistrict: null, dragNode: null, dragCells: { dx: 0, dy: 0 },
+  request: null, mode: "mock",
+  intro: !REDUCED_MOTION, introOrder: INTRO.order, introT: 1,
 };
 
 const byId = new Map(ATLAS.nodes.map(n => [n.id, n]));
 const layerById = new Map(ATLAS.layers.map(l => [l.id, l]));
 const svcById = new Map(ATLAS.services.map(s => [s.id, s]));
-// Curated and derived paths play through the same machinery, so the viewer
-// reads one list — but every derived entry carries `derived: true`, and the
-// chrome says so on the canvas rather than only in a panel.
 const ALL_FLOWS = [...ATLAS.flows, ...(ATLAS.derivedFlows ?? [])];
 const flowById = new Map(ALL_FLOWS.map(f => [f.id, f]));
-// Districts are laid out here but named by the scanner, so the code a plate tab
-// shows is the same one the payload published and a reader can grep for.
-const codeByGroup = new Map(ATLAS.groups.map(g => [g.id, g.code]));
 const edgesFrom = new Map(), edgesTo = new Map();
 for (const e of ATLAS.edges) {
   if (!edgesFrom.has(e.from)) edgesFrom.set(e.from, []);
@@ -45,4 +35,3 @@ for (const e of ATLAS.edges) {
   edgesFrom.get(e.from).push(e);
   edgesTo.get(e.to).push(e);
 }
-

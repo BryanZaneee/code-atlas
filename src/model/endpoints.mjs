@@ -1,45 +1,11 @@
-/**
- * Endpoint extraction.
- *
- * Rules come from config as {re, mount} pairs. A rule's mount is applied only
- * when the literal path does not already carry it, which is how a service that
- * mounts its router at a prefix and also hangs unversioned probes off the app
- * gets both right from one rule set.
- *
- * A rule's `mount` is a claim by the config and always wins. With none, the
- * prefix comes from `resolveMounts` — the chain of `app.route(prefix, router)`
- * registrations followed across files to a fixpoint, which is the only way a
- * path assembled from three files is ever right.
- *
- * The rule that never changes: a non-literal path is skipped and reported,
- * never guessed at, because a phantom endpoint is worse than a missing one.
- * Two shapes of skip exist, and both are counted rather than dropped silently:
- *   - a call a rule's receiver/method shape recognises, but whose path isn't
- *     a string literal (`router.post(somePathVar)`);
- *   - a route-shaped object literal (`{ path: "/x", ... }`) handed to a
- *     helper, in a file that is itself mounted as a router — the path is
- *     real, but the method lives in code this tool does not follow.
- * `extractEndpoints` attaches the list to the returned array as `.skips`:
- * `JSON.stringify` ignores non-index array properties, so it never joins the
- * public payload, and `diagnose()` (src/build/build.mjs) reads it back off
- * `payload.endpoints.skips` without a second return channel.
- *
- * Beyond the registration forms above, two route sources are language/
- * framework conventions rather than a repo's own layout: file-based routing
- * (Next.js App Router — a `route.ts`/`page.tsx` under a directory tree named
- * "app" IS the route) and path normalization (`:id` and `{id}` are the same
- * logical param in two frameworks' syntax, and collapse to one).
- */
-import { resolveMounts } from "./mounts.mjs";
+/** Endpoint extraction from config `{re, mount}` rules, the mount chain, and file-based routing. A non-literal path is skipped and counted, never guessed; skips ride on the returned array as `.skips`, outside the JSON payload. */
+import { resolveMounts, joinPath } from "./mounts.mjs";
 import { adapterFor } from "../adapters/index.mjs";
 import { langOf } from "./graph.mjs";
 
-// Prose and data. A `.md` or `.json` file having no endpoints is not a gap in
-// what this tool can read, so it is not worth reporting as one.
+// Prose and data: having no endpoints is not a coverage gap worth reporting.
 const NOT_CODE = new Set(["md", "json", "sql"]);
 
-/** `/api/ai` + `/cleanup` -> `/api/ai/cleanup`, without doubling the slash. */
-const joinPath = (a, b) => (a + b).replace(/\/{2,}/g, "/").replace(/(.)\/$/, "$1") || "/";
 
 /** 1-based line of a byte offset — jump-to-line (Phase 7) and skip reports. */
 const lineOf = (text, index) => text.slice(0, index).split("\n").length;
@@ -47,10 +13,31 @@ const lineOf = (text, index) => text.slice(0, index).split("\n").length;
 /** `{id}` -> `:id`, so a path is one logical node regardless of which framework's param syntax wrote it. */
 const normalizePath = (p) => p.replace(/\{(\w+)\}/g, ":$1");
 
-// The quoted-literal tail every default and config endpoint rule ends with.
-// Stripping it from a rule's source turns the rule into "the call this rule's
-// receiver/method shape recognises", with no requirement that the argument be
-// a literal — which is exactly the shape a skip needs to be found by.
+/** `const orders = Router()` / `= express.Router()` — the file naming a router. */
+const ROUTER_DECL = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:(\w+)\s*\.\s*)?Router\s*\(/g;
+
+/** The same name later pointed at something that is not a Router. */
+const reassigned = (name) =>
+  new RegExp(`\\b${name}\\s*=\\s*(?!\\s*(?:\\w+\\s*\\.\\s*)?Router\\s*\\()`);
+
+/** Where Router came from. Matches no quotes: this runs over text with string literals blanked. */
+const ROUTER_IMPORT = /\bimport\s[^;\n]*\bRouter\b[^;\n]*\bfrom\b|\brequire\s*\(/;
+
+/** The routers a file declares, by name, read from source with comments and strings blanked so a commented-out or reassigned declaration cannot seed a phantom endpoint. */
+function declaredRouters(adapter, text) {
+  const code = adapter.blankComments(text).replace(/(["'])(?:\\.|(?!\1)[^\\\n])*\1/g, (m) => " ".repeat(m.length));
+  const names = [];
+  for (const m of code.matchAll(ROUTER_DECL)) {
+    const [, name, receiver] = m;
+    if (/(?:router|app|server)$/i.test(name)) continue;   // the default rules already have it
+    if (!receiver && !ROUTER_IMPORT.test(code)) continue;  // a bare Router() nobody imported
+    if (reassigned(name).test(code.slice(m.index + m[0].length))) continue;
+    names.push(name);
+  }
+  return [...new Set(names)];
+}
+
+// Strip a rule's quoted-literal tail to get the call shape a non-literal skip is found by.
 const LITERAL_TAIL = `["']([^"']+)["']`;
 function callShape(rule) {
   const src = rule.re.source;
@@ -59,16 +46,10 @@ function callShape(rule) {
   return new RegExp(src.slice(0, -LITERAL_TAIL.length), flags);
 }
 
-// A route-shaped object literal passed to a helper: `{ path: "/relight", ... }`.
-// Legitimate anywhere a file is mounted as a router — that is what makes the
-// path real — but the METHOD lives in whatever the helper does with it, which
-// this tool does not follow.
+// A route-shaped object literal handed to a helper: the path is real, the method is not visible.
 const ROUTE_OBJECT = /\b(?:path|url|route)\s*:\s*["']([^"']+)["']/g;
 
-// Next.js App Router: a `route.ts`/`page.tsx` file under a directory named
-// "app" IS a route, at the path its containing directories spell out. "app"
-// is the framework's own root name — like "services/" is a layer convention —
-// not a particular repository's layout, so recognising it is not a special case.
+// App Router: a route/page file under an "app" tree IS a route, at the path its directories spell out.
 const ROUTE_FILE = /^(route|page)\.(ts|tsx|js|jsx|mjs)$/;
 const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 const METHOD_EXPORT = new RegExp(
@@ -98,71 +79,71 @@ function fileRouteUrl(p) {
 
 export function extractEndpoints(ctx) {
   const { endpointRules = [], layerOf, serviceOf } = ctx.config;
-  const rules = endpointRules.map((r) => ({ ...r, callRe: callShape(r) }));
+  const rules = endpointRules.map((r, i) => ({ ...r, i, callRe: callShape(r) }));
   const endpoints = [];
   const seen = new Set();          // service|method|path — dedupe within a service
   const routeCount = new Map();    // method|path -> how many services declare it
-  const skips = [];                // { file, line, reason } — never guessed, always counted
+  const skips = [];                // { file, line, reason }
   const unscanned = new Map();     // lang -> kept files no adapter claims, so no rule ran
 
-  // file|line already spent on a real endpoint, so a route-object skip on the
-  // same line is not double-reported alongside it.
+  // Lines already spent on a real endpoint, so a route-object skip is not double-reported.
   const matchedLines = new Set();
 
-  // Where each router file is mounted. Only consulted when a rule does not
-  // declare a `mount` of its own: a config that states the prefix is stating a
-  // fact about its repository, and discovery must not overrule it.
+  // Where each router file is mounted; consulted only when a rule declares no `mount` of its own.
   const mounts = resolveMounts(ctx);
 
-  const add = (method, rawPath, p, line, service) => {
+  const add = (method, rawPath, p, line, service, why) => {
     matchedLines.add(`${p}|${line}`);
     const path = rawPath || "/";
-    // `path` stays exactly what the source declared — the payload documents
-    // it as literal, and a curated flow references it by that literal text.
-    // Only the dedupe/collision key is normalized, so `:id` and `{id}` still
-    // collapse onto one node without rewriting what either framework wrote.
+    // `path` stays as declared; only the dedupe key is normalized, so `:id` and `{id}` still collapse.
     const norm = normalizePath(path);
     const key = `${service}|${method}|${norm}`;
     if (seen.has(key)) return;
     seen.add(key);
     const route = `${method}|${norm}`;
     routeCount.set(route, (routeCount.get(route) ?? 0) + 1);
-    endpoints.push({ id: `${method} ${path}`, method, path, service, definedIn: p, line });
+    endpoints.push({ id: `${method} ${path}`, method, path, service, definedIn: p, line, why });
   };
 
   for (const p of ctx.paths) {
     if (layerOf(p).layer === "test") continue;
-    // Which files a registration rule may be run over is an ADAPTER question,
-    // not a hardcoded extension list: an adapter claiming a language is this
-    // tool saying it can read that language as code. This used to be
-    // `/\.(ts|py)$/`, which silently excluded every `.js`/`.jsx`/`.mjs` file
-    // even though the ts adapter already owns them and the default rules match
-    // `router.get("/x")` in plain JavaScript exactly as they do in TypeScript —
-    // so an Express-in-JavaScript repo reported zero endpoints, zero derived
-    // paths, and nothing in `atlas scan` to say why.
-    //
-    // A file with no adapter is still counted below rather than dropped in
-    // silence, because "we do not read this language" and "this language has
-    // no routes" look identical from the outside and only one of them is a
-    // fact about the repository.
-    if (!adapterFor(p)) {
+    // Which files rules run over is an adapter question, never an extension list; a file with no adapter is counted, not dropped.
+    const adapter = adapterFor(p);
+    if (!adapter) {
       if (!NOT_CODE.has(langOf(p))) unscanned.set(langOf(p), (unscanned.get(langOf(p)) ?? 0) + 1);
       continue;
     }
-    const text = ctx.src.get(p);
+    // A registration inside a comment is not a route; blanking preserves offsets and leaves quoted paths intact.
+    const text = adapter.blankComments(ctx.src.get(p));
     const { service } = serviceOf(p);
 
-    for (const rule of rules) {
+    // Default rules key on a router/app/server receiver, or every HTTP client becomes a phantom endpoint; `declaredRouters` widens that by evidence.
+    const declared = declaredRouters(adapter, ctx.src.get(p));
+    const fileRules = declared.length
+      ? [...rules, ...declared.map((name) => ({
+        i: `#router:${name}`,
+        re: new RegExp(`\\b${name}\\s*\\.\\s*(get|post|patch|put|delete)\\s*\\(\\s*["']([^"']+)["']`, "g"),
+        declared: name,
+      }))]
+      : rules;
+
+    for (const rule of fileRules) {
       for (const m of text.matchAll(rule.re)) {
         const raw = m[2];
         const line = lineOf(text, m.index);
-        // A rule's own mount wins; otherwise every prefix this file is
-        // actually mounted under, which is how a two-level router chain gets
-        // the path that is really served.
+        // A rule's own mount wins; otherwise every prefix this file is mounted under.
         const prefixes = rule.mount != null ? [rule.mount] : [...(mounts.get(p) ?? [""])].sort();
         for (const prefix of prefixes) {
           const full = raw.startsWith(prefix) ? raw : joinPath(prefix, raw);
-          add(m[1].toUpperCase(), full, p, line, service);
+          const mountedAt = rule.mount != null
+            ? `prefix "${rule.mount}" declared by the rule`
+            : prefix
+              ? `prefix "${prefix}" from the mount chain`
+              : "no mount resolved — the path is the one this file declares";
+          const why = rule.declared
+            ? `${rule.declared} is declared from Router() in this file · ${mountedAt}`
+            : `matched endpoint rule #${rule.i} ${rule.re.source} · ${mountedAt}`;
+          add(m[1].toUpperCase(), full, p, line, service, why);
         }
       }
       if (rule.callRe) {
@@ -174,8 +155,7 @@ export function extractEndpoints(ctx) {
       }
     }
 
-    // A file mounted as a router that hands literal paths to a helper: the
-    // path is real, but the method lives in code this tool does not follow.
+    // A mounted router handing literal paths to a helper: real path, method not followable.
     if (mounts.has(p)) {
       for (const m of text.matchAll(ROUTE_OBJECT)) {
         const line = lineOf(text, m.index);
@@ -185,8 +165,7 @@ export function extractEndpoints(ctx) {
     }
   }
 
-  // File-based routing runs independently of the mount chain — the directory
-  // tree IS the path, and there is nothing to resolve.
+  // File-based routing ignores the mount chain: the directory tree is the path.
   for (const p of ctx.paths) {
     const base = p.split("/").pop();
     if (!ROUTE_FILE.test(base) || layerOf(p).layer === "test") continue;
@@ -195,21 +174,20 @@ export function extractEndpoints(ctx) {
     const { service } = serviceOf(p);
 
     if (base.startsWith("page.")) {
-      add("GET", url, p, 1, service);
+      add("GET", url, p, 1, service, `file-based route — an app-router page under ${p.split("/").slice(0, -1).join("/")}`);
       continue;
     }
-    const text = ctx.src.get(p);
+    const fileAdapter = adapterFor(p);
+    if (!fileAdapter) continue;
+    const text = fileAdapter.blankComments(ctx.src.get(p));
     for (const m of text.matchAll(METHOD_EXPORT)) {
-      add(m[1] ?? m[2], url, p, lineOf(text, m.index), service);
+      const method = m[1] ?? m[2];
+      add(method, url, p, lineOf(text, m.index), service, `file-based route — ${method} exported from an app-router route file`);
     }
-    // A route.ts with no recognised HTTP export is not guessed at or reported
-    // as a skip: it is not a registration this tool saw and could not
-    // resolve, just an unusual file — a different thing entirely.
+    // No recognised HTTP export is an unusual file, not a skip: nothing was seen and unresolved.
   }
 
-  // Two services can expose the same probe path. Keep the bare id where a
-  // path is unique so curated flows stay readable, and qualify only real
-  // collisions.
+  // Qualify only real cross-service collisions, so unique paths keep a readable bare id.
   for (const e of endpoints) {
     if (routeCount.get(`${e.method}|${normalizePath(e.path)}`) > 1) {
       e.id = `${e.method} ${e.path} · ${e.service}`;
@@ -217,9 +195,7 @@ export function extractEndpoints(ctx) {
   }
 
   endpoints.skips = skips;
-  // Languages this tool keeps and counts but has no adapter for, so no
-  // registration rule was ever run over them. Rides along the same way `skips`
-  // does, and for the same reason: it is a fact about coverage, not payload.
+  // Kept languages with no adapter, so no rule ran: a coverage fact, carried outside the payload like `skips`.
   endpoints.unscanned = [...unscanned].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   return endpoints;
 }

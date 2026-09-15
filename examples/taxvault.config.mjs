@@ -149,7 +149,7 @@ export default {
       id: "structure",
       label: "STRUCTURE",
       title: "THE CODEBASE",
-      hint: "Rows are services, columns are the router → controller → service → repository layers AGENTS.md rule 10 mandates. Building height is file length. Click a district to open it and list its files.",
+      hint: "Rows are services, columns are the router → controller → service → repository layers AGENTS.md rule 10 mandates. Block height is file length. Click a district to open it and list its files.",
     },
     {
       id: "api",

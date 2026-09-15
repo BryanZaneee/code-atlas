@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -84,4 +84,95 @@ test("a repository built with its own generated config still renders", (t) => {
   assert.ok(payload.meta.nodeCount > 0);
   const declared = new Set(payload.services.map((s) => s.id));
   for (const n of payload.nodes) assert.ok(declared.has(n.service), `${n.id} has a stranded service`);
+});
+
+
+
+/** Run the CLI expecting it to refuse: returns `{status, stderr}`. */
+function atlasFails(args) {
+  try {
+    atlas(args);
+    return null;                       // it did not fail, which is the failure
+  } catch (e) {
+    return { status: e.status, stderr: String(e.stderr ?? "") };
+  }
+}
+
+/**
+ * Live mode's flags fail early and loudly.
+ *
+ * Each of these could plausibly have been a warning that still started a
+ * server, and each would have been worse for it: a LIVE toggle permanently
+ * disabled after you asked for it, or every request going out unauthenticated
+ * after you said you had a token. The scan has not run yet at this point
+ * either, so a typo costs a message rather than a walk of the repository.
+ */
+test("live flags are validated before anything else happens", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+
+  const noTarget = atlasFails(["serve", "--repo", dir, "--allow-live"]);
+  assert.ok(noTarget, "--allow-live without --target should not start a server");
+  assert.match(noTarget.stderr, /--allow-live needs --target/);
+
+  const publicTarget = atlasFails(["serve", "--repo", dir, "--allow-live", "--target", "http://example.com"]);
+  assert.ok(publicTarget, "a public target should not start a server");
+  assert.match(publicTarget.stderr, /not a loopback or private/);
+
+  // Link-local is the cloud metadata range. It reads as private and is not.
+  const metadata = atlasFails(["serve", "--repo", dir, "--allow-live", "--target", "http://169.254.169.254"]);
+  assert.ok(metadata, "the metadata address should not start a server");
+  assert.match(metadata.stderr, /not a loopback or private/);
+
+  const noEnv = atlasFails([
+    "serve", "--repo", dir, "--allow-live",
+    "--target", "http://127.0.0.1:3000", "--auth-env", "ATLAS_TEST_UNSET_VAR",
+  ]);
+  assert.ok(noEnv, "an unset auth variable should not start a server");
+  assert.match(noEnv.stderr, /ATLAS_TEST_UNSET_VAR is not set/);
+});
+
+test("live flags on a command that cannot use them warn rather than fail", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+  // execFileSync only hands back stderr when the command fails, so this runs
+  // through spawnSync to read the warning AND prove the build still succeeded.
+  const r = spawnSync(process.execPath, [
+    ATLAS, "build", "--repo", dir, "--ref", "fs", "--json",
+    "--allow-live", "--target", "http://127.0.0.1:3000",
+  ], { encoding: "utf8" });
+
+  assert.equal(r.status, 0, "a misplaced live flag must not fail the build");
+  assert.match(r.stderr, /only applies to serve/);
+  assert.ok(JSON.parse(r.stdout).nodes.length, "and the payload is still produced");
+});
+
+/* ════════════════════ bare `atlas` ════════════════════ */
+
+/**
+ * `atlas` with no command is the whole first-run experience, so the two ways it
+ * can go wrong are worth pinning: writing nothing, and blocking on a prompt in a
+ * pipe or CI, where no one is there to answer it.
+ */
+test("bare atlas maps the repo it is standing in and writes an atlas", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+  const out = path.join(dir, "atlas.html");
+  atlas(["--repo", dir, "--out", out, "--ref", "fs"]);
+  assert.ok(existsSync(out), "bare atlas wrote no atlas");
+  assert.ok(readFileSync(out, "utf8").includes("<canvas"), "the atlas is not a viewer");
+});
+
+test("bare atlas never blocks on a prompt when nothing is watching", (t) => {
+  const dir = tmpRepo(t, "flat-app");
+  // stdin closed and stdio piped is exactly CI. A prompt here would hang the
+  // build forever rather than fail it, which is the worse failure of the two.
+  const r = spawnSync(process.execPath, [ATLAS, "--repo", dir, "--out", path.join(dir, "a.html"), "--ref", "fs"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!r.signal, `bare atlas hung and was killed by ${r.signal}`);
+  assert.ok(!/Write atlas\.config\.mjs/.test(r.stderr), "prompted with no TTY attached");
+});
+
+test("--help still explains itself, and exits 0", () => {
+  const help = atlas(["--help"]);
+  assert.match(help, /^atlas\s+map the repo you are in/m);
+  assert.match(help, /atlas <command>/);
 });

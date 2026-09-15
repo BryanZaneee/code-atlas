@@ -1,6 +1,6 @@
 {
   "meta": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "repo": "mini-monorepo",
     "ref": "fs",
     "commit": "",
@@ -23,6 +23,7 @@
     "coverIndirect": 1,
     "coverNone": 3,
     "packageCount": 2,
+    "vendorCount": 0,
     "unsortedCount": 0,
     "unresolvedCount": 0,
     "derivedCount": 0
@@ -103,44 +104,53 @@
   "views": [
     {
       "title": "THE CODEBASE",
-      "hint": "Rows are services, columns are architectural layers. Building height is file length. Click a district to open it and list its files.",
+      "hint": "Every file is a block: height and footprint are both file length. Blocks sit in districts — folders by default, or architectural layers — and the diamonds riding the streets are packets on real import edges: one moving from A to B means B reads what A exports. Click a district to open it, a block for its imports and source, a packet mid-flight to read the hop.",
       "id": "structure",
       "label": "STRUCTURE",
-      "kind": "structure"
-    },
-    {
-      "title": "REQUEST PATH",
-      "hint": "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
-      "id": "derived",
-      "label": "DERIVED PATHS",
-      "kind": "flow",
-      "derived": true
+      "kind": "dataflow"
     },
     {
       "title": "TEST COVERAGE",
-      "hint": "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+      "hint": "Packets run from each test to what it reaches. Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks: no test reaches them at all.",
       "id": "tests",
       "label": "TESTS",
       "kind": "tests"
     },
     {
+      "title": "API REQUEST PATH",
+      "hint": "Pick an endpoint and compose a request against it. Nothing is sent: this plays the path a request would take through the files — curated where a person asserted one, otherwise derived from the import graph, where dotted hops are gaps derivation could not justify.",
+      "id": "request",
+      "label": "API REQUEST",
+      "kind": "request"
+    },
+    {
       "title": "STRUCTURAL FINDINGS",
-      "hint": "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
+      "hint": "Structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
       "id": "findings",
       "label": "FINDINGS",
       "kind": "findings"
     }
   ],
   "theme": {
-    "ink": "#16181a",
-    "bg": "#ffffff",
+    "ink": "#10131c",
+    "bg": "#eef1f6",
     "font": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
-    "layerFallback": "#8a8a8a",
-    "accent": "#2563eb",
-    "plate": "#78828a",
-    "edge": "#11151a",
-    "face": "#ffffff",
-    "packetLabel": "#1c1e1f",
+    "layerFallback": "#8a8f98",
+    "accent": "#2b4bff",
+    "plate": "#6e7c96",
+    "edge": "#0d1220",
+    "face": "#f8fafd",
+    "packetLabel": "#141a2c",
+    "blockShadow": true,
+    "faceGradient": true,
+    "glow": true,
+    "gridAlpha": 0.15,
+    "shadow": "rgba(10,14,26,.12)",
+    "sheen": [
+      "rgba(255,255,255,.5)",
+      "rgba(255,255,255,.06)",
+      "rgba(255,255,255,0)"
+    ],
     "edgeStyle": {
       "import": {
         "c": "#6f7358",
@@ -243,19 +253,56 @@
       "warning": "#b5730f",
       "info": "#4a7a8c"
     },
+    "liveStatus": {
+      "ok": "#2f7d4f",
+      "client": "#b5730f",
+      "server": "#b3261e"
+    },
     "dark": {
-      "ink": "#e8eaec",
-      "bg": "#0e1011",
-      "layerFallback": "#7b7f83",
-      "accent": "#5b8dff",
-      "plate": "#98a2a9",
-      "edge": "#e4e8ec",
-      "face": "#333a3f",
-      "packetLabel": "#e8eaec",
+      "ink": "#e6e9f5",
+      "bg": "#0a0d16",
+      "layerFallback": "#5f6a8c",
+      "accent": "#6ea8ff",
+      "plate": "#8b97b8",
+      "edge": "#dfe6ff",
+      "face": "#252c42",
+      "packetLabel": "#e6e9f5",
+      "gridAlpha": 0.18,
+      "shadow": "rgba(0,0,0,.38)",
+      "sheen": [
+        "rgba(255,255,255,.26)",
+        "rgba(255,255,255,.04)",
+        "rgba(255,255,255,0)"
+      ],
       "findingSeverity": {
         "error": "#ff6b5e",
         "warning": "#f0a03c",
         "info": "#79b8d0"
+      },
+      "liveStatus": {
+        "ok": "#5fd08a",
+        "client": "#f0a03c",
+        "server": "#ff6b5e"
+      }
+    },
+    "density": {
+      "default": "normal",
+      "presets": {
+        "compact": {
+          "spacing": 1.15,
+          "gutLayer": 0.5,
+          "gutSvc": 0.9
+        },
+        "normal": {
+          "spacing": 1.25,
+          "gutLayer": 1,
+          "gutSvc": 1.5
+        },
+        "roomy": {
+          "spacing": 1.5,
+          "gutLayer": 2,
+          "gutSvc": 2.5
+        }
       }
     },
     "legend": {
@@ -278,6 +325,28 @@
         },
         {
           "swatch": "request",
+          "label": "PACKET — CLICK TO INSPECT"
+        }
+      ],
+      "dataflow": [
+        {
+          "edge": "import",
+          "label": "IMPORT — OBSERVED"
+        },
+        {
+          "edge": "http",
+          "label": "CROSS-SERVICE HTTP"
+        },
+        {
+          "edge": "coupling",
+          "label": "SHARED-DB COUPLING"
+        },
+        {
+          "edge": "sql",
+          "label": "SQL / CACHE"
+        },
+        {
+          "swatch": "import",
           "label": "PACKET — CLICK TO INSPECT"
         }
       ],
@@ -322,6 +391,54 @@
           "label": "NONE — NO TEST REACHES IT"
         }
       ]
+    },
+    "ramps": {
+      "atlas": [
+        "#c6a86c",
+        "#9cb77d",
+        "#6ebea8",
+        "#69bad1",
+        "#91ace4",
+        "#bc9ed6",
+        "#d896b0",
+        "#dc9a84"
+      ],
+      "blueprint": [
+        "#738292",
+        "#7d8c9c",
+        "#8797a7",
+        "#92a1b2",
+        "#9cacbd",
+        "#a7b7c8",
+        "#b1c2d3",
+        "#bccdde"
+      ],
+      "earth": [
+        "#cd9e93",
+        "#caa08c",
+        "#c6a386",
+        "#c1a682",
+        "#baaa81",
+        "#b1ad82",
+        "#a8b086",
+        "#9fb38c"
+      ],
+      "okabe": [
+        "#e69f00",
+        "#56b4e9",
+        "#009e73",
+        "#d9c531",
+        "#0072b2",
+        "#d55e00",
+        "#cc79a7",
+        "#8a8f98"
+      ]
+    },
+    "rampLabels": {
+      "atlas": "atlas ramp",
+      "blueprint": "neutral blueprint",
+      "earth": "muted earth",
+      "okabe": "okabe-ito"
     }
   },
   "nodes": [
@@ -526,7 +643,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "GET /api/users/:id",
@@ -543,7 +663,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "POST /api/users",
@@ -560,7 +683,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/api/src/routes/users.ts",
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule"
     },
     {
       "id": "GET /health",
@@ -577,7 +703,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/worker/app/main.py",
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule"
     },
     {
       "id": "POST /jobs",
@@ -594,7 +723,10 @@
       "subject": null,
       "inDeg": 0,
       "outDeg": 1,
-      "uncovered": false
+      "uncovered": false,
+      "layerWhy": "an endpoint is its own layer, not a file's",
+      "serviceWhy": "the service of services/worker/app/main.py",
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule"
     }
   ],
   "edges": [
@@ -677,6 +809,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 6,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -738,6 +871,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 7,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -799,6 +933,7 @@
       "service": "api",
       "definedIn": "services/api/src/routes/users.ts",
       "line": 8,
+      "why": "matched endpoint rule #0 \\brouter\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"/api\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -860,6 +995,7 @@
       "service": "worker",
       "definedIn": "services/worker/app/main.py",
       "line": 8,
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -886,6 +1022,7 @@
       "service": "worker",
       "definedIn": "services/worker/app/main.py",
       "line": 13,
+      "why": "matched endpoint rule #1 @app\\.(get|post|patch|put|delete)\\(\\s*[\"']([^\"']+)[\"'] · prefix \"\" declared by the rule",
       "derivedPath": {
         "steps": [
           {
@@ -925,7 +1062,6 @@
     {
       "id": "derived:GET /api/users",
       "label": "GET /api/users",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -983,7 +1119,6 @@
     {
       "id": "derived:GET /api/users/:id",
       "label": "GET /api/users/:id",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1041,7 +1176,6 @@
     {
       "id": "derived:POST /api/users",
       "label": "POST /api/users",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1099,7 +1233,6 @@
     {
       "id": "derived:GET /health",
       "label": "GET /health",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1122,7 +1255,6 @@
     {
       "id": "derived:POST /jobs",
       "label": "POST /jobs",
-      "view": "derived",
       "derived": true,
       "blurb": "Inferred from imports — not observed. Dotted hops are gaps the import graph could not justify.",
       "steps": [
@@ -1157,7 +1289,7 @@
       ]
     }
   ],
-  "groups": [
+  "districts": [
     {
       "id": "docs/docs",
       "service": "docs",

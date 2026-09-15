@@ -13,6 +13,14 @@ atlas.html
 
 # Node — the tool has no dependencies, but contributors may install dev tooling
 node_modules/
+docs/screenshots/node_modules/
+desktop/dist/
+
+# Python bytecode from the fixture services
+__pycache__/
 
 # Design references, kept locally: ~12 MB of screenshots
 IMG/
+
+# Claude Design export the Phase 11 viewer was ported from, kept locally
+Codebase Isometric Visualizer*/

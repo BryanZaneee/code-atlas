@@ -18,11 +18,23 @@ export default {
   prepare(ctx) { … },                       // optional
   extractImports(text, from, ctx) { … },
   resolve(from, spec, ctx, symbols) { … },
+  blankComments(text) { … },
+  importBindings(text) { … },
+  testSubject(path) { … },
 };
 ```
 
 Register it in `src/adapters/index.mjs`. `adapterFor(path)` picks the **first**
 adapter whose `extensions` match, so the list order is the tie-break.
+
+Six ship today: `ts` (TypeScript and JavaScript), `py`, `go`, `rb`, `jvm` (Java
+and Kotlin in one adapter, because a Kotlin file routinely imports a Java one out
+of the same source root) and `rs`.
+
+Only claim an extension the walk actually delivers. `DEFAULT_KEEP` in
+`src/config/defaults.mjs` decides what is walked at all, and an adapter naming a
+suffix that is not in it is a quiet lie — the adapter looks like support and can
+never run.
 
 | member | contract |
 | --- | --- |
@@ -31,6 +43,34 @@ adapter whose `extensions` match, so the list order is the tie-break.
 | `prepare(ctx)` | optional, called **once** before extraction. Return whatever per-repo state resolution needs; it lands on `ctx[id]` |
 | `extractImports(text, from, ctx)` | → `[{ spec, symbols?, kind, line }]`, in source order. One entry per import *site*, not per unique specifier |
 | `resolve(from, spec, ctx, symbols)` | → `{ kind, ids }` where `kind` is `"internal"`, `"external"` or `"unresolved"` |
+| `blankComments(text)` | → text of the **same length**, comments replaced by spaces, ordinary quoted strings left intact |
+| `importBindings(text)` | → `[{ spec, localNames: Set, symbols? }]`: which local names each import binds |
+| `testSubject(path)` | → the source path a test at `path` conventionally covers, by naming convention alone |
+
+### The three lexing members
+
+These exist because the model used to do this work itself, branching on language
+or reaching into the TypeScript adapter directly. Both were wrong in the same
+way, and one of them was a live bug: Python files were blanked with the
+TypeScript blanker, which does not know `#`, so a commented-out route was
+extracted as a real endpoint.
+
+**`blankComments(text)` must preserve length, newlines and offsets.** Every
+line number and match index downstream is computed against the result. Blank a
+comment to spaces, not to nothing. Leave ordinary quoted strings alone: that is
+where a route path lives. Language constructs that are really comments (a Python
+docstring, a JS template literal that could hide a registration) are yours to
+blank.
+
+**`importBindings(text)`** answers "which local names did this import bring in",
+which is how path derivation narrows a route file's many imports down to the
+ones one endpoint actually uses, and how a mount chain finds the module a router
+symbol came from. Return one entry per import site.
+
+**`testSubject(path)`** is a naming-convention guess and nothing more:
+`test/x.test.ts` → `src/x.ts`. Guessing wrong is safe: the caller checks the
+result against the real file set and falls back to token scoring, so return your
+convention's answer without verifying it.
 
 ### `symbols` is how a barrel gets resolved
 
@@ -88,6 +128,27 @@ drawn: `tsconfig.json` carries no import edges, so `keep` excludes it, but its
 `paths` table decides where dozens of specifiers land. Read those in `prepare`,
 once — never per import.
 
+## An adapter buys edges, not endpoints
+
+This is the one thing worth knowing before writing one, because it is the
+question every new language raises and the answer is not the obvious one.
+
+Endpoint extraction is **not** part of the adapter contract. `src/model/endpoints.mjs`
+and `src/model/mounts.mjs` carry their patterns — `ROUTER_DECL`, `ROUTER_IMPORT`,
+`ROUTE_OBJECT`, `ROUTE_FILE`, `METHOD_EXPORT`, `MOUNT` — and those patterns are
+JavaScript-shaped and are applied to every language. Your adapter is consulted
+for exactly three things along the way: whether a file is in a language anyone
+can read at all, `blankComments` before matching, and `importBindings` +
+`resolve` to follow a mount chain.
+
+So a Go, Rails or Spring repository gets its structure, its sizes, its layers and
+its full import graph, and close to **zero endpoints**, unless the repository's
+config supplies `endpointRules`. That gap is deliberate. Shipping guessed Gin,
+Rails or Spring route patterns that no fixture and no corpus in this repo can
+check would be "never shape a rule around one repository" wearing a new hat, and
+a phantom endpoint is the one thing the honesty contract will not have. Config
+closes it; a guess does not.
+
 ## Rules that are not negotiable
 
 - **Zero dependencies.** Node stdlib, `.mjs` ESM. No compiler, no parser.
@@ -119,6 +180,15 @@ export default {
   resolve(from, spec, ctx) {
     return { kind: "unresolved", ids: [spec] };
   },
+  blankComments(text) {
+    return text;        // same length, comments spaced out, strings intact
+  },
+  importBindings(text) {
+    return [];          // -> [{ spec, localNames: new Set([...]) }]
+  },
+  testSubject(p) {
+    return p.replace(/_test\.go$/, ".go");
+  },
 };
 ```
 
@@ -140,3 +210,114 @@ Cover, at minimum: the language's re-export barrels, its relative-import syntax
 at more than one depth, whatever aliasing its build config allows, one circular
 pair, one import that must stay `external`, and — the row people forget — one
 that must stay **`unresolved`**.
+
+### Worked example: a Go adapter in 50 lines
+
+*Kept as a teaching example. The shipped `src/adapters/go.mjs` is this plus the
+shapes it skips — the one-line `import "fmt"` form, aliased and `_` imports,
+backtick raw strings, several `go.mod` files, and `_test.go` files excluded from
+a package's ids. Read that file for the real thing and this one for the shape.*
+
+`fixtures/hostile-go/` ships in this repo: two Go files and a `go.mod`
+declaring the module name (Go has no `keep` extension for `go.mod`, so it is
+read from `ctx.all`, the same way `ts.mjs` reads `tsconfig.json`). Run
+`node bin/atlas.mjs scan --repo fixtures/hostile-go --ref fs` against it today
+and it degrades exactly as "no adapter" should: 0 edges, both files reported
+under "no adapter for the language."
+
+```
+fixtures/hostile-go/
+  go.mod                   // module github.com/example/widget
+  widget.go                // package widget
+  cmd/main.go              // package main; imports "github.com/example/widget"
+```
+
+`cmd/main.go`:
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/example/widget"
+)
+
+func main() { fmt.Println(widget.Name) }
+```
+
+The adapter. One specifier can resolve to many files for a wildcard import,
+so `ids` stays an array even though this fixture only ever returns one:
+
+```js
+// src/adapters/go.mjs
+import path from "node:path";
+
+const IMPORT_BLOCK = /import\s*\(([\s\S]*?)\)/g;
+const IMPORT_LINE = /^\s*(?:\w+\s+)?"([^"]+)"/gm;
+
+export default {
+  id: "go",
+  extensions: [".go"],
+
+  prepare(ctx) {
+    const modFile = ctx.all.find((p) => path.posix.basename(p) === "go.mod");
+    const text = modFile ? ctx.src.get(modFile) ?? "" : "";
+    return { module: text.match(/^module\s+(\S+)/m)?.[1] ?? null };
+  },
+
+  extractImports(text) {
+    const specs = [];
+    for (const block of text.matchAll(IMPORT_BLOCK)) {
+      for (const m of block[1].matchAll(IMPORT_LINE)) specs.push(m[1]);
+    }
+    return specs.map((spec) => ({ spec, kind: "static" }));
+  },
+
+  resolve(from, spec, ctx) {
+    const mod = ctx.go?.module;
+    if (!mod || !spec.startsWith(mod)) return { kind: "external", ids: [spec] };
+    // A Go import names a PACKAGE (a directory), not a file. Every .go file
+    // in that directory is part of it, which is why this returns an array.
+    const dir = spec === mod ? "" : spec.slice(mod.length + 1);
+    const ids = ctx.paths.filter((p) => p.endsWith(".go") && path.posix.dirname(p) === dir);
+    return ids.length ? { kind: "internal", ids: ids.sort() } : { kind: "unresolved", ids: [spec] };
+  },
+
+  // Same length in, same length out: every offset downstream depends on it.
+  blankComments(text) {
+    return text
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+      .replace(/\/\/.*$/gm, (m) => " ".repeat(m.length));
+  },
+
+  // A Go import binds the package's last segment, or its explicit alias.
+  importBindings(text) {
+    return this.extractImports(text).map(({ spec }) => ({
+      spec,
+      localNames: new Set([spec.split("/").pop()]),
+    }));
+  },
+
+  testSubject: (p) => p.replace(/_test\.go$/, ".go"),
+};
+```
+
+Register it (`ADAPTERS.push(go)` in `src/adapters/index.mjs`), then add the
+expectation table `test/conformance.test.mjs` asserts against:
+
+```js
+const EXPECT_GO = {
+  "widget.go": [],
+  "cmd/main.go": [
+    { spec: "fmt", kind: "static", resolved: { kind: "external", ids: ["fmt"] } },
+    { spec: "github.com/example/widget", kind: "static",
+      resolved: { kind: "internal", ids: ["widget.go"] } },
+  ],
+};
+conform(go, fixture("hostile-go", go), EXPECT_GO);
+```
+
+`npm test` now runs this table the same way it runs the TypeScript and Python
+ones: exact extraction, exact resolution, no silent regression when a pattern
+stops matching. That is the whole contribution surface: nothing in
+`src/model/` had to change to pick up a fourth language.

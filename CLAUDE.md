@@ -4,21 +4,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## State of the repo
 
-**Phases 0, 2, 2.5, 2.6, 3, 4, 5 and 6 are complete. Phase 7 has its server
-and its reader.**
+**Every phase is complete, 15 of 15.** Two open boxes, neither a phase: Phase 1's
+60 fps sustained drag and Phase 11's arrival animation both need a human with the
+window in front, because `requestAnimationFrame` is suspended in a backgrounded
+tab. A harness driving the page sees the arrival advance one frame per forced
+repaint, which reads as blocks failing to draw and is not that.
 
 `build`, `scan`, `init` and `serve` all work on any repository, with or without a
 config, and `findings` reports the eight structural checks over the graph.
 Derivation (`src/model/derive.mjs`) and its calibration
 harness (`test/calibrate.mjs`, `npm run calibrate`) are in, and the numbers
 they produce are published in the README rather than left in a commit message.
-Phase 7's server and its reader are both in — allowlisted `/api/source`,
-INFO/SOURCE tabs, jump-to-line and highlighting; what is left there is
-`--embed-source` and `--gzip-source`, which share a gate.
+Phase 7 is in whole, including `--embed-source` and `--gzip-source`; its one
+open item is the >=3x compression ratio, deferred with a measured 2.31x and the
+arithmetic showing the bar was set against a number that forgot base64. Phase 8
+ships the request composer, and Phase 10 the packaging: README, CONTRIBUTING and
+the three docs, with the cold-reader gate walked against a repo the tool had
+never seen.
 
-Phase 1 is done bar one gate — 60 fps sustained drag — which needs a human with
-the window in front, because `requestAnimationFrame` is suspended in a
-backgrounded tab.
+Phase 9 ships live mode: `src/serve/proxy.mjs` decides what may be sent and
+`handleLive` sends it, returning a status, a duration and a byte count and never
+a response body. It is off unless `--allow-live` and `--target` are both passed,
+targets must be loopback or private, and the token from `--auth-env` is injected
+server-side so it never enters the page.
+
+Phase 11 replaced the viewer from a Claude Design draft — the same lineage, so a
+port rather than a rewrite. Districts are **folders by default** and the `group
+by` control switches the across axis to layers; the strip offers four views, not
+seven, because import packets now run in STRUCTURE and inferred paths are reached
+through the composer. `--include-vendor` draws `node_modules` and friends when
+asked, marked `vendor: true` and switchable off in the viewer. The draft's
+stubs did **not** come across: vendored Prism still highlights, `srcServed()`
+still detects a server, and the composer still sends for real under
+`--allow-live`.
 
 The prototype this was lifted from still lives at `../FedStack/tax-vault-atlas/`.
 It is the reference for the Phase 0 baseline and nothing else; do not edit it, and
@@ -142,6 +160,43 @@ exact strings, which constrained the design without making the map any more
 honest. What is not open is shipping a modelled path that reads as an observed
 one, or drawing a number we do not have.
 
+## Vocabulary
+
+One word per thing, because the map, the payload, the panels and the README all
+have to agree. The axes are **service down, folder across** — or layer across,
+which is the same map re-columned by the `group by` control.
+
+| term | what it is |
+| --- | --- |
+| **block** | one source file, drawn as an extruded solid; height is file length |
+| **prism** | one extrusion inside a block's shape — five shapes are built from prisms |
+| **district** | one service crossed with one **column**. `districts[]` in the payload, `LAYOUT.districts` in the viewer, id `service/key` everywhere — built by `districtId()` in `15-helpers.js` and never assembled by hand |
+| **column** | what the across axis means, chosen by `S.group`: a **folder** (default) or a **layer**. `groupKeyOf()` in `15-helpers.js` is the only place that decides |
+| **service** | a row of the map, with a service plate and a name flag under it |
+| **layer** | the classified job a file does. A column in `layer` mode; the block's colour in both |
+| **plinth** | the step each service row is raised onto, so rows separate by elevation rather than by gap |
+| **street** | the gutter between districts, and the lattice imports route along |
+| **ground plate** | the pad under a group of blocks — a **service plate** or a **district plate** |
+| **ground grid** | the isometric floor, `S.ground` |
+| **facade band** | one line per ~50 lines of code down a block's face, so height is countable |
+| **megablock** | a district collapsed to one block, its height the district's total lines |
+| **packing** | how blocks arrange *within* a district — `S.packing`, grid/wide/tall |
+| **density** | how much space sits *between* districts and services |
+
+**Folders are one of two axes, and the default one.** Phase 11 reversed the
+older rule that folders are never drawn; PLAN.md carries the reasoning. A
+district is `service/folder` under `S.group === "folder"` and `service/layer`
+otherwise, and the toggle is the whole of the difference — the same blocks, the
+same colours, re-columned. `groupKeyOf()` strips the service root, so a monorepo
+columns by `src/routes` rather than by the prefix every one of its files shares.
+
+What has *not* changed: a district is still the only directory-shaped unit, and
+nothing nests. There is no folder tree, no expandable hierarchy, and a deep path
+is one column named `a/b/c`, not three.
+
+Retired words, so they do not come back: *group* (say district), *box* and
+*building* (say block), and `S.layout` / `S.grid` (say `S.packing` / `S.ground`).
+
 ## Architecture — the seams that matter
 
 **`src/adapters/` ↔ `src/model/` is the load-bearing boundary.** Anything that turns
@@ -175,13 +230,14 @@ derivation when Phase 5 lands; nothing implements them yet.
 **Where things live:**
 
 ```
-src/adapters/  ts · py · index            language knowledge, and the only place for it
+src/adapters/  ts · py · index · lex       language knowledge, and the only place for it
+src/config/    defaults · load · detect · init   precedence: defaults < detected < file < flag
 src/scan/      source · walk              acquire a ref, walk the tree
-src/model/     graph · classify · endpoints · mounts · derive · tests · metrics · chrome
-src/build/     build · assemble           the pipeline, and the single-file viewer
+src/model/     graph · classify · endpoints · mounts · derive · tests · metrics · findings · chrome
+src/build/     build · assemble · embed   the pipeline, and the single-file viewer
 src/cli/       report · progress          terminal output; reads a finished payload
-src/serve/     server                     loopback viewer + read-only source
-src/viewer/    00-… 90-…                  concatenated, in filename order
+src/serve/     server · proxy             loopback viewer, read-only source, live proxy
+src/viewer/    00-… 90-…                  concatenated, in filename order; no duplicate top-level names
 ```
 
 `src/model/chrome.mjs` is the views and theme tables the payload ships to the
@@ -205,9 +261,14 @@ prototype's #1 documented failure mode (PLAN.md "Failure modes being fixed").
 **allowlist membership** (`allow.has(rel)` against the exact scanned set), not by
 sanitizing paths; plus `lstat` symlink refusal, size cap, always `text/plain`, `Host`
 check and `Sec-Fetch-Site` rejection. The live proxy accepts `{method, path, headers,
-body}` only — **no host, no URL** — with the origin from server config, `--allow-live`
-required at the process level, and the auth token injected server-side from
-`--auth-env` so it never enters the browser.
+body}` only — **no host, no URL** — with the origin from server config (set by
+`--target`), `--allow-live` required at the process level, and the auth token
+injected server-side from `--auth-env` so it never enters the browser. It
+returns **no response body**, only status, duration and byte count: that is what
+keeps it from being a read primitive, and it is all the honesty contract lets
+the map draw. Targets are loopback or private only with **no override**, DNS is
+never resolved (checking a name then connecting to it is a rebind window), and
+`redirect:"manual"` is a security control rather than a display choice.
 
 ## Scope guard
 

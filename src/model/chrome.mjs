@@ -1,123 +1,169 @@
-/**
- * The chrome the payload ships to the viewer: which views exist, and what
- * colour everything is.
- *
- * Both are presentation tables rather than facts about the repository, both are
- * config-overridable, and both are read once and adjacently when the payload is
- * assembled — a view gaining a legend row touches the two together, which is
- * why they sit in one file rather than two.
- *
- * ---- VIEWS ----
- *
- * The viewer used to hardcode a list of four view ids and branch on two of them
- * by name, which meant a repo whose flows were called anything else silently
- * lost its flow views. A view is data now, and `kind` is what the viewer
- * branches on:
- *
- *   structure  every node, filtered by the sidebar toggles
- *   flow       only the nodes and edges named by this view's curated flows
- *   tests      test edges and coverage tint
- *   findings   the whole map, with one finding's evidence lit and the rest dimmed
- *
- * A flow view is created for every distinct `flows[].view`, so curation adds a
- * view without touching the tool. Config may override any of it by supplying a
- * `views` array with matching ids.
- *
- * ---- THEME ----
- *
- * Canvas cannot read CSS custom properties, so the viewer needs real colour
- * values in JS. Previously it had them in two places — the style tables and a
- * hand-written legend that repeated the same ten literals — which could and did
- * drift apart. The legend is generated from these tables now, so a colour has
- * exactly one definition.
- *
- * Config may override any branch of this; `atlas init` will emit it.
- */
+/** Views and theme: config-overridable presentation tables the payload ships to the viewer. A view is data, and its `kind` (dataflow/flow/tests/request/findings) is what the viewer branches on; the legend names keys in these tables so a colour has one definition. */
 
 const DEFAULT_HINTS = {
-  structure:
-    "Rows are services, columns are architectural layers. Building height is file length. Click a district to open it and list its files.",
+  // `dataflow` is the structure map with its import packets always running: the city and the traffic on it are one view, because a reader should not have to know they are two.
+  dataflow:
+    "Every file is a block: height and footprint are both file length. Blocks sit in districts — folders by default, or architectural layers — and the diamonds riding the streets are packets on real import edges: one moving from A to B means B reads what A exports. Click a district to open it, a block for its imports and source, a packet mid-flight to read the hop.",
   flow:
     "Each entry is one request path through the code. Packets carry a synthetic payload — click one to read the note attached to that hop.",
   tests:
-    "Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks have no test referencing them.",
+    "Packets run from each test to what it reaches. Thick edges are a test's primary subject, thin dashed ones are everything else it exercises. Orange blocks: no test reaches them at all.",
+  request:
+    "Pick an endpoint and compose a request against it. Nothing is sent: this plays the path a request would take through the files — curated where a person asserted one, otherwise derived from the import graph, where dotted hops are gaps derivation could not justify.",
   findings:
-    "Eight structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
+    "Structural checks over the graph this map already draws. Pick one and the blocks and imports it names light up in place — the rest of the city dims rather than disappearing. Muted findings are listed, never dropped.",
 };
 
 const DEFAULT_TITLES = {
-  structure: "THE CODEBASE",
+  dataflow: "THE CODEBASE",
   flow: "REQUEST PATH",
   tests: "TEST COVERAGE",
+  request: "API REQUEST PATH",
   findings: "STRUCTURAL FINDINGS",
 };
 
-export function buildViews(config, flows = [], derived = []) {
+export function buildViews(config, flows = [], derived = [], endpoints = []) {
   const flowViews = [...new Set(flows.map((f) => f.view).filter(Boolean))];
 
   const base = [
-    { id: "structure", label: "STRUCTURE", kind: "structure" },
+    { id: "structure", label: "STRUCTURE", kind: "dataflow" },
     ...flowViews.map((id) => ({
       id,
       label: id.toUpperCase(),
       kind: "flow",
-      // A view whose flows carry phases gets the phase watermark; one whose
-      // flows do not, does not. Derived, not declared.
+      // The phase watermark is derived from whether this view's flows carry phases.
       showPhase: flows.some((f) => f.view === id && f.phase),
     })),
-    // Derived paths get their own view rather than joining a curated one:
-    // a reader has to be able to tell, from the strip alone, whether what they
-    // are about to watch was asserted by a person or inferred by this tool.
-    ...(derived.length ? [{ id: "derived", label: "DERIVED PATHS", kind: "flow", derived: true }] : []),
     { id: "tests", label: "TESTS", kind: "tests" },
-    // Unconditional, unlike the derived entry above: a repository with no
-    // findings has a RESULT to show, and it is one worth being able to read.
-    // Dropping the view when the list is empty would make "eight checks ran and
-    // matched nothing" indistinguishable from "this tool does not check", which
-    // is the one confusion the empty state exists to prevent.
+    // Derived paths have no view of their own: the composer opens on every endpoint's path, so an inferred one is reached by picking the endpoint rather than by picking a second strip button. The caveat moved onto the hop, which is where a reader is actually looking.
+    ...(endpoints.length || derived.length ? [{ id: "request", label: "API REQUEST", kind: "request" }] : []),
+    // Unconditional: no findings is a result, and dropping the view would read as "this tool does not check".
     { id: "findings", label: "FINDINGS", kind: "findings" },
   ];
 
   const withDefaults = (v) => ({ title: DEFAULT_TITLES[v.kind], hint: DEFAULT_HINTS[v.kind], ...v });
 
-  // Config, when present, decides the order and the copy; the derived entry
-  // still supplies kind and showPhase so a config cannot get those wrong.
+  // Config decides order and copy; kind and showPhase still come from the derived entry.
   if (config.views) {
     const byId = new Map(base.map((v) => [v.id, v]));
     const named = config.views.map((v) => withDefaults({ ...byId.get(v.id), ...v }));
-    // A config that predates derivation — or findings — should not lose the
-    // view because it did not know to list it.
+    // A config predating a view should not lose it for not listing it.
     const extra = base.filter(
-      (v) => (v.derived || v.kind === "findings") && !config.views.some((c) => c.id === v.id),
+      (v) => (v.kind === "findings" || v.kind === "request") && !config.views.some((c) => c.id === v.id),
     );
     return [...named, ...extra.map(withDefaults)];
   }
   return base.map(withDefaults);
 }
 
+/* ── the identity ramp ───────────────────────────────────────────────────────
+   Equal-lightness fills stepped by hue, mixed in OKLab so the steps are
+   perceptually even rather than even in sRGB — the reason a hand-picked hex
+   list drifts in lightness and this one does not. It lives here and not in the
+   viewer for the standing reason: canvas cannot read a custom property, so the
+   payload is the single place a colour is defined, and config still overrides.
+   The viewer indexes into these lists to colour by language or district; the
+   values it indexes are always these.                                        */
+
+const lin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+const gam = (c) => (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const h2 = (v) => Math.round(clamp01(v) * 255).toString(16).padStart(2, "0");
+
+function oklabToHex(L, a, bb) {
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * bb;
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * bb;
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * bb;
+  const l = l_ ** 3, m = m_ ** 3, s = s_ ** 3;
+  const r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  const g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  const b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+  return `#${h2(gam(clamp01(r)))}${h2(gam(clamp01(g)))}${h2(gam(clamp01(b)))}`;
+}
+
+function hexToOklab(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = lin(((n >> 16) & 255) / 255), g = lin(((n >> 8) & 255) / 255), b = lin((n & 255) / 255);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return { L: 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+           a: 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+           b: 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s };
+}
+
+/** One material, one light: a face shades by stepping L in OKLab, not by scaling RGB. The viewer carries its own copy of this because a concatenated script cannot import a module; `atlas map` can, so the terminal and the browser light a block by the same arithmetic. */
+export function shade(hex, amt) {
+  const c = hexToOklab(hex);
+  return oklabToHex(Math.max(0.03, Math.min(0.99, c.L + amt * 0.34)), c.a, c.b);
+}
+
+/** A hex colour as the three channels a terminal escape wants. */
+export function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+const oklch = (L, C, hDeg) =>
+  oklabToHex(L, C * Math.cos((hDeg * Math.PI) / 180), C * Math.sin((hDeg * Math.PI) / 180));
+
+/** Okabe-Ito: the one preset that is not generated, because it is a fixed set chosen for colour-vision deficiency and interpolating it would undo that. */
+const OKABE = ["#e69f00", "#56b4e9", "#009e73", "#d9c531", "#0072b2", "#d55e00", "#cc79a7", "#8a8f98"];
+
+/** One ramp as an ordered list of `n` colours. Deterministic in `n`: the golden files pin these. */
+export function rampColors(preset, n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (preset === "okabe") out.push(OKABE[i % OKABE.length]);
+    else if (preset === "blueprint") out.push(oklch(0.6 + (i / Math.max(1, n - 1)) * 0.24, 0.03, 250));
+    else if (preset === "earth") out.push(oklch(0.74, 0.058, 34 + (i / n) * 110));
+    else out.push(oklch(0.745, 0.086, (84 + (i * 360) / n) % 360));
+  }
+  return out;
+}
+
+export const RAMP_LABELS = {
+  atlas: "atlas ramp",
+  blueprint: "neutral blueprint",
+  earth: "muted earth",
+  okabe: "okabe-ito",
+};
+
+/** Every built-in ramp at the length this repo's layer list needs. Floored at 8 so a small repo still gets a ramp wide enough to colour by language or district. */
+export function buildRamps(layerCount) {
+  const n = Math.max(8, layerCount);
+  return Object.fromEntries(Object.keys(RAMP_LABELS).map((k) => [k, rampColors(k, n)]));
+}
+
+/** Layer fills from the `atlas` ramp, indexed by the layer's own position in the list. A layer whose config already names a colour keeps it. */
+export function paintLayers(layers) {
+  const ramp = rampColors("atlas", Math.max(8, layers.length));
+  return layers.map((l, i) => (l.color ? l : { ...l, color: ramp[i % ramp.length] }));
+}
+
 export const DEFAULT_THEME = {
-  ink: "#16181a",
-  // White, not cream. The map and the chrome stand on one ground, and a
-  // line-art drawing reads cleanest over the brightest one available.
-  bg: "#ffffff",
+  ink: "#10131c",
+  // A cool paper rather than white: the blocks carry the light, so the ground has to sit below them instead of competing.
+  bg: "#eef1f6",
   // A literal stack: canvas ignores var(--mono).
   font: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-  layerFallback: "#8a8a8a",
-  // The state channel's one colour. Identity writes to fill; state writes to
-  // stroke, ring and badge, so turning identity colour off cannot also turn the
-  // selection off. See PLAN.md, "The visual system".
-  accent: "#2563eb",
-  // The two greys every plate, outline, label halo and watermark is mixed from,
-  // at an alpha. A named token per opacity is thirteen tokens per palette, and
-  // that is how the old palette ended up hardcoded across the renderer.
-  // Cooled and lightened against the white ground: on cream a warm grey reads
-  // as paper, on white it reads as dirt.
-  plate: "#78828a",
-  edge: "#11151a",
-  // The block face in `mono`, where identity fill is off and the stroke
-  // carries the whole form. The two vertical faces are shaded down from it.
-  face: "#ffffff",
-  packetLabel: "#1c1e1f",
+  layerFallback: "#8a8f98",
+  // The state channel's one colour: state writes to stroke, ring and badge, never to fill. See PLAN.md "The visual system".
+  accent: "#2b4bff",
+  // The two greys every plate, outline, halo and watermark is mixed from, at an alpha.
+  plate: "#6e7c96",
+  edge: "#0d1220",
+  // The block face in `mono`; the two vertical faces are shaded down from it.
+  face: "#f8fafd",
+  packetLabel: "#141a2c",
+  // Material switches the renderer, not the palette: `blockShadow`, `faceGradient` and `glow` are on/off per theme, and `gridAlpha` is how far the ground grid sits under the city.
+  blockShadow: true,
+  faceGradient: true,
+  glow: true,
+  gridAlpha: 0.15,
+  shadow: "rgba(10,14,26,.12)",
+  /** The `liquid glass` material's highlight, as three stops down the lit face. Here rather than in the renderer for the same reason every other colour is: canvas cannot read a custom property, so the payload is the one place a colour is written. */
+  sheen: ["rgba(255,255,255,.5)", "rgba(255,255,255,.06)", "rgba(255,255,255,0)"],
 
   edgeStyle: {
     import:           { c: "#6f7358", w: 1,   a: 0.16, dash: null },
@@ -140,49 +186,45 @@ export const DEFAULT_THEME = {
     "test:subject": "#8a3a1f", "test:exercises": "#8a3a1f", coupling: "#7a2a1a",
   },
 
-  // Coverage recolours a block in the tests view. `direct` deliberately has no
-  // tint: it keeps its layer colour, so orange means something.
+  // Coverage tint in the tests view; `direct` keeps its layer colour, so orange means something.
   coverTint: { none: "#b0562f", indirect: "#a89a5c" },
 
-  /**
-   * A finding's severity, for the ring and the evidence edges the findings view
-   * draws over the map. Colour is the SECOND channel here, never the only one:
-   * the sidebar chip spells the severity out and the panel names it in words,
-   * because a map read in greyscale or by someone who cannot separate red from
-   * orange still has to say which findings are the bad ones.
-   */
+  /** Finding severity for rings and evidence edges. Colour is always the second channel: the chip and panel name the severity in words. */
   findingSeverity: { error: "#b3261e", warning: "#b5730f", info: "#4a7a8c" },
 
-  /**
-   * The dark theme, as a delta rather than a second palette.
-   *
-   * Only the scalars flip. Everything mixed from them — plates, outlines, label
-   * halos, the watermark — follows, because they are the same token at an
-   * alpha. `edge` inverts from near-black to near-white: in a line-art map the
-   * stroke carries the whole form, and a dark outline on a dark ground is not a
-   * dimmer map, it is no map.
-   */
+  /** A live response's status class: three classes rather than a gradient, and the only green in the palette, because a status is genuinely observed. */
+  liveStatus: { ok: "#2f7d4f", client: "#b5730f", server: "#b3261e" },
+
+  /** The dark theme as a delta: only the scalars flip, and everything mixed from them follows. */
   dark: {
-    ink: "#e8eaec",
-    bg: "#0e1011",
-    layerFallback: "#7b7f83",
-    accent: "#5b8dff",
-    plate: "#98a2a9",
-    edge: "#e4e8ec",
-    face: "#333a3f",
-    packetLabel: "#e8eaec",
-    // The one table in the delta rather than a scalar: these are drawn over a
-    // veiled city, and a deep red that reads as urgent on white disappears
-    // into a near-black ground. Lightened rather than re-hued, so the three
-    // stay the same three severities.
+    ink: "#e6e9f5",
+    bg: "#0a0d16",
+    layerFallback: "#5f6a8c",
+    accent: "#6ea8ff",
+    plate: "#8b97b8",
+    edge: "#dfe6ff",
+    face: "#252c42",
+    packetLabel: "#e6e9f5",
+    gridAlpha: 0.18,
+    shadow: "rgba(0,0,0,.38)",
+    // Weaker on a near-black ground: the light-theme sheen blows out to a white smear.
+    sheen: ["rgba(255,255,255,.26)", "rgba(255,255,255,.04)", "rgba(255,255,255,0)"],
+    // Lightened rather than re-hued: a deep red disappears into a near-black ground.
     findingSeverity: { error: "#ff6b5e", warning: "#f0a03c", info: "#79b8d0" },
+    liveStatus: { ok: "#5fd08a", client: "#f0a03c", server: "#ff6b5e" },
   },
 
-  /**
-   * Legend rows, by view kind. `edge` and `swatch` name a key in the tables
-   * above rather than repeating its colour, which is what stops the legend and
-   * the map from disagreeing.
-   */
+  // Cell pitch and the gutters between layer columns and service rows; `spacing` must stay above 1 or footprints overlap and the depth sort stops being exact.
+  density: {
+    default: "normal",
+    presets: {
+      compact: { spacing: 1.15, gutLayer: 0.5, gutSvc: 0.9 },
+      normal: { spacing: 1.25, gutLayer: 1, gutSvc: 1.5 },
+      // What every atlas before Phase 2.7 was drawn at.
+      roomy: { spacing: 1.5, gutLayer: 2, gutSvc: 2.5 },
+    },
+  },
+  /** Legend rows by view kind; `edge` and `swatch` name a key in the tables above rather than repeat a colour. */
   legend: {
     default: [
       { edge: "import", label: "IMPORT" },
@@ -191,8 +233,15 @@ export const DEFAULT_THEME = {
       { edge: "sql", label: "SQL / CACHE" },
       { swatch: "request", label: "PACKET — CLICK TO INSPECT" },
     ],
-    // Every row names the severity in words as well as in colour — the legend
-    // is the one place the two channels are declared to be the same thing.
+    // The structure map now runs its import packets by default, so the strip has to say what a moving diamond means before a reader asks.
+    dataflow: [
+      { edge: "import", label: "IMPORT — OBSERVED" },
+      { edge: "http", label: "CROSS-SERVICE HTTP" },
+      { edge: "coupling", label: "SHARED-DB COUPLING" },
+      { edge: "sql", label: "SQL / CACHE" },
+      { swatch: "import", label: "PACKET — CLICK TO INSPECT" },
+    ],
+    // Every row names the severity in words as well as in colour.
     findings: [
       { sev: "error", label: "ERROR" },
       { sev: "warning", label: "WARNING" },
@@ -209,17 +258,22 @@ export const DEFAULT_THEME = {
   },
 };
 
-/** Shallow-merge per branch: overriding one edge kind must not drop the rest. */
-export function buildTheme(config) {
+/** Shallow-merge per branch: overriding one edge kind must not drop the rest. `layerCount` sizes the ramps, which is why it is a parameter rather than read off a global. */
+export function buildTheme(config, layerCount = 0) {
   const t = config.theme ?? {};
   return {
     ...DEFAULT_THEME,
     ...t,
+    // Shipped, not generated in the viewer: the payload stays the one place a colour is defined, and the PALETTE panel indexes into these.
+    ramps: { ...buildRamps(layerCount), ...t.ramps },
+    rampLabels: { ...RAMP_LABELS, ...t.rampLabels },
     edgeStyle: { ...DEFAULT_THEME.edgeStyle, ...t.edgeStyle },
     packetColor: { ...DEFAULT_THEME.packetColor, ...t.packetColor },
     coverTint: { ...DEFAULT_THEME.coverTint, ...t.coverTint },
     findingSeverity: { ...DEFAULT_THEME.findingSeverity, ...t.findingSeverity },
+    liveStatus: { ...DEFAULT_THEME.liveStatus, ...t.liveStatus },
     dark: { ...DEFAULT_THEME.dark, ...t.dark },
+    density: { ...DEFAULT_THEME.density, ...t.density, presets: { ...DEFAULT_THEME.density.presets, ...t.density?.presets } },
     legend: { ...DEFAULT_THEME.legend, ...t.legend },
   };
 }

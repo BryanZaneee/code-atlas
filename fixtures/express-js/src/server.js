@@ -1,6 +1,7 @@
 import express from "express";
 import itemsRouter from "./routes/items.cjs";
 import adminRouter from "./routes/admin.mjs";
+import { orders } from "./routes/orders.mjs";
 import { log } from "../lib/log.js";
 
 const app = express();
@@ -13,5 +14,6 @@ app.post("/login", (req, res) => {
 
 app.use("/items", itemsRouter);
 app.use("/admin", adminRouter);
+app.use("/shop", orders);
 
 export default app;

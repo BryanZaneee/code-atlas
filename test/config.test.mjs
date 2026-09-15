@@ -13,10 +13,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig } from "../src/config/load.mjs";
 import { classifyLayer, makeServiceOf, reconcileServices } from "../src/model/classify.mjs";
-import { DEFAULT_EXCLUDE } from "../src/config/defaults.mjs";
+import { DEFAULT_EXCLUDE, HARD_EXCLUDE, VENDOR_EXCLUDE, isVendorPath } from "../src/config/defaults.mjs";
 import { detectServices } from "../src/config/detect.mjs";
 import { globToRe } from "../src/model/tests.mjs";
-import { FIXTURE_DIR } from "./helpers.mjs";
+import { FIXTURE_DIR, tmpRepo } from "./helpers.mjs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { scan } from "../src/build/build.mjs";
 
 test("an empty config still yields a working classifier", () => {
   const c = loadConfig();
@@ -38,6 +41,21 @@ test("defaults place the conventional directories", () => {
   assert.equal(layer("README.md"), "docs");
   assert.equal(layer("db/0001_init.sql"), "migration");
   assert.equal(layer("src/server.ts"), "entry");
+  assert.equal(layer("bin/atlas.mjs"), "entry");
+});
+
+/**
+ * `dist|build|out|coverage` are root-only build products; a nested
+ * `src/build/` is application code that happens to share the name (this
+ * tool's own pipeline lives there). `public|static` stay unanchored: a
+ * framework's asset directory is genuinely nested.
+ */
+test("a nested src/build/ is kept, a root build/ is excluded", () => {
+  const excluded = (p) => DEFAULT_EXCLUDE.some((re) => re.test(p));
+  assert.equal(excluded("src/build/x.mjs"), false);
+  assert.equal(excluded("build/x.mjs"), true);
+  assert.equal(excluded("public/assets/logo.png"), true);
+  assert.equal(excluded("src/public/logo.png"), true);
 });
 
 /**
@@ -234,4 +252,62 @@ test("a glob translates to a regexp, and the globstar survives the single-star p
     for (const h of hits) assert.ok(re.test(h), `${glob} should match ${h}`);
     for (const m of misses) assert.ok(!re.test(m), `${glob} should not match ${m}`);
   }
+});
+
+/* ── vendor ─────────────────────────────────────────────────────────────────
+   `--include-vendor` is the only thing that ever SUBTRACTS from the exclude
+   floor, so what it may and may not lift is worth pinning.                  */
+
+test("the exclude floor splits into what a flag can lift and what it cannot", () => {
+  assert.deepEqual([...VENDOR_EXCLUDE, ...HARD_EXCLUDE], DEFAULT_EXCLUDE,
+    "the two halves are the whole list, or something is excluded by neither");
+  for (const p of ["dist/app.js", ".git/config", "yarn.lock", "a.min.js"]) {
+    assert.ok(HARD_EXCLUDE.some((re) => re.test(p)), `${p} must stay out whatever the flags say`);
+    assert.equal(VENDOR_EXCLUDE.some((re) => re.test(p)), false,
+      `${p} is build output or a lockfile, not somebody else's source — --include-vendor must not reach it`);
+  }
+});
+
+test("isVendorPath names somebody else's code, and only that", () => {
+  for (const p of ["node_modules/left-pad/index.js", "vendor/x.go", ".venv/lib/y.py", "a/__pycache__/z.py"]) {
+    assert.ok(isVendorPath(p), p);
+  }
+  for (const p of ["src/app.ts", "dist/app.js", "src/vendors.ts", "test/node_modules_helper.ts"]) {
+    assert.equal(isVendorPath(p), false, p);
+  }
+});
+
+test("includeVendor lifts the vendor patterns and leaves the hard ones", () => {
+  const off = loadConfig({});
+  const on = loadConfig({}, { overrides: { includeVendor: true } });
+  const src = (c) => c.exclude.map((re) => re.source);
+  assert.ok(src(off).some((s) => s.includes("node_modules")));
+  assert.equal(src(on).some((s) => s.includes("node_modules")), false, "the flag admits dependencies");
+  for (const re of HARD_EXCLUDE) {
+    assert.ok(src(on).includes(re.source), `${re} is not a vendor pattern and must survive the flag`);
+  }
+});
+
+/**
+ * End to end, because the flag has to travel through three layers — CLI to
+ * config to walk — and a break in any of them looks the same from the outside.
+ */
+test("a planted node_modules is invisible by default and drawn on request", (t) => {
+  const repo = tmpRepo(t, "flat-app");
+  mkdirSync(path.join(repo, "node_modules", "left-pad"), { recursive: true });
+  writeFileSync(path.join(repo, "node_modules", "left-pad", "index.js"), "module.exports = () => {};\n");
+
+  const plain = scan({ repo, ref: "fs" }).payload;
+  assert.equal(plain.nodes.some((n) => n.id.startsWith("node_modules/")), false, "a dependency is not this repo's code");
+  assert.equal(plain.meta.vendorCount, 0);
+  assert.equal(plain.nodes.some((n) => n.vendor), false, "and the field is absent, not false");
+
+  const withVendor = scan({ repo, ref: "fs", includeVendor: true }).payload;
+  const planted = withVendor.nodes.find((n) => n.id === "node_modules/left-pad/index.js");
+  assert.ok(planted, "the flag admits it");
+  assert.equal(planted.vendor, true, "and marks it, so the viewer can switch it back off");
+  assert.equal(withVendor.meta.vendorCount, 1);
+  // The repo's own files are untouched by the flag — it adds, it never reclassifies.
+  const own = (p) => p.nodes.filter((n) => !n.vendor).map((n) => n.id).sort();
+  assert.deepEqual(own(withVendor), own(plain));
 });

@@ -1,13 +1,4 @@
-/**
- * Viewer assembly: one HTML file, no build step, no network.
- *
- * The viewer's numbered modules are CONCATENATED into a single <script>, never
- * emitted as separate <script src> tags. Top-level `const` is script-scoped, so
- * separate tags would work in `build` (one file, one scope) and break in
- * `serve` (many tags, many scopes) — a bug class that only appears in one mode.
- * Any new viewer file must therefore be safe to concatenate: no duplicate
- * top-level names.
- */
+/** Viewer assembly: one HTML file, no build step, no network. The numbered modules are concatenated into a single <script> because top-level `const` is script-scoped, so separate tags would work in `build` and break in `serve`; a new viewer file must carry no duplicate top-level names. */
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,11 +20,7 @@ export function bundleScript(dir = VIEWER_DIR) {
   return viewerFiles(dir).map((f) => readFileSync(path.join(dir, f), "utf8")).join("");
 }
 
-/**
- * `<` is escaped so a path or note containing `</script>` cannot close the tag;
- * U+2028/U+2029 are escaped because they are literal line terminators in JS
- * source but legal inside a JSON string.
- */
+/** `<` is escaped so a path containing `</script>` cannot close the tag; U+2028/U+2029 are line terminators in JS source but legal inside a JSON string. */
 export function encodePayload(payload) {
   return JSON.stringify(payload)
     .replace(/</g, "\\u003c")
@@ -49,8 +36,7 @@ export function assemble(payload, dir = VIEWER_DIR) {
     data: encodePayload(payload),
   };
   for (const [name, marker] of Object.entries(MARKERS)) {
-    // Exactly one, or the substitution is ambiguous and the failure would be a
-    // silently half-built page.
+    // Exactly one, or the substitution is ambiguous and the failure is a silently half-built page.
     if (html.split(marker).length !== 2) {
       throw new Error(`viewer index.html must contain exactly one ${marker}`);
     }

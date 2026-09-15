@@ -1,4 +1,4 @@
-/* ════════════════════ hit testing ════════════════════ */
+/* ═══ hit testing ═══ */
 function inPoly(px, py, pts) {
   let hit = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -20,11 +20,15 @@ function pickNode(sx, sy) {
   for (let i = LAYOUT.nodes.length - 1; i >= 0; i--) {
     const n = LAYOUT.nodes[i];
     if (dimOf(n)) continue;
-    // The same polygons the renderer drew. If these ever diverge, the map
-    // becomes a lie you can click on: the thing under the cursor and the thing
-    // that answers are different nodes.
     for (const f of n.faces) if (inPoly(w.x, w.y, f.pts)) return n;
   }
   return null;
 }
-
+function pickDistrict(sx, sy) {
+  const w = toWorld({ x: sx, y: sy });
+  for (const d of LAYOUT.districts) {
+    const q = [project(d.x0, d.y0, 0), project(d.x1, d.y0, 0), project(d.x1, d.y1, 0), project(d.x0, d.y1, 0)];
+    if (inPoly(w.x, w.y, q)) return d;
+  }
+  return null;
+}

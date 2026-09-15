@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { serialize, scanFixture, FIXTURE_DIR } from "./helpers.mjs";
 import { SCHEMA_VERSION } from "../src/build/build.mjs";
+import { buildViews, buildTheme, rampColors, paintLayers } from "../src/model/chrome.mjs";
 
 const payloadOf = async () => (await scanFixture("mini-monorepo")).payload;
 
@@ -65,18 +66,18 @@ test("meta's coverage counters agree with the payload", async () => {
  */
 test("district codes are unique and survive a new file", async () => {
   const p = await payloadOf();
-  const codes = p.groups.map((g) => g.code);
+  const codes = p.districts.map((g) => g.code);
   assert.equal(new Set(codes).size, codes.length);
   assert.ok(codes.every((c) => /^[A-Z][A-Z0-9]$/.test(c)), codes.join(", "));
-  assert.ok(p.groups.every((g) => g.parentId === g.service));
+  assert.ok(p.districts.every((g) => g.parentId === g.service));
 
   // Dropping the first district's members simulates the file churn that
   // first-appearance ordering would have reshuffled the whole set on.
-  const { buildGroups } = await import("../src/model/graph.mjs");
-  const survivors = p.groups.slice(1).flatMap((g) => g.members);
+  const { buildDistricts } = await import("../src/model/graph.mjs");
+  const survivors = p.districts.slice(1).flatMap((g) => g.members);
   const kept = p.nodes.filter((n) => survivors.includes(n.id));
-  const after = new Map(buildGroups(kept, p.layers).map((g) => [g.id, g.code]));
-  for (const g of p.groups.slice(1)) assert.equal(after.get(g.id), g.code, `${g.id} was renamed`);
+  const after = new Map(buildDistricts(kept, p.layers).map((g) => [g.id, g.code]));
+  for (const g of p.districts.slice(1)) assert.equal(after.get(g.id), g.code, `${g.id} was renamed`);
 });
 
 test("travelledBy indexes the flows and is absent when empty", async () => {
@@ -86,6 +87,75 @@ test("travelledBy indexes the flows and is absent when empty", async () => {
     if (!expected.length) assert.equal("travelledBy" in n, false, `${n.id} carries an empty index`);
     else assert.deepEqual(n.travelledBy, expected.sort());
   }
+});
+
+test("a payload with endpoints offers a request view", async () => {
+  const p = await payloadOf();
+  assert.ok(p.endpoints.length > 0, "fixture must have endpoints for this to mean anything");
+  const v = p.views.find((v) => v.kind === "request");
+  assert.ok(v, "an endpoint surface gets a view to compose a request against");
+  assert.equal(v.id, "request");
+});
+
+test("a repo with no endpoints gets no request view", () => {
+  const views = buildViews({}, [], [], []);
+  assert.equal(views.some((v) => v.kind === "request"), false);
+});
+
+/**
+ * Four buttons, not seven. Data flow rides in the structure map as import
+ * packets and inferred paths are reached through the composer, so the strip
+ * names the four things a reader actually picks between.
+ */
+test("the strip offers four views, and structure is the one that carries the traffic", () => {
+  const views = buildViews({}, [], [], [{ id: "GET /x" }]);
+  assert.deepEqual(views.map((v) => v.id), ["structure", "tests", "request", "findings"]);
+  assert.equal(views.find((v) => v.id === "structure").kind, "dataflow",
+    "the city and the packets on it are one view, not two");
+  assert.equal(views.some((v) => v.id === "derived"), false,
+    "derived paths lost their own button when the composer took them");
+});
+
+/**
+ * A repo with no HTTP surface can still have inferred paths worth playing, so
+ * the composer appears for either reason — and for neither it stays away.
+ */
+test("derived paths alone are enough to earn the composer", () => {
+  assert.ok(buildViews({}, [], [{ id: "d" }], []).some((v) => v.kind === "request"));
+  assert.equal(buildViews({}, [], [], []).some((v) => v.kind === "request"), false);
+});
+
+/**
+ * The golden files pin every colour in the ramp, so the generator has to be a
+ * pure function of the length asked for — not of insertion order, a Map, or
+ * anything else that could reorder between runs.
+ */
+test("the identity ramp is deterministic in its length", () => {
+  assert.deepEqual(rampColors("atlas", 12), rampColors("atlas", 12));
+  assert.equal(rampColors("atlas", 12).length, 12);
+  assert.equal(new Set(rampColors("atlas", 12)).size, 12, "twelve steps, twelve colours");
+  // Okabe-Ito is a fixed set chosen for colour-vision deficiency; it repeats
+  // rather than interpolating, which is the point of shipping it.
+  assert.equal(rampColors("okabe", 10)[8], rampColors("okabe", 10)[0]);
+});
+
+test("layers are painted from the ramp, and a config's own colour survives", () => {
+  const painted = paintLayers([{ id: "a" }, { id: "b", color: "#123456" }]);
+  assert.equal(painted[1].color, "#123456", "a colour the config named is not overwritten");
+  assert.match(painted[0].color, /^#[0-9a-f]{6}$/, "a layer with no colour gets one");
+  assert.equal(painted[0].color, rampColors("atlas", 8)[0], "and it comes from the ramp, by position");
+});
+
+/**
+ * Canvas cannot read a CSS custom property, so the payload is the only place a
+ * colour can be defined. The viewer's PALETTE panel indexes these.
+ */
+test("the theme ships every ramp, sized to the layer list", () => {
+  const theme = buildTheme({}, 18);
+  assert.deepEqual(Object.keys(theme.ramps).sort(), ["atlas", "blueprint", "earth", "okabe"]);
+  assert.equal(theme.ramps.atlas.length, 18);
+  // Floored, so a tiny repo still has a ramp wide enough to colour by language.
+  assert.equal(buildTheme({}, 3).ramps.atlas.length, 8);
 });
 
 test("node ids are unique", async () => {
@@ -155,9 +225,9 @@ test("every node's layer exists in layers", async () => {
   assert.deepEqual(orphans, []);
 });
 
-test("groups partition the node set exactly", async () => {
+test("districts partition the node set exactly", async () => {
   const p = await payloadOf();
-  const members = p.groups.flatMap((g) => g.members);
+  const members = p.districts.flatMap((g) => g.members);
   assert.equal(members.length, p.nodes.length);
   assert.deepEqual(new Set(members).size, p.nodes.length);
 });
@@ -243,4 +313,32 @@ test("classification provenance is present on every file node", async () => {
     assert.ok(n.layerWhy, `${n.id} has no reason for its layer`);
     assert.ok(n.serviceWhy, `${n.id} has no reason for its service`);
   }
+});
+
+test("endpoint nodes carry the same serviceWhy/layerWhy shape file nodes do, plus which rule placed them", async () => {
+  const p = await payloadOf();
+  const endpointNodes = p.nodes.filter((n) => n.kind === "endpoint");
+  assert.ok(endpointNodes.length > 0, "expected at least one endpoint node");
+  for (const n of endpointNodes) {
+    assert.ok(n.layerWhy, `${n.id} has no reason for its layer`);
+    assert.ok(n.serviceWhy, `${n.id} has no reason for its service`);
+    assert.ok(n.why, `${n.id} has no reason for its registration rule`);
+  }
+});
+
+test("datastore nodes are provenanced as declared in config", async () => {
+  const { buildNodes } = await import("../src/model/graph.mjs");
+  const ctx = {
+    paths: [],
+    src: new Map(),
+    config: {
+      layerOf: () => ({ layer: "unsorted", why: "no rule matched", matched: false }),
+      serviceOf: () => ({ service: "app", why: "fell back" }),
+      datastores: [{ id: "db:main", label: "MAIN DB" }],
+    },
+  };
+  const { nodes } = buildNodes(ctx, { imports: new Map(), endpoints: [], testKind: () => null, subjectOf: () => null });
+  const store = nodes.find((n) => n.kind === "datastore");
+  assert.equal(store.layerWhy, "declared as a datastore in the config");
+  assert.equal(store.serviceWhy, "datastores are grouped under the infra service");
 });
