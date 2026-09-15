@@ -19,9 +19,11 @@
  * derivation actually attempts: the forward path.
  */
 import { scan } from "../src/build/build.mjs";
-import { corpusRepo } from "./helpers.mjs";
+import { corpusRepo, FASTAPI_TEMPLATE_COMMIT } from "./helpers.mjs";
 import taxvaultConfig from "../examples/taxvault.config.mjs";
 import { FLOWS } from "../examples/taxvault.flows.mjs";
+import fastapiConfig from "../examples/fastapi-template.config.mjs";
+import { FLOWS as FASTAPI_FLOWS } from "../examples/fastapi-template.flows.mjs";
 
 /** `{id -> id}` hop pairs from curated steps, exactly as authored. */
 function curatedHops(flow) {
@@ -141,14 +143,35 @@ function report(result) {
   return lines.join("\n");
 }
 
+/**
+ * The corpora this harness can score, and how to scan each one.
+ *
+ * TaxVault stays on HEAD, which is what it has always done and what the numbers
+ * published in the README were taken at. The template is pinned, because it is
+ * somebody else's active repository: scoring its moving HEAD would report a
+ * figure that drifts without anything here changing.
+ */
+const CORPORA = {
+  taxvault: { ref: "HEAD", config: taxvaultConfig, flows: FLOWS },
+  "fastapi-template": { ref: FASTAPI_TEMPLATE_COMMIT, config: fastapiConfig, flows: FASTAPI_FLOWS },
+};
+
 async function main() {
-  const repo = corpusRepo("taxvault");
-  if (!repo) {
-    console.error("calibrate: taxvault not present — the corpus lives outside this repo");
+  const name = process.argv[2] ?? "taxvault";
+  const corpus = CORPORA[name];
+  if (!corpus) {
+    console.error(`calibrate: unknown corpus "${name}" — expected one of ${Object.keys(CORPORA).join(", ")}`);
+    process.exitCode = 2;
     return;
   }
-  const { payload } = scan({ repo, ref: "HEAD", config: taxvaultConfig, fetch: false, warn: () => {} });
-  const result = calibrate(payload);
+
+  const repo = corpusRepo(name);
+  if (!repo) {
+    console.error(`calibrate: ${name} not present — the corpus lives outside this repo`);
+    return;
+  }
+  const { payload } = scan({ repo, ref: corpus.ref, config: corpus.config, fetch: false, warn: () => {} });
+  const result = calibrate(payload, corpus.flows);
   console.log(report(result));
 }
 
