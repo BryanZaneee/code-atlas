@@ -16,6 +16,9 @@ node_modules/
 docs/screenshots/node_modules/
 desktop/dist/
 
+# Python bytecode from the fixture services
+__pycache__/
+
 # Design references, kept locally: ~12 MB of screenshots
 IMG/
 
