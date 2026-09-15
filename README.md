@@ -2,6 +2,20 @@
 
 Isometric, interactive maps of a codebase — its structure, how requests move through it, what the tests reach, and what's structurally wrong with it.
 
+<img src="docs/screenshots/structure-light.webp" alt="Isometric map of the code-atlas repository: services as rows, folders as columns, each file an extruded block whose height is its line count" width="900">
+
+*STRUCTURE, drawn from this repository. Rows are services, columns are folders, and block height is file length.*
+
+<img src="docs/screenshots/request-view.webp" alt="The API REQUEST view, with all 31 known request paths lit across the map at once and an endpoint list on the left" width="900">
+
+*API REQUEST lights every path at once, or one endpoint at a time. Paths are modelled from the import graph, and the map says so.*
+
+<img src="docs/screenshots/terminal-scan.webp" alt="Terminal output of atlas scan, listing file and edge counts, unresolved specifiers, skipped endpoint registrations, and a breakdown by layer and service" width="900">
+
+*`atlas scan` explains the map: what resolved, what did not, and which route registrations were skipped for not being literal.*
+
+Dark theme and the FINDINGS view are in [docs/screenshots](docs/screenshots), which also holds the one command that regenerates all six.
+
 > **Status: v1.0.** All five commands — `build`, `scan`, `init`, `serve` and
 > `findings` — work on any repository, with or without a config. Live mode
 > sends a real request when you explicitly turn it on, and is off by default:
@@ -85,7 +99,22 @@ first place; there, derivation is the only path shown, not a stand-in for a
 better one. A rough map beats no map, but only if you know it's rough —
 that's what these numbers are for.
 
-Re-run them yourself with `npm run calibrate`. The suite holds a floor a little
+Since then a second corpus has been added, for the reason the paragraph above
+gives. Measured against
+[fastapi/full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template)
+at commit `cb740b6`, across 5 hand-curated flows (44 hops): **precision 23%,
+recall 16%** (tp=7, 23 invented, 37 missed, 0 mis-ordered). It scores better
+than TaxVault and still not well, which is the useful part. TaxVault injects
+its collaborators, so the import graph cannot see the wiring at all; this
+template imports them at module scope, which is the case derivation is supposed
+to be good at. Most of what it gets wrong here is ordering rather than
+invention: it jumps from the endpoint straight to the route file where the
+curated path walks the real ASGI chain, and it reaches the database through a
+package barrel because that is what the imports actually say. The ceiling is
+not only dependency injection.
+
+Re-run them yourself with `npm run calibrate`, or
+`node test/calibrate.mjs fastapi-template` for the second corpus. The suite holds a floor a little
 under them — precision 15%, recall 10% — so a change that makes derivation
 meaningfully worse fails CI rather than quietly shipping.
 

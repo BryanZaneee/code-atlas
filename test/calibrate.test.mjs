@@ -16,8 +16,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { scan } from "../src/build/build.mjs";
-import { requireCorpus, scanTaxvault, scanFixture } from "./helpers.mjs";
+import { requireCorpus, scanTaxvault, scanFastapiTemplate, scanFixture } from "./helpers.mjs";
 import { calibrate } from "./calibrate.mjs";
+import { FLOWS as FASTAPI_FLOWS } from "../examples/fastapi-template.flows.mjs";
 
 test("derivation calibration does not regress against the 9 curated TaxVault flows", async (t) => {
   const repo = requireCorpus(t, "taxvault");
@@ -36,6 +37,42 @@ test("derivation calibration does not regress against the 9 curated TaxVault flo
   assert.ok(aggregate.precision >= 0.15, `precision regressed: ${aggregate.precision}`);
   assert.ok(aggregate.recall >= 0.10, `recall regressed: ${aggregate.recall}`);
   assert.ok(aggregate.tp >= 10, `true positives regressed: ${aggregate.tp}`);
+});
+
+/**
+ * The second corpus, added so the published numbers rest on more than one
+ * repository.
+ *
+ * fastapi/full-stack-fastapi-template is the opposite wiring style to
+ * TaxVault: collaborators are imported at module scope rather than injected,
+ * which is precisely the shape import-graph derivation is supposed to be good
+ * at. It scores better than TaxVault, and still not well, which is the useful
+ * result: the ceiling is not only dependency injection.
+ *
+ * What it gets wrong here is mostly ordering and plumbing. Derivation jumps
+ * from the endpoint straight to the route file, where the curated path walks
+ * the real ASGI chain (app -> api_router -> route), and it reaches the
+ * datastore through `core/__init__.py` because that barrel is what the import
+ * graph actually contains. Both are honest disagreements about the same edges,
+ * not fabrications, which is why `invented` is high while `wrongOrder` is zero.
+ */
+test("derivation calibration does not regress against the 5 curated template flows", async (t) => {
+  const repo = requireCorpus(t, "fastapi-template");
+  if (!repo) return;
+
+  const { payload } = await scanFastapiTemplate(repo);
+  const { flows, aggregate } = calibrate(payload, FASTAPI_FLOWS);
+
+  assert.equal(flows.length, 5, "all 5 curated flows must be diffed, not a subset");
+  for (const f of flows) assert.ok(!f.error, `flow "${f.id}": ${f.error}`);
+
+  // Measured at cb740b6: precision ~23%, recall ~16%, tp=7 of 44 curated hops,
+  // derived=30 request-leg hops. Floors are the measured value rounded down,
+  // for the same reason TaxVault's sit under its own: a tie-break change that
+  // moves one hop should not fail the suite.
+  assert.ok(aggregate.precision >= 0.20, `precision regressed: ${aggregate.precision}`);
+  assert.ok(aggregate.recall >= 0.15, `recall regressed: ${aggregate.recall}`);
+  assert.ok(aggregate.tp >= 6, `true positives regressed: ${aggregate.tp}`);
 });
 
 /**

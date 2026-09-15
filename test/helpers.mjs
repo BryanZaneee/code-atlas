@@ -65,6 +65,7 @@ const CORPUS = {
   terra: "../terra",
   sonder: "../sonder",
   llmbench: "../llmbench",
+  "fastapi-template": "../0_polish/full-stack-fastapi-template",
 };
 
 /**
@@ -132,4 +133,19 @@ export const TAXVAULT_COMMIT = "22595f3a";
 export async function scanTaxvault(repo, extra = {}) {
   const config = (await import("../examples/taxvault.config.mjs")).default;
   return scan({ repo, ref: TAXVAULT_COMMIT, config, fetch: false, warn: () => {}, ...extra });
+}
+
+/**
+ * The commit the second calibration corpus is pinned at.
+ *
+ * fastapi/full-stack-fastapi-template is an active repository, so calibrating
+ * against its moving HEAD would report a number that changes without anything
+ * in src/ changing. Pinned here for the same reason TAXVAULT_COMMIT is.
+ */
+export const FASTAPI_TEMPLATE_COMMIT = "cb740b6";
+
+/** full-stack-fastapi-template at the pinned commit, with its shipped config. */
+export async function scanFastapiTemplate(repo, extra = {}) {
+  const config = (await import("../examples/fastapi-template.config.mjs")).default;
+  return scan({ repo, ref: FASTAPI_TEMPLATE_COMMIT, config, fetch: false, warn: () => {}, ...extra });
 }
