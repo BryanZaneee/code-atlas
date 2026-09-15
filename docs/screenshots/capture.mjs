@@ -26,6 +26,23 @@
  * so waiting for an animation to finish is the one thing that does not work
  * here. The viewer already reads prefers-reduced-motion and draws its final
  * frame immediately when it is set.
+ *
+ * That covers the intro, the camera tween and the ambient packet field, but not
+ * a view that plays a flow. Its runners advance against the wall clock, so two
+ * runs caught the packet at two different points on its arc and rewrote
+ * request-view.webp every time. `freeze()` below pins that, and the screenshots
+ * ask Playwright to finish CSS transitions rather than shoot into one.
+ *
+ * Running this script twice in a row must leave `git status` clean. If it does
+ * not, something is still reading the clock at shot time and belongs in
+ * `freeze()`.
+ *
+ * One exception, and it is structural rather than a bug: the acquisition rung
+ * leads `atlas scan`'s report, so terminal-scan.webp contains the commit it was
+ * taken at. Committing the image moves HEAD past that commit, which means this
+ * one file is always one commit behind and is rewritten by the next run. Every
+ * other image is a function of the scanned tree alone, and the viewer never
+ * draws the commit at all.
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync, statSync, readdirSync, unlinkSync } from "node:fs";
@@ -136,9 +153,36 @@ async function main() {
     if (await go.isVisible().catch(() => false)) await go.click();
     await page.waitForTimeout(1200);
 
+    /**
+     * Pin the frame, so the same view shot twice is the same bytes twice.
+     *
+     * Pausing alone is not enough: a runner paused at an arbitrary t is still an
+     * arbitrary t. Resetting the yaw rebuilds the packets, which puts every
+     * runner back on its first step at t=0, and that is a frame the viewer
+     * reaches on its own rather than one this script arranges. The camera reset
+     * is the `r` key's, so a shot never inherits the framing of the one before
+     * it.
+     */
+    const freeze = () =>
+      page.evaluate(() => {
+        S.running = false;
+        S.stepBudget = 0;
+        resetOffsets();
+        rotateTo(YAW0);
+        fitView(true);
+        renderCaption();
+        syncControls();
+        draw();
+      });
+
     const shoot = async (name) => {
+      await freeze();
       const png = path.join(HERE, `${name}.png`);
-      await page.screenshot({ path: png });
+      // `animations: "disabled"` finishes any CSS transition at its end state
+      // instead of catching it mid-fade. Pausing flips the transport button,
+      // which fades over .12s, and shooting into that fade moved 222 pixels
+      // between runs.
+      await page.screenshot({ path: png, animations: "disabled" });
       return toWebp(png);
     };
 
@@ -167,7 +211,7 @@ async function main() {
       writeFileSync(pageFile, terminalPage(`atlas ${args.join(" ")}`, out));
       await page.goto(pathToFileURL(pageFile).href);
       const png = path.join(HERE, `terminal-${name}.png`);
-      await page.screenshot({ path: png, fullPage: true });
+      await page.screenshot({ path: png, fullPage: true, animations: "disabled" });
       toWebp(png);
     }
 
