@@ -160,6 +160,10 @@ async function main() {
     await page.waitForTimeout(600);
     await shoot("findings-view");
 
+    await page.evaluate(() => setView("tests"));
+    await page.waitForTimeout(600);
+    await shoot("tests-view");
+
     console.log("terminal:");
     for (const [name, args] of [["scan", ["scan", "--repo", "."]], ["findings", ["findings", "--repo", "."]]]) {
       const out = atlas(args);
@@ -170,6 +174,17 @@ async function main() {
       await page.screenshot({ path: png, fullPage: true });
       toWebp(png);
     }
+
+    const tests = execFileSync('npm', ['test'], {
+      cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+      env: { ...process.env, NO_COLOR: '1', COLUMNS: String(TERMINAL_COLUMNS) },
+    });
+    const testPage = path.join(tmp, 'tests.html');
+    writeFileSync(testPage, terminalPage('npm test (last 35 output lines)', tests.trimEnd().split('\n').slice(-35).join('\n')));
+    await page.goto(pathToFileURL(testPage).href);
+    const testPng = path.join(HERE, 'terminal-tests.png');
+    await page.screenshot({ path: testPng });
+    toWebp(testPng);
 
     await browser.close();
   } finally {
